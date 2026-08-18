@@ -4838,7 +4838,7 @@ function Presences({
             if (!parSemestre[key]) parSemestre[key] = [];
             parSemestre[key].push(c);
         });
-        const semestreKeys = Object.keys(parSemestre).sort((a, b) => a.localeCompare(b, "fr", {
+        const semestreKeys = Object.keys(parSemestre).sort((a, b) => b.localeCompare(a, "fr", {
             numeric: true,
             sensitivity: "base"
         }));
@@ -5161,7 +5161,10 @@ function Presences({
         const lignesPresences = presencesAffichees.map(p => ({
             ...p,
             _filiereCode: filiereCode(p.filiere, data.filieres) || p.filiere || ""
-        })).sort((a, b) => (a.semestre || "").localeCompare(b.semestre || "", "fr", {
+        })).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
             numeric: true,
             sensitivity: "base"
         }) || (b.date || "").localeCompare(a.date || ""));
@@ -5170,11 +5173,12 @@ function Presences({
         const derniereLigneFilierePresId = {};
         {
             let bande = 0,
-                semestrePrecedent = null;
+                clePrecedente = null;
             lignesPresences.forEach((e, idx) => {
-                if ((e.semestre || "") !== semestrePrecedent) {
+                const cle = `${e.anneeUniversitaire||""}__${e.semestre||""}`;
+                if (cle !== clePrecedente) {
                     bande = 1 - bande;
-                    semestrePrecedent = e.semestre || "";
+                    clePrecedente = cle;
                     premiereLigneFilierePresId[e.id] = true;
                     if (idx > 0) derniereLigneFilierePresId[lignesPresences[idx - 1].id] = true;
                 }
@@ -5331,7 +5335,13 @@ function Presences({
                 heuresTotal,
                 taux
             };
-        }).filter(l => l.taux >= 25).sort((a, b) => b.taux - a.taux || `${a.etudiant||""}`.localeCompare(`${b.etudiant||""}`, "fr", {
+        }).filter(l => l.taux >= 25).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }) || b.taux - a.taux || `${a.etudiant||""}`.localeCompare(`${b.etudiant||""}`, "fr", {
             sensitivity: "base"
         }));
         const cols25 = [{
@@ -16901,7 +16911,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.228.2";
+const APP_VERSION = "v3.228.3";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
