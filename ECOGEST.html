@@ -3296,7 +3296,7 @@ function Notes({
     const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : true) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
     const moduleChoisi = (data.cours || []).find(c => c.intitule === form.module);
     const semestreInfoForm = (data.semestresDates || []).find(s => s.semestre === form.semestre);
-    const etudiantsFiliere = form.filiere ? (data.etudiants || []).filter(e => e.filiere === form.filiere) : [];
+    const etudiantsFiliere = form.filiere && form.anneeUniversitaire ? (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, form.anneeUniversitaire) === form.filiere && (e.promotion === form.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === form.anneeUniversitaire))) : [];
     const imprimerRelevesGroupe = type => {
         if (!anneeReleveNotes) {
             toast("⚠️ Sélectionnez l'année universitaire avant d'imprimer un relevé");
@@ -4415,7 +4415,7 @@ function Presences({
     const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : !form.professeurCin || c.professeurCin === form.professeurCin) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
     const semestreInfoForm = (data.semestresDates || []).find(s => s.semestre === form.semestre);
     const filieresOptions = getFilieres(data);
-    const etudiantsFiliere = form.filiere ? data.etudiants.filter(e => e.filiere === form.filiere) : [];
+    const etudiantsFiliere = form.filiere && form.anneeUniversitaire ? data.etudiants.filter(e => filiereEtudiantPourAnnee(e, form.anneeUniversitaire) === form.filiere && (e.promotion === form.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === form.anneeUniversitaire))) : [];
     const sessionPrete = !!(form.filiere && form.module && form.date && form.seance && form.semestre && form.anneeUniversitaire);
     const presencesSession = sessionPrete ? (data.presences || []).filter(p => p.filiere === form.filiere && p.module === form.module && p.date === form.date && p.seance === form.seance && p.semestre === form.semestre) : [];
     const presencesSessionParEtudiant = {};
@@ -16900,7 +16900,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.227.4";
+const APP_VERSION = "v3.228.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
