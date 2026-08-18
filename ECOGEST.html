@@ -1884,6 +1884,13 @@ function Etudiants({
                     toast("⚠️ Échec de l'enregistrement dans SharePoint — la modification n'a PAS été sauvegardée. Vérifiez la console (F12) et réessayez.");
                     return;
                 }
+                if (spF.Filiere && editItem.filiere !== form.filiere) {
+                    const valeursEnregistrees = Object.values(result || {}).map(v => String(v ?? ""));
+                    if (!valeursEnregistrees.includes(spF.Filiere)) {
+                        console.error("⚠️ Le nouveau groupe n'apparaît pas dans la réponse SharePoint après enregistrement — vérification à refaire.", "\nGroupe envoyé:", spF.Filiere, "\nRéponse SharePoint (bruite):", result);
+                        toast(`⚠️ L'étudiant a été enregistré, mais le nouveau groupe "${spF.Filiere}" ne semble pas confirmé par SharePoint — vérifiez cet étudiant dans quelques minutes (rechargez la page) avant d'imprimer une fiche le concernant.`);
+                    }
+                }
                 if (visiteurSync && user?.token && visiteurSync._spId) {
                     saveToSP("ECOGEST_Visiteurs", {
                         Nom: visiteurSync.nom || "",
@@ -10716,8 +10723,11 @@ function Configuration({
 
 function filiereEtudiantPourAnnee(etudiant, annee) {
     if (!annee || !etudiant) return etudiant?.filiere || "";
+    const parcours = etudiant.parcours || [];
+    const derniere = parcours[parcours.length - 1];
+    if (derniere?.nouvelleAnneeUniversitaire === annee && derniere?.nouvelleFiliere) return derniere.nouvelleFiliere;
     if (etudiant.promotion === annee) return etudiant.filiere;
-    const entree = (etudiant.parcours || []).find(p => p.anneeUniversitaire === annee);
+    const entree = parcours.find(p => p.anneeUniversitaire === annee);
     return entree ? entree.filiere : etudiant.filiere;
 }
 const getFilieres = data => {
@@ -16890,7 +16900,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.227.2";
+const APP_VERSION = "v3.227.3";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
