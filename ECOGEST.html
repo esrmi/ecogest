@@ -17218,7 +17218,7 @@ const NAV_BY_ROLE = {
 };
 const NAV_SECTIONS = {
     administratif: ["visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes"],
-    pedagogie: ["presences", "notes", "professeurs", "emploi"]
+    pedagogie: ["presences", "notes", "professeurs", "emploi", "cours"]
 };
 const NAV_ITEMS = {
     dashboard: {
@@ -17282,7 +17282,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.232.0";
+const APP_VERSION = "v3.233.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -19643,7 +19643,7 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
                 background: `${HATCH}, linear-gradient(155deg, #06222c 0%, #0d4a52 52%, #147a80 100%)`
             }
         };
-        const sectionOf = key => NAV_SECTIONS.administratif.includes(key) ? "administratif" : NAV_SECTIONS.pedagogie.includes(key) ? "pedagogie" : ["parametrage", "config", "cours", "filieres"].includes(key) ? "parametrage" : null;
+        const sectionOf = key => NAV_SECTIONS.administratif.includes(key) ? "administratif" : NAV_SECTIONS.pedagogie.includes(key) ? "pedagogie" : ["parametrage", "config", "filieres"].includes(key) ? "parametrage" : null;
         const renderBtn = (key, onDark, accent) => {
             const item = NAV_ITEMS[key];
             const LABELS_ETUDIANT = {
