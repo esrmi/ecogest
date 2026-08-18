@@ -5227,6 +5227,10 @@ function Presences({
             key: "semestre",
             label: "Semestre"
         }, {
+            key: "anneeUniversitaire",
+            label: "Année universitaire",
+            render: v => v || "\u2014"
+        }, {
             key: "module",
             label: "Module"
         }, {
@@ -5297,7 +5301,7 @@ function Presences({
         presencesBase25.forEach(p => {
             const cleEt = p.etudiantId || p.numInscription;
             if (!cleEt || !p.module) return;
-            const cle = `${cleEt}__${p.module}`;
+            const cle = `${cleEt}__${p.module}__${p.anneeUniversitaire||""}`;
             if (!parCle25[cle]) parCle25[cle] = {
                 etudiantId: p.etudiantId,
                 numInscription: p.numInscription,
@@ -5305,6 +5309,7 @@ function Presences({
                 filiere: p.filiere,
                 semestre: p.semestre,
                 module: p.module,
+                anneeUniversitaire: p.anneeUniversitaire || "",
                 heuresManquees: 0
             };
             parCle25[cle].heuresManquees += dureeSeanceHeures(p.seance || p.heure);
@@ -5336,6 +5341,10 @@ function Presences({
         }, {
             key: "semestre",
             label: "Semestre"
+        }, {
+            key: "anneeUniversitaire",
+            label: "Année universitaire",
+            render: v => v || "\u2014"
         }, {
             key: "module",
             label: "Module"
@@ -16881,7 +16890,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.226.0";
+const APP_VERSION = "v3.227.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
