@@ -4924,21 +4924,19 @@ function Presences({
             }, a.taux.toFixed(2), "%"))))));
         })));
     })(), role === "etudiant" && (() => {
-        const mesModules = (data.cours || []).filter(c => !monEtudiant || (c.filieresListe || [c.filiere]).includes(monEtudiant.filiere));
-        const parSemestre = {};
-        mesModules.forEach(c => {
-            const key = c.semestre || "Sans semestre";
-            if (!parSemestre[key]) parSemestre[key] = [];
-            parSemestre[key].push(c);
-        });
-        const semestreKeys = Object.keys(parSemestre).sort((a, b) => b.localeCompare(a, "fr", {
-            numeric: true,
-            sensitivity: "base"
-        }));
-        if (semestreKeys.length === 0) return null;
+        const filiereAnneeSelectionnee = filtreAnneeListe ? filiereEtudiantPourAnnee(monEtudiant, filtreAnneeListe) : monEtudiant?.filiere;
+        const mesModules = (data.cours || []).filter(c => !monEtudiant || (c.filieresListe || [c.filiere]).includes(filiereAnneeSelectionnee));
+        if (mesModules.length === 0) return null;
         const cols = [{
             key: "intitule",
             label: "Module"
+        }, {
+            key: "semestre",
+            label: "Semestre"
+        }, {
+            key: "_anneeUniversitaire",
+            label: "Année universitaire",
+            render: () => filtreAnneeListe || "\u2014"
         }, {
             key: "professeur",
             label: "Professeur",
@@ -5042,40 +5040,30 @@ function Presences({
                 }, taux.toFixed(2), "%")));
             }
         }];
-        return semestreKeys.map(sk => React.createElement("div", {
-            key: sk,
+        const lignesModules = [...mesModules].sort((a, b) => (b.semestre || "").localeCompare(a.semestre || "", "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }));
+        return React.createElement("div", {
             style: {
                 marginBottom: 14
             }
-        }, React.createElement("div", {
+        }, React.createElement("h4", {
             style: {
-                fontSize: 14.5,
-                fontWeight: 800,
-                color: "#ffffff",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: 8,
-                padding: "3px 8px",
-                borderRadius: 6,
-                display: "inline-block",
-                background: `linear-gradient(135deg, ${C.orange} 0%, #f0964f 100%)`,
-                boxShadow: "0 3px 8px rgba(229,107,45,0.35)"
+                margin: "0 0 12px",
+                color: C.navy,
+                fontSize: 14.5
             }
-        }, sk, " ", React.createElement("span", {
-            style: {
-                opacity: 0.85,
-                fontWeight: 700
-            }
-        }, "(", parSemestre[sk].length, ")")), React.createElement(Card, {
+        }, "\uD83D\uDCDA Synth\xE8se par module"), React.createElement(Card, {
             style: {
                 overflow: "hidden"
             }
         }, React.createElement(DataTable, {
             cols: cols,
-            rows: parSemestre[sk],
+            rows: lignesModules,
             emptyMsg: "Aucun module trouv\xE9",
             compact: true
-        }))));
+        })));
     })(), (!canEdit || presencesSection === "saisie") && (() => {
         const filieresOptionsListe = getFilieres(data);
         const semestresOptionsListe = [...new Set((data.presences || []).map(p => p.semestre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
@@ -17004,7 +16992,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.229.1";
+const APP_VERSION = "v3.230.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
