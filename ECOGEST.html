@@ -4350,6 +4350,7 @@ function Presences({
     const [filtreGroupe25, setFiltreGroupe25] = useState("");
     const [filtreSemestre25, setFiltreSemestre25] = useState("");
     const [ficheAnnee, setFicheAnnee] = useState("");
+    const [presencesSection, setPresencesSection] = useState("saisie");
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesPresences = role === "etudiant" ? (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId) : role === "professeur" ? (data.presences || []).filter(p => p.enseignantCin === monProfesseur?.cin) : data.presences || [];
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId);
@@ -4611,6 +4612,98 @@ function Presences({
             onClick: openAdd
         }, "+ Enregistrer des absences") : null
     }), canEdit && React.createElement(Card, {
+        style: {
+            padding: 10,
+            marginBottom: 20
+        }
+    }, React.createElement("div", {
+        style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 2
+        }
+    }, [{
+        key: "fiche",
+        icon: "🖨️",
+        label: "Fiche de présence hebdomadaire",
+        sub: "à imprimer et remplir manuellement"
+    }, {
+        key: "saisie",
+        icon: "📝",
+        label: "Saisie des absences",
+        sub: "enregistrement et tableau d'affichage"
+    }, {
+        key: "seuil25",
+        icon: "🚨",
+        label: "Étudiants ayant atteint 25% d'absence",
+        sub: "par module"
+    }].map((item, idx, arr) => {
+        const actif = presencesSection === item.key;
+        return React.createElement("div", {
+            key: item.key,
+            style: {
+                display: "flex",
+                alignItems: "stretch"
+            }
+        }, React.createElement("div", {
+            style: {
+                width: 26,
+                position: "relative",
+                flexShrink: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                position: "absolute",
+                left: 12,
+                top: 0,
+                bottom: idx === arr.length - 1 ? "50%" : 0,
+                width: 2,
+                background: C.border
+            }
+        }), React.createElement("div", {
+            style: {
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                width: 12,
+                height: 2,
+                background: C.border
+            }
+        })), React.createElement("button", {
+            onClick: () => setPresencesSection(item.key),
+            style: {
+                flex: 1,
+                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "11px 16px",
+                margin: "3px 0",
+                border: "none",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                background: actif ? `linear-gradient(135deg, ${C.navy} 0%, #1f3a68 100%)` : C.navyLight,
+                color: actif ? "white" : C.navy,
+                boxShadow: actif ? "0 4px 14px rgba(15,35,75,0.28)" : "none",
+                transition: "all .15s"
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 19
+            }
+        }, item.icon), React.createElement("span", null, React.createElement("div", {
+            style: {
+                fontWeight: 700,
+                fontSize: 13.5
+            }
+        }, item.label), React.createElement("div", {
+            style: {
+                fontSize: 11,
+                opacity: actif ? 0.85 : 0.6
+            }
+        }, item.sub))));
+    }))), canEdit && presencesSection === "fiche" && React.createElement(Card, {
         style: {
             padding: 16,
             marginBottom: 16
@@ -4983,7 +5076,7 @@ function Presences({
             emptyMsg: "Aucun module trouv\xE9",
             compact: true
         }))));
-    })(), (() => {
+    })(), (!canEdit || presencesSection === "saisie") && (() => {
         const filieresOptionsListe = getFilieres(data);
         const semestresOptionsListe = [...new Set((data.presences || []).map(p => p.semestre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
             numeric: true,
@@ -5147,7 +5240,7 @@ function Presences({
                 fontFamily: "inherit"
             }
         })));
-    })(), (() => {
+    })(), (!canEdit || presencesSection === "saisie") && (() => {
         const presencesAffichees = mesPresencesFiltrees;
         const handleDeletePresence = p => {
             if (!window.confirm(`Supprimer l'absence de "${p.etudiant}" ?`)) return;
@@ -5302,7 +5395,7 @@ function Presences({
                 borderBottom: derniereLigneFilierePresId[row.id] ? `2.5px solid ${C.navy}` : `1px solid ${C.border}`
             })
         }));
-    })(), canEdit && (() => {
+    })(), canEdit && presencesSection === "seuil25" && (() => {
         const filieresOptions25 = getFilieres(data);
         const semestresOptions25 = [...new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
             numeric: true,
@@ -16911,7 +17004,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.228.3";
+const APP_VERSION = "v3.229.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
