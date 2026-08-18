@@ -15976,7 +15976,7 @@ function Paiements({
             toast(`✅ Compte de paiement de ${p.nomEtudiant} restauré`);
         });
     };
-    const [anneeDashboard, setAnneeDashboard] = useState("");
+    const [anneeDashboard, setAnneeDashboard] = useState("2026-2027");
     const totalEncaisseJour = eps.reduce((s, e) => s + e.versements.filter(v => v.date === today() && v.anneeUniversitaire === anneeDashboard).reduce((a, v) => a + v.montant, 0), 0);
     const totalEncaisseMois = eps.reduce((s, e) => s + e.versements.filter(v => v.date?.startsWith(today().slice(0, 7)) && v.anneeUniversitaire === anneeDashboard).reduce((a, v) => a + v.montant, 0), 0);
     const totalRestant = eps.reduce((s, e) => s + (e.totalAPayer - e.totalPaye), 0);
@@ -17004,7 +17004,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.229.0";
+const APP_VERSION = "v3.229.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
