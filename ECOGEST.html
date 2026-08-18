@@ -16890,7 +16890,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.227.1";
+const APP_VERSION = "v3.227.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -18252,6 +18252,7 @@ async function loadAllFromSP(token) {
                 if (!Array.isArray(arr) || arr.length === 0) return true;
                 const derniere = arr[arr.length - 1];
                 if (derniere?.nouvelleAnneeUniversitaire && derniere.nouvelleAnneeUniversitaire !== e.Promotion) return true;
+                if (derniere?.nouvelleFiliere && derniere.nouvelleFiliere !== e.Filiere) return true;
             } catch {
                 return true;
             }
@@ -18264,7 +18265,7 @@ async function loadAllFromSP(token) {
     } {
         const chaker = etudiantsFinal.find(e => (e.Title || "").toUpperCase().includes("CHAKER"));
         if (chaker) {
-            console.log("🐞 Diagnostic final CHAKER (juste après la boucle de nouvelles tentatives) —", "\nPromotion (brut):", JSON.stringify(chaker.Promotion), "\nAnneeValidee (brut):", JSON.stringify(chaker.AnneeValidee), "\nParcoursJSON (brut, longueur):", (chaker.ParcoursJSON || "").length, "caractères", "\nParcoursJSON (brut, contenu complet):", chaker.ParcoursJSON);
+            console.log("🐞 Diagnostic final CHAKER (juste après la boucle de nouvelles tentatives) —", "\nPromotion (brut):", JSON.stringify(chaker.Promotion), "\nFiliere (brut):", JSON.stringify(chaker.Filiere), "\nAnneeValidee (brut):", JSON.stringify(chaker.AnneeValidee), "\nParcoursJSON (brut, longueur):", (chaker.ParcoursJSON || "").length, "caractères", "\nParcoursJSON (brut, contenu complet):", chaker.ParcoursJSON);
         } else {
             console.log("🐞 Diagnostic final CHAKER — introuvable dans etudiantsFinal !");
         }
