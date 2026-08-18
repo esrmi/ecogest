@@ -4454,7 +4454,7 @@ function Presences({
             return;
         }
         const filiereObj = (data.filieres || []).find(f => f.intitule === ficheFiliere);
-        const etudiantsGroupe = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, ficheAnnee) === ficheFiliere && e.statut !== "Inactif");
+        const etudiantsGroupe = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, ficheAnnee) === ficheFiliere && e.statut !== "Inactif" && (e.promotion === ficheAnnee || (e.parcours || []).some(p => p.anneeUniversitaire === ficheAnnee)));
         genererFichePresenceHebdo(filiereObj, etudiantsGroupe, lundiDeLaSemaine(ficheSemaine), JOURS_SEMAINE, ficheAnnee);
     };
     const openAdd = () => {
@@ -16900,7 +16900,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.227.3";
+const APP_VERSION = "v3.227.4";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
