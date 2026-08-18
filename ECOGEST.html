@@ -4343,7 +4343,7 @@ function Presences({
     const [filtreModuleListe, setFiltreModuleListe] = useState("");
     const [filtreProfesseurListe, setFiltreProfesseurListe] = useState("");
     const [filtreStatutListe, setFiltreStatutListe] = useState("");
-    const [filtreAnneeListe, setFiltreAnneeListe] = useState("");
+    const [filtreAnneeListe, setFiltreAnneeListe] = useState("2026-2027");
     const [filtreDateDebut, setFiltreDateDebut] = useState("");
     const [filtreDateFin, setFiltreDateFin] = useState("");
     const [filtreAnnee25, setFiltreAnnee25] = useState("");
@@ -5095,8 +5095,13 @@ function Presences({
         // réel de l'étudiant pour cette année précise (et non son groupe
         // actuel), pour que la liste des modules affichés corresponde
         // vraiment à l'année consultée.
-        const filiereAnneeSelectionnee = filtreAnneeListe ? filiereEtudiantPourAnnee(monEtudiant, filtreAnneeListe) : monEtudiant?.filiere;
-        const mesModules = (data.cours || []).filter(c => !monEtudiant || (c.filieresListe || [c.filiere]).includes(filiereAnneeSelectionnee)).filter(c => !filtreSemestreListe || c.semestre === filtreSemestreListe);
+        const filiereAnneeSelectionnee = filtreAnneeListe ? filiereEtudiantPourAnnee(monEtudiant, filtreAnneeListe) : monEtudiant?.filiere; // Éligibilité : l'étudiant n'a de données réelles pour une année
+        // que si c'est sa promotion actuelle, ou une année archivée dans
+        // son parcours — sinon on n'affiche aucun module plutôt que de se
+        // rabattre par erreur sur son groupe actuel pour une année qui ne
+        // le concerne pas (ex: année future jamais atteinte).
+        const eligiblePourAnnee = !filtreAnneeListe || !monEtudiant || monEtudiant.promotion === filtreAnneeListe || (monEtudiant.parcours || []).some(p => p.anneeUniversitaire === filtreAnneeListe);
+        const mesModules = !eligiblePourAnnee ? [] : (data.cours || []).filter(c => !monEtudiant || (c.filieresListe || [c.filiere]).includes(filiereAnneeSelectionnee)).filter(c => !filtreSemestreListe || c.semestre === filtreSemestreListe);
         const semestresOptionsSynthese = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
             numeric: true,
             sensitivity: "base"
@@ -17206,13 +17211,13 @@ function Paiements({
     }));
 }
 const NAV_BY_ROLE = {
-    directrice: ["dashboard", "filieres", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes", "presences", "notes", "cours", "emploi", "professeurs"],
+    directrice: ["dashboard", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes", "presences", "notes", "cours", "emploi", "professeurs"],
     administrateur: ["dashboard", "filieres", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes", "presences", "notes", "cours", "emploi", "professeurs", "parametrage", "config"],
     professeur: ["presences", "notes", "pointage"],
     etudiant: ["calendrier", "paiements", "demandes", "notes", "presences", "emploi"]
 };
 const NAV_SECTIONS = {
-    administratif: ["filieres", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes"],
+    administratif: ["visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes"],
     pedagogie: ["presences", "notes", "professeurs", "emploi"]
 };
 const NAV_ITEMS = {
@@ -17277,7 +17282,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.231.0";
+const APP_VERSION = "v3.232.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -19638,7 +19643,7 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
                 background: `${HATCH}, linear-gradient(155deg, #06222c 0%, #0d4a52 52%, #147a80 100%)`
             }
         };
-        const sectionOf = key => NAV_SECTIONS.administratif.includes(key) ? "administratif" : NAV_SECTIONS.pedagogie.includes(key) ? "pedagogie" : ["parametrage", "config", "cours"].includes(key) ? "parametrage" : null;
+        const sectionOf = key => NAV_SECTIONS.administratif.includes(key) ? "administratif" : NAV_SECTIONS.pedagogie.includes(key) ? "pedagogie" : ["parametrage", "config", "cours", "filieres"].includes(key) ? "parametrage" : null;
         const renderBtn = (key, onDark, accent) => {
             const item = NAV_ITEMS[key];
             const LABELS_ETUDIANT = {
