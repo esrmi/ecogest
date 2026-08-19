@@ -15166,18 +15166,21 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         d.setDate(d.getDate() + n);
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     };
-    const finSemaineStr = ajouterJours(lundiStr, (JOURS_SEMAINE_FR || JOURS_SEMAINE).length - 1);
+    const finSemaineStr = ajouterJours(lundiStr, (JOURS_SEMAINE_FR || JOURS_SEMAINE).length - 1); // Bandeau d'accent aux couleurs de l'établissement, en haut de chaque
+    // page (cohérent avec le bandeau déjà présent en bas des pages de
+    // continuation).
+    doc.rect(0, H - 1.4 * MM, W, 1.4 * MM, NAVY_RGB);
     const logoW = 16 * MM,
         logoH = 13.5 * MM;
-    const headerBottomY = H - 24 * MM;
+    const headerBottomY = H - 25 * MM;
     doc.image(base64ToBytes(LOGO_ESR_B64), marge, headerBottomY, logoW, logoH);
     doc.textCentered(W / 2, headerBottomY + logoH / 2 - 2 * MM, "Fiche de Présence Hebdomadaire", {
         size: 18,
         bold: true,
         color: [0, 0, 0]
     });
-    doc.line(marge, headerBottomY - 4 * MM, W - marge, headerBottomY - 4 * MM, 1.2, [0, 0, 0]);
-    let y = H - 36 * MM;
+    doc.line(marge, headerBottomY - 4 * MM, W - marge, headerBottomY - 4 * MM, 1.2, NAVY_RGB);
+    let y = H - 37 * MM;
     doc.text(marge, y, `Groupe : ${filiereObj?.intitule||"—"}${filiereObj?.code?" ("+filiereObj.code+")":""}`, {
         size: 11,
         bold: true,
@@ -15188,7 +15191,18 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         bold: true,
         color: NAVY_RGB
     });
-    y -= 10 * MM;
+    y -= 5.5 * MM;
+    doc.text(marge, y, `Effectif : ${(etudiantsListe||[]).length} étudiant(s)`, {
+        size: 9,
+        color: [0.4, 0.4, 0.42]
+    });
+    if (anneeUniversitaire) {
+        doc.textRight(W - marge, y, `Année universitaire : ${anneeUniversitaire}`, {
+            size: 9,
+            color: [0.4, 0.4, 0.42]
+        });
+    }
+    y -= 6.5 * MM;
     const slots = getSeancesGroupe({
         filieres: [filiereObj].filter(Boolean)
     }, filiereObj?.intitule);
@@ -15215,7 +15229,7 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
             angle: 90
         });
     };
-    const GRIS_ENTETE = [0.4, 0.4, 0.42];
+    const GRIS_ENTETE = NAVY_RGB;
     const drawTableHeader = () => {
         doc.rect(tableX, y - headerH, tableW, headerH, GRIS_ENTETE);
         doc.textCentered(tableX + colNum / 2, y - headerH / 2 - 2, "N°", {
@@ -15231,6 +15245,8 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         let cx = tableX + colNum + colNom;
         jours.forEach((jour, ji) => {
             const dateJour = ajouterJours(lundiStr, ji);
+            const estWeekend = jour === "Samedi" || jour === "Dimanche";
+            if (estWeekend) doc.rect(cx, y - headerH, largeurJour, headerH, [0.24, 0.28, 0.42]);
             doc.textCentered(cx + largeurJour / 2, y - hauteurJourLabel / 2 - 2, `${jour} ${formatDateFR(dateJour)}`, {
                 size: 7.5,
                 bold: true,
@@ -15264,8 +15280,12 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         doc.line(tableX + colNum, hautPage, tableX + colNum, y, 0.6, [0, 0, 0]);
         doc.line(tableX + colNum + colNom, hautPage, tableX + colNum + colNom, y, 0.9, [0, 0, 0]);
         const basBandeJours = hautPage - hauteurJourLabel;
-        let cx = tableX + colNum + colNom;
-        for (let ji = 0; ji < 5; ji++) {
+        let cx = tableX + colNum + colNom; // Corrige un bug d'origine : la boucle était figée à 5 jours, ce qui
+        // laissait les colonnes du week-end (désormais possibles grâce au
+        // réglage "Jours de cours autorisés" par groupe) sans séparateurs
+        // internes entre leurs créneaux — on trace maintenant systématiquement
+        // le nombre réel de jours affichés.
+        for (let ji = 0; ji < jours.length; ji++) {
             for (let si = 0; si < nbSlots; si++) {
                 cx += largeurSlot;
                 const estFrontiereJour = si === nbSlots - 1;
@@ -15285,10 +15305,11 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         y -= 7 * MM;
     }
     liste.forEach((et, i) => {
-        if (y < 25 * MM) {
+        if (y < 45 * MM) {
             dessinerGrille(tableTopY);
             doc.newPage();
-            doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
+            doc.rect(0, H - 1.4 * MM, W, 1.4 * MM, NAVY_RGB);
+            doc.rect(0, 0, W, 1.2 * MM, ORANGE_RGB);
             y = H - 20 * MM;
             tableTopY = y;
             drawTableHeader();
@@ -15304,8 +15325,37 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         y -= rowH;
         rowBottoms.push(y);
     });
-    dessinerGrille(tableTopY);
-    doc.textCentered(W / 2, 7 * MM, `ESRMI — École Supérieure de Rabat en Management et Ingénierie — À remplir manuellement (P = Présent, A = Absent)${anneeUniversitaire?" — Année universitaire : "+anneeUniversitaire:""}`, {
+    dessinerGrille(tableTopY); // Légende + zone de signature, à la place de l'ancienne mention en petits
+    // caractères seule — utilise l'espace resté vide en bas de page et
+    // facilite le remplissage/la validation manuelle de la fiche.
+    const zoneY = Math.max(18 * MM, y - 22 * MM);
+    doc.line(tableX, zoneY + 12 * MM, tableX + tableW, zoneY + 12 * MM, 0.5, [0.85, 0.85, 0.85]);
+    const legendeItems = [
+        ["P", "Présent", [0.06, 0.55, 0.35]],
+        ["A", "Absent", [0.82, 0.2, 0.18]],
+        ["J", "Justifié", NAVY_RGB]
+    ];
+    let lx = tableX;
+    legendeItems.forEach(([code, label, coul]) => {
+        doc.rect(lx, zoneY + 2 * MM, 4.5 * MM, 4.5 * MM, coul);
+        doc.textCentered(lx + 2.25 * MM, zoneY + 3.55 * MM, code, {
+            size: 7,
+            bold: true,
+            color: [1, 1, 1]
+        });
+        doc.text(lx + 6.5 * MM, zoneY + 3.55 * MM, label, {
+            size: 8.5,
+            color: [0.25, 0.25, 0.28]
+        });
+        lx += 6.5 * MM + measureTextWidth(label, 8.5) + 10 * MM;
+    });
+    doc.text(W - marge - 70 * MM, zoneY + 8 * MM, "Signature du professeur :", {
+        size: 8.5,
+        bold: true,
+        color: NAVY_RGB
+    });
+    doc.line(W - marge - 70 * MM, zoneY + 1 * MM, W - marge, zoneY + 1 * MM, 0.6, [0.55, 0.55, 0.58]);
+    doc.textCentered(W / 2, 7 * MM, `ESRMI — École Supérieure de Rabat en Management et Ingénierie${anneeUniversitaire?" — Année universitaire : "+anneeUniversitaire:""}`, {
         size: 7.5,
         color: [0.5, 0.5, 0.5]
     });
@@ -17602,7 +17652,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.238.1";
+const APP_VERSION = "v3.238.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
