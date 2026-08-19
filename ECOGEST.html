@@ -15325,15 +15325,13 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         y -= rowH;
         rowBottoms.push(y);
     });
-    dessinerGrille(tableTopY); // Légende + zone de signature, à la place de l'ancienne mention en petits
-    // caractères seule — utilise l'espace resté vide en bas de page et
-    // facilite le remplissage/la validation manuelle de la fiche.
+    dessinerGrille(tableTopY); // Légende, à la place de l'ancienne mention en petits caractères seule —
+    // utilise l'espace resté vide en bas de page.
     const zoneY = Math.max(18 * MM, y - 22 * MM);
     doc.line(tableX, zoneY + 12 * MM, tableX + tableW, zoneY + 12 * MM, 0.5, [0.85, 0.85, 0.85]);
     const legendeItems = [
         ["P", "Présent", [0.06, 0.55, 0.35]],
-        ["A", "Absent", [0.82, 0.2, 0.18]],
-        ["J", "Justifié", NAVY_RGB]
+        ["A", "Absent", [0.82, 0.2, 0.18]]
     ];
     let lx = tableX;
     legendeItems.forEach(([code, label, coul]) => {
@@ -15349,12 +15347,6 @@ function genererFichePresenceHebdo(filiereObj, etudiantsListe, lundiStr, JOURS_S
         });
         lx += 6.5 * MM + measureTextWidth(label, 8.5) + 10 * MM;
     });
-    doc.text(W - marge - 70 * MM, zoneY + 8 * MM, "Signature du professeur :", {
-        size: 8.5,
-        bold: true,
-        color: NAVY_RGB
-    });
-    doc.line(W - marge - 70 * MM, zoneY + 1 * MM, W - marge, zoneY + 1 * MM, 0.6, [0.55, 0.55, 0.58]);
     doc.textCentered(W / 2, 7 * MM, `ESRMI — École Supérieure de Rabat en Management et Ingénierie${anneeUniversitaire?" — Année universitaire : "+anneeUniversitaire:""}`, {
         size: 7.5,
         color: [0.5, 0.5, 0.5]
@@ -17652,7 +17644,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.238.2";
+const APP_VERSION = "v3.238.3";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
