@@ -3289,7 +3289,7 @@ function Notes({
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesNotes = role === "etudiant" ? (data.notes || []).filter(n => user?.numInscription && n.numInscription === user.numInscription || user?.etudiantId && n.etudiantId === user.etudiantId) : role === "professeur" ? (data.notes || []).filter(n => n.enseignantCin === monProfesseur?.cin) : data.notes || [];
     const filieresOptions = getFilieres(data);
-    const semestresOptions = [...new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
+    const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
         numeric: true,
         sensitivity: "base"
     }));
@@ -3433,7 +3433,8 @@ function Notes({
                         note: parseFloat(valeur),
                         date: form.date,
                         enseignant: moduleChoisi?.professeur || "",
-                        enseignantCin: moduleChoisi?.professeurCin || ""
+                        enseignantCin: moduleChoisi?.professeurCin || "",
+                        anneeUniversitaire: form.anneeUniversitaire || ""
                     });
                     detailNotesPourEmail.push({
                         gauche: `${et.prenom} ${et.nom}`,
@@ -3490,7 +3491,7 @@ function Notes({
     const modulesOptionsListe = [...new Set((data.notes || []).map(n => n.module).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
         sensitivity: "base"
     }));
-    const notesAffichees = role === "etudiant" ? mesNotes : mesNotes.filter(n => (!filtreFiliereListe || n.filiere === filtreFiliereListe) && (!filtreSemestreListe || n.semestre === filtreSemestreListe) && (!filtreModuleListe || n.module === filtreModuleListe) && (!filtreTypeListe || n.typeEvaluation === filtreTypeListe) && (!searchListe || `${n.etudiant||""} ${n.numInscription||""}`.toLowerCase().includes(searchListe.toLowerCase())));
+    const notesAffichees = role === "etudiant" ? mesNotes : mesNotes.filter(n => (!filtreFiliereListe || n.filiere === filtreFiliereListe) && (!filtreSemestreListe || n.semestre === filtreSemestreListe) && (!filtreModuleListe || n.module === filtreModuleListe) && (!filtreTypeListe || n.typeEvaluation === filtreTypeListe) && (!anneeReleveNotes || n.anneeUniversitaire === anneeReleveNotes) && (!searchListe || `${n.etudiant||""} ${n.numInscription||""}`.toLowerCase().includes(searchListe.toLowerCase())));
     const codeFiliere = intitule => (data.filieres || []).find(x => x.intitule === intitule)?.code || intitule || "—";
     const sessionsMap = {};
     const lignesEvaluations = notesAffichees.map(n => {
@@ -3539,13 +3540,13 @@ function Notes({
         });
         if (lignesEvaluations.length > 0) derniereLigneFiliereEvalId[lignesEvaluations[lignesEvaluations.length - 1].id] = true;
     }
-    return React.createElement("div", null, React.createElement(PageHeader, {
+    return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
         title: role === "etudiant" ? "Mes notes" : "Évaluations",
         sub: role === "etudiant" ? `${mesNotes.length} note(s) enregistrée(s)` : `Liste SharePoint "${SP.lists.notes}" — ${data.notes.length} enregistrements`,
-        action: canEdit && React.createElement(Btn, {
+        action: canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: openAdd
-        }, "+ Ajouter une \xE9valuation")
-    }), role === "etudiant" && monEtudiant && React.createElement("div", {
+        }, "+ Ajouter une évaluation")
+    }), role === "etudiant" && monEtudiant && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             marginBottom: 20
         }
@@ -3560,12 +3561,12 @@ function Notes({
             ...v,
             [sem]: v[sem] === cible ? null : cible
         }));
-        return React.createElement("div", {
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
             key: sem,
             style: {
                 marginBottom: 16
             }
-        }, React.createElement("div", {
+        }, /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "flex",
                 gap: 10,
@@ -3573,19 +3574,19 @@ function Notes({
                 alignItems: "center",
                 marginBottom: vue ? 12 : 0
             }
-        }, React.createElement("span", {
+        }, /*#__PURE__*/ React.createElement("span", {
             style: {
                 fontSize: 12.5,
                 fontWeight: 700,
                 color: C.navy,
                 minWidth: 90
             }
-        }, sem, " :"), React.createElement(Btn, {
+        }, sem, " :"), /*#__PURE__*/ React.createElement(Btn, {
             onClick: () => basculer("synthetique")
-        }, "\uD83D\uDCCB ", vue === "synthetique" ? "Masquer" : "Voir", " le relev\xE9 synth\xE9tique"), React.createElement(Btn, {
+        }, "📋 ", vue === "synthetique" ? "Masquer" : "Voir", " le relevé synthétique"), /*#__PURE__*/ React.createElement(Btn, {
             variant: "light",
             onClick: () => basculer("detaille")
-        }, "\uD83D\uDCCB ", vue === "detaille" ? "Masquer" : "Voir", " le relev\xE9 d\xE9taill\xE9")), vue === "synthetique" && (() => {
+        }, "📋 ", vue === "detaille" ? "Masquer" : "Voir", " le relevé détaillé")), vue === "synthetique" && (() => {
             const {
                 lignes,
                 moyenneSemestre,
@@ -3593,37 +3594,37 @@ function Notes({
             } = calculerLignesBulletin(monEtudiant, notesSem, sem, data.cours, mesPresencesEtudiant, data.configuration?.filieresAvecTauxAbsence);
             const fmt = v => v === null || v === void 0 || isNaN(v) ? "—" : v.toFixed(2).replace(".", ",");
             const entetes = tauxAbsencePriseEnCompte ? ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Taux d'absence atteint", "Note rattrapage", "Décision"] : ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Note rattrapage", "Décision"];
-            return React.createElement(Card, {
+            return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
                 style: {
                     padding: 20
                 }
-            }, React.createElement("h4", {
+            }, /*#__PURE__*/ React.createElement("h4", {
                 style: {
                     margin: "0 0 4px",
                     color: C.navy,
                     fontSize: 15
                 }
-            }, "Relev\xE9 synth\xE9tique \u2014 ", sem), React.createElement("div", {
+            }, "Relevé synthétique — ", sem), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     fontSize: 11.5,
                     color: C.muted,
                     marginBottom: 14
                 }
-            }, monEtudiant.filiere, " \xB7 ", monEtudiant.niveau), React.createElement("div", {
+            }, monEtudiant.filiere, " · ", monEtudiant.niveau), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     overflowX: "auto"
                 }
-            }, React.createElement("table", {
+            }, /*#__PURE__*/ React.createElement("table", {
                 style: {
                     width: "100%",
                     borderCollapse: "collapse",
                     minWidth: 640
                 }
-            }, React.createElement("thead", null, React.createElement("tr", {
+            }, /*#__PURE__*/ React.createElement("thead", null, /*#__PURE__*/ React.createElement("tr", {
                 style: {
                     background: "#000"
                 }
-            }, entetes.map(h => React.createElement("th", {
+            }, entetes.map(h => /*#__PURE__*/ /* @__PURE__ */ React.createElement("th", {
                 key: h,
                 style: {
                     padding: "9px 10px",
@@ -3633,60 +3634,60 @@ function Notes({
                     textAlign: "left",
                     whiteSpace: "nowrap"
                 }
-            }, h)))), React.createElement("tbody", null, lignes.map((l, i) => React.createElement("tr", {
+            }, h)))), /*#__PURE__*/ React.createElement("tbody", null, lignes.map((l, i) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("tr", {
                 key: l.module,
                 style: {
                     background: i % 2 === 1 ? "#f5f5f5" : "#fff",
                     borderBottom: `1px solid ${C.border}`
                 }
-            }, React.createElement("td", {
+            }, /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12,
                     color: "#8b4513",
                     fontWeight: 600
                 }
-            }, l.module), React.createElement("td", {
+            }, l.module), /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12
                 }
-            }, fmt(l.moyenneCC)), React.createElement("td", {
+            }, fmt(l.moyenneCC)), /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12
                 }
-            }, fmt(l.efmNote)), React.createElement("td", {
+            }, fmt(l.efmNote)), /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12,
                     fontWeight: 700
                 }
-            }, fmt(l.noteModule)), tauxAbsencePriseEnCompte && React.createElement("td", {
+            }, fmt(l.noteModule)), tauxAbsencePriseEnCompte && /*#__PURE__*/ /* @__PURE__ */ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12
                 }
-            }, l.tauxAbsence !== null ? `${l.tauxAbsence.toFixed(2)}%` : "—"), React.createElement("td", {
+            }, l.tauxAbsence !== null ? `${l.tauxAbsence.toFixed(2)}%` : "—"), /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12
                 }
-            }, fmt(l.rattrapageNote)), React.createElement("td", {
+            }, fmt(l.rattrapageNote)), /*#__PURE__*/ React.createElement("td", {
                 style: {
                     padding: "8px 10px",
                     fontSize: 12
                 }
-            }, l.decision && React.createElement(Badge, {
+            }, l.decision && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
                 color: l.decision === "Validé" ? C.green : C.red
-            }, l.decision))))))), React.createElement("div", {
+            }, l.decision))))))), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     marginTop: 16,
                     fontSize: 14,
                     fontWeight: 700,
                     color: C.navy
                 }
-            }, "Moyenne du semestre : ", React.createElement("span", {
+            }, "Moyenne du semestre : ", /*#__PURE__*/ React.createElement("span", {
                 style: {
                     fontSize: 16
                 }
@@ -3696,31 +3697,31 @@ function Notes({
             const trie = [...notesSem].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (a.module || "").localeCompare(b.module || "", "fr", {
                 sensitivity: "base"
             }));
-            return React.createElement(Card, {
+            return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
                 style: {
                     padding: 20
                 }
-            }, React.createElement("h4", {
+            }, /*#__PURE__*/ React.createElement("h4", {
                 style: {
                     margin: "0 0 14px",
                     color: C.navy,
                     fontSize: 15
                 }
-            }, "Relev\xE9 d\xE9taill\xE9 des \xE9valuations \u2014 ", sem), React.createElement("div", {
+            }, "Relevé détaillé des évaluations — ", sem), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     overflowX: "auto"
                 }
-            }, React.createElement("table", {
+            }, /*#__PURE__*/ React.createElement("table", {
                 style: {
                     width: "100%",
                     borderCollapse: "collapse",
                     minWidth: 500
                 }
-            }, React.createElement("thead", null, React.createElement("tr", {
+            }, /*#__PURE__*/ React.createElement("thead", null, /*#__PURE__*/ React.createElement("tr", {
                 style: {
                     background: `linear-gradient(135deg, ${C.navy} 0%, ${C.teal} 100%)`
                 }
-            }, ["Date", "Module", "Type d'évaluation", "Note /20"].map(h => React.createElement("th", {
+            }, ["Date", "Module", "Type d'évaluation", "Note /20"].map(h => /*#__PURE__*/ /* @__PURE__ */ React.createElement("th", {
                 key: h,
                 style: {
                     padding: "9px 10px",
@@ -3729,7 +3730,7 @@ function Notes({
                     fontWeight: 700,
                     textAlign: "left"
                 }
-            }, h)))), React.createElement("tbody", null, trie.length === 0 ? React.createElement("tr", null, React.createElement("td", {
+            }, h)))), /*#__PURE__*/ React.createElement("tbody", null, trie.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("tr", null, /*#__PURE__*/ React.createElement("td", {
                 colSpan: 4,
                 style: {
                     padding: 16,
@@ -3737,34 +3738,34 @@ function Notes({
                     color: C.muted,
                     fontSize: 12.5
                 }
-            }, "Aucune \xE9valuation enregistr\xE9e")) : trie.map((n, i) => {
+            }, "Aucune évaluation enregistrée")) : trie.map((n, i) => {
                 const [, col] = mention(n.note);
-                return React.createElement("tr", {
+                return /*#__PURE__*/ /* @__PURE__ */ React.createElement("tr", {
                     key: n.id,
                     style: {
                         background: i % 2 === 1 ? C.greenLight : "#fff",
                         borderBottom: `1px solid ${C.border}`
                     }
-                }, React.createElement("td", {
+                }, /*#__PURE__*/ React.createElement("td", {
                     style: {
                         padding: "8px 10px",
                         fontSize: 12
                     }
-                }, formatDateFR(n.date)), React.createElement("td", {
+                }, formatDateFR(n.date)), /*#__PURE__*/ React.createElement("td", {
                     style: {
                         padding: "8px 10px",
                         fontSize: 12,
                         color: "#8b4513",
                         fontWeight: 600
                     }
-                }, n.module), React.createElement("td", {
+                }, n.module), /*#__PURE__*/ React.createElement("td", {
                     style: {
                         padding: "8px 10px",
                         fontSize: 12
                     }
-                }, React.createElement(Badge, {
+                }, /*#__PURE__*/ React.createElement(Badge, {
                     color: n.typeEvaluation === "Rattrapage" ? C.purple : n.typeEvaluation === "Examen de fin de module" ? C.orange : C.teal
-                }, n.typeEvaluation)), React.createElement("td", {
+                }, n.typeEvaluation)), /*#__PURE__*/ React.createElement("td", {
                     style: {
                         padding: "8px 10px",
                         fontSize: 13,
@@ -3774,19 +3775,19 @@ function Notes({
                 }, fmt(n.note)));
             })))));
         })());
-    })), role !== "etudiant" && React.createElement(Card, {
+    })), role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 16,
             marginBottom: 16
         }
-    }, React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
             gap: 10
         }
-    }, React.createElement("input", {
-        placeholder: "\uD83D\uDD0D  Nom ou N\xB0 inscription...",
+    }, /*#__PURE__*/ React.createElement("input", {
+        placeholder: "🔍  Nom ou N° inscription...",
         value: searchListe,
         onChange: e => setSearchListe(e.target.value),
         style: {
@@ -3797,7 +3798,7 @@ function Notes({
             boxSizing: "border-box",
             fontFamily: "inherit"
         }
-    }), React.createElement("select", {
+    }), /*#__PURE__*/ React.createElement("select", {
         value: filtreFiliereListe,
         onChange: e => setFiltreFiliereListe(e.target.value),
         style: {
@@ -3808,12 +3809,12 @@ function Notes({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les groupes --"), filieresOptions.map(f => React.createElement("option", {
+    }, "-- Tous les groupes --"), filieresOptions.map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: f,
         value: f
-    }, f))), React.createElement("select", {
+    }, f))), /*#__PURE__*/ React.createElement("select", {
         value: filtreSemestreListe,
         onChange: e => setFiltreSemestreListe(e.target.value),
         style: {
@@ -3824,12 +3825,12 @@ function Notes({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les semestres --"), semestresOptions.map(s => React.createElement("option", {
+    }, "-- Tous les semestres --"), semestresOptions.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: s,
         value: s
-    }, s))), React.createElement("select", {
+    }, s))), /*#__PURE__*/ React.createElement("select", {
         value: filtreModuleListe,
         onChange: e => setFiltreModuleListe(e.target.value),
         style: {
@@ -3840,12 +3841,12 @@ function Notes({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les modules --"), modulesOptionsListe.map(m => React.createElement("option", {
+    }, "-- Tous les modules --"), modulesOptionsListe.map(m => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: m,
         value: m
-    }, m))), React.createElement("select", {
+    }, m))), /*#__PURE__*/ React.createElement("select", {
         value: filtreTypeListe,
         onChange: e => setFiltreTypeListe(e.target.value),
         style: {
@@ -3856,12 +3857,18 @@ function Notes({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les types --"), TYPES_EVALUATION.map(t => React.createElement("option", {
+    }, "-- Tous les types --"), TYPES_EVALUATION.map(t => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: t,
         value: t
-    }, t)))), canPrint && React.createElement("div", {
+    }, t))), /*#__PURE__*/ React.createElement(SelAnnee, {
+        compact: true,
+        label: null,
+        value: anneeReleveNotes,
+        onChange: e => setAnneeReleveNotes(e.target.value),
+        emptyLabel: "📅 Toutes les années"
+    })), canPrint && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
@@ -3872,32 +3879,28 @@ function Notes({
             paddingTop: 12,
             borderTop: `1px solid ${C.light}`
         }
-    }, React.createElement(SelAnnee, {
-        compact: true,
-        value: anneeReleveNotes,
-        onChange: e => setAnneeReleveNotes(e.target.value)
-    }), React.createElement(Btn, {
+    }, /*#__PURE__*/ React.createElement(Btn, {
         variant: "navy",
         onClick: () => imprimerRelevesGroupe("synthetique")
-    }, "\uD83D\uDDA8\uFE0F Imprimer les relev\xE9s synth\xE9tiques (r\xE9sultats filtr\xE9s)"), React.createElement(Btn, {
+    }, "🖨️ Imprimer les relevés synthétiques (résultats filtrés)"), /*#__PURE__*/ React.createElement(Btn, {
         variant: "navy",
         onClick: () => imprimerRelevesGroupe("detaille")
-    }, "\uD83D\uDDA8\uFE0F Imprimer les relev\xE9s d\xE9taill\xE9s (r\xE9sultats filtr\xE9s)"))), lignesEvaluations.length === 0 ? React.createElement(Card, {
+    }, "🖨️ Imprimer les relevés détaillés (résultats filtrés)"))), lignesEvaluations.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 32,
             textAlign: "center",
             color: C.muted,
             fontSize: 13
         }
-    }, "Aucune \xE9valuation trouv\xE9e") : React.createElement(Card, {
+    }, "Aucune évaluation trouvée") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             overflow: "hidden"
         }
-    }, React.createElement(DataTable, {
+    }, /*#__PURE__*/ React.createElement(DataTable, {
         cols: [{
             key: "_filiereCode",
             label: "Filière",
-            render: v => React.createElement(FiliereBadge, {
+            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
                 code: v
             })
         }, {
@@ -3907,7 +3910,7 @@ function Notes({
         }, {
             key: "_module",
             label: "Module",
-            render: v => React.createElement("span", {
+            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     fontWeight: 700,
                     color: "#8b4513"
@@ -3916,7 +3919,7 @@ function Notes({
         }, {
             key: "_type",
             label: "Type d'évaluation",
-            render: v => React.createElement(Badge, {
+            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
                 color: v === "Rattrapage" ? C.purple : v === "Examen de fin de module" ? C.orange : C.teal
             }, v)
         }, {
@@ -3930,7 +3933,7 @@ function Notes({
             label: "Note /20",
             render: v => {
                 const [, col] = mention(v);
-                return React.createElement("span", {
+                return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                     style: {
                         fontWeight: 700,
                         color: col,
@@ -3941,40 +3944,40 @@ function Notes({
         }, ...(canEdit ? [{
             key: "_modifier",
             label: "Modifier",
-            render: (_, row) => React.createElement(Btn, {
+            render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
                 small: true,
                 variant: "navy",
                 onClick: () => openEditSession(row.date, row._filiere, row.semestre, row._module, row._type, sessionsMap[row.date + "|||" + row._filiere + "|||" + row._module + "|||" + row._type])
-            }, "\u270F\uFE0F")
+            }, "✏️")
         }] : []), ...(canEdit ? [{
             key: "_suppr",
             label: "Suppr.",
-            render: (_, row) => React.createElement(Btn, {
+            render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
                 small: true,
                 variant: "danger",
                 onClick: () => handleDeleteNote(row)
-            }, "\uD83D\uDDD1")
+            }, "🗑")
         }] : [])],
         rows: lignesEvaluations,
-        emptyMsg: "Aucune \xE9valuation trouv\xE9e",
+        emptyMsg: "Aucune évaluation trouvée",
         compact: true,
         rowStyle: row => ({
             background: bandeFiliereEvalParId[row.id] === 0 ? C.navyLight : "#e0f4f2",
             borderTop: premiereLigneFiliereEvalId[row.id] ? `2.5px solid ${C.navy}` : premiereLigneModuleEvalId[row.id] ? `2px dashed ${C.orange}` : void 0,
             borderBottom: derniereLigneFiliereEvalId[row.id] ? `2.5px solid ${C.navy}` : `1px solid ${C.border}`
         })
-    })), showModal && React.createElement(Modal, {
+    })), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: Object.keys(notesIdsEdition).length > 0 ? "Modifier l'évaluation → SharePoint" : "Ajouter une évaluation → SharePoint",
         onClose: () => setShowModal(false),
         width: 640
-    }, React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0 14px"
         }
-    }, React.createElement(CreatableSelect, {
+    }, /*#__PURE__*/ React.createElement(CreatableSelect, {
         label: "Semestre *",
         value: form.semestre,
         onChange: v => {
@@ -3988,8 +3991,8 @@ function Notes({
         },
         options: semestresOptions,
         allowCreate: role === "administrateur"
-    }), React.createElement(Input, {
-        label: "Date de l'\xE9valuation *",
+    }), /*#__PURE__*/ React.createElement(Input, {
+        label: "Date de l'évaluation *",
         type: "date",
         value: form.date,
         min: semestreInfoForm?.dateDebut || void 0,
@@ -3998,15 +4001,15 @@ function Notes({
             ...f,
             date: e.target.value
         }))
-    })), semestreInfoForm && (semestreInfoForm.dateDebut || semestreInfoForm.dateFin) && React.createElement("div", {
+    })), semestreInfoForm && (semestreInfoForm.dateDebut || semestreInfoForm.dateFin) && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             fontSize: 11,
             color: C.muted,
             marginTop: -10,
             marginBottom: 13
         }
-    }, "\uD83D\uDCC5 P\xE9riode du semestre (Param\xE9trage) : ", formatDateFR(semestreInfoForm.dateDebut) || "—", " \u2192 ", formatDateFR(semestreInfoForm.dateFin) || "—"), React.createElement(Sel, {
-        label: "Fili\xE8re *",
+    }, "📅 Période du semestre (Paramétrage) : ", formatDateFR(semestreInfoForm.dateDebut) || "—", " → ", formatDateFR(semestreInfoForm.dateFin) || "—"), /*#__PURE__*/ React.createElement(Sel, {
+        label: "Filière *",
         value: form.filiere,
         onChange: e => {
             setForm(f => ({
@@ -4016,44 +4019,44 @@ function Notes({
             }));
             setNotesSaisies({});
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- S\xE9lectionner --"), filieresOptions.map(f => React.createElement("option", {
+    }, "-- Sélectionner --"), filieresOptions.map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: f,
         value: f
-    }, f))), React.createElement(Sel, {
+    }, f))), /*#__PURE__*/ React.createElement(Sel, {
         label: "Module *",
         value: form.module,
         onChange: e => setForm(f => ({
             ...f,
             module: e.target.value
         }))
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- S\xE9lectionner --"), modulesOptions.map(c => React.createElement("option", {
+    }, "-- Sélectionner --"), modulesOptions.map(c => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: c.id,
         value: c.intitule
-    }, c.intitule))), React.createElement(Sel, {
-        label: "Type d'\xE9valuation *",
+    }, c.intitule))), /*#__PURE__*/ React.createElement(Sel, {
+        label: "Type d'évaluation *",
         value: form.typeEvaluation,
         onChange: e => setForm(f => ({
             ...f,
             typeEvaluation: e.target.value
         }))
-    }, TYPES_EVALUATION.map(t => React.createElement("option", {
+    }, TYPES_EVALUATION.map(t => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: t
-    }, t))), React.createElement(SelAnnee, {
+    }, t))), /*#__PURE__*/ React.createElement(SelAnnee, {
         value: form.anneeUniversitaire,
         onChange: e => setForm(f => ({
             ...f,
             anneeUniversitaire: e.target.value
         }))
-    }), form.filiere && React.createElement("div", {
+    }), form.filiere && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             marginTop: 6,
             marginBottom: 16
         }
-    }, React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement("div", {
         style: {
             fontSize: 11.5,
             fontWeight: 700,
@@ -4062,7 +4065,7 @@ function Notes({
             letterSpacing: "0.06em",
             marginBottom: 8
         }
-    }, "Saisir les notes (", etudiantsFiliere.length, " \xE9tudiant(s) dans ce groupe", nbNotesSaisies > 0 ? ` — ${nbNotesSaisies} saisie(s)` : "", ")"), etudiantsFiliere.length === 0 ? React.createElement("div", {
+    }, "Saisir les notes (", etudiantsFiliere.length, " étudiant(s) dans ce groupe", nbNotesSaisies > 0 ? ` — ${nbNotesSaisies} saisie(s)` : "", ")"), etudiantsFiliere.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             textAlign: "center",
             padding: 16,
@@ -4071,7 +4074,7 @@ function Notes({
             border: `1px solid ${C.border}`,
             borderRadius: 8
         }
-    }, "Aucun \xE9tudiant dans ce groupe") : React.createElement("div", {
+    }, "Aucun étudiant dans ce groupe") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             border: `1px solid ${C.border}`,
             borderRadius: 10,
@@ -4081,7 +4084,7 @@ function Notes({
     }, etudiantsFiliere.map((et, i) => {
         const valeur = notesSaisies[et.id] || "";
         const invalide = valeur !== "" && (isNaN(parseFloat(valeur)) || parseFloat(valeur) < 0 || parseFloat(valeur) > 20);
-        return React.createElement("div", {
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
             key: et.id,
             style: {
                 display: "flex",
@@ -4091,19 +4094,19 @@ function Notes({
                 borderBottom: i < etudiantsFiliere.length - 1 ? `1px solid ${C.light}` : "none",
                 background: i % 2 === 0 ? C.white : C.light
             }
-        }, React.createElement("span", {
+        }, /*#__PURE__*/ React.createElement("span", {
             style: {
                 fontSize: 13,
                 fontWeight: 600,
                 flex: 1,
                 minWidth: 0
             }
-        }, et.prenom, " ", et.nom), React.createElement("span", {
+        }, et.prenom, " ", et.nom), /*#__PURE__*/ React.createElement("span", {
             style: {
                 fontSize: 11,
                 color: C.muted
             }
-        }, et.numInscription), React.createElement("input", {
+        }, et.numInscription), /*#__PURE__*/ React.createElement("input", {
             type: "number",
             min: "0",
             max: "20",
@@ -4125,39 +4128,49 @@ function Notes({
                 background: invalide ? "#fdeeec" : C.white
             }
         }));
-    })), Object.values(notesSaisies).some(v => v !== "" && (isNaN(parseFloat(v)) || parseFloat(v) < 0 || parseFloat(v) > 20)) && React.createElement("div", {
+    })), Object.values(notesSaisies).some(v => v !== "" && (isNaN(parseFloat(v)) || parseFloat(v) < 0 || parseFloat(v) > 20)) && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             fontSize: 11.5,
             color: C.red,
             fontWeight: 700,
             marginTop: 6
         }
-    }, "\u26A0\uFE0F Certaines notes sont hors de la plage 0-20 \u2014 corrigez-les avant d'enregistrer.")), React.createElement("div", {
+    }, "⚠️ Certaines notes sont hors de la plage 0-20 — corrigez-les avant d'enregistrer.")), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
             justifyContent: "flex-end"
         }
-    }, React.createElement(Btn, {
+    }, /*#__PURE__*/ React.createElement(Btn, {
         variant: "light",
         onClick: () => {
             setShowModal(false);
             setNotesIdsEdition({});
         }
-    }, "Annuler"), React.createElement(Btn, {
+    }, "Annuler"), /*#__PURE__*/ React.createElement(Btn, {
         onClick: handleSaveNotes,
         disabled: !form.date || !form.semestre || !form.filiere || !form.module || nbNotesSaisies === 0 || saving
     }, saving ? "Enregistrement..." : Object.keys(notesIdsEdition).length > 0 ? `Mettre à jour ${nbNotesSaisies>0?`(${nbNotesSaisies})`:""} → SharePoint` : `Enregistrer ${nbNotesSaisies>0?`(${nbNotesSaisies})`:""} → SharePoint`))));
 }
-const SEANCES_HORAIRE = ["09h00 - 10h30", "10h45 - 12h15", "14h00 - 15h30", "15h45 - 17h15", "19h00 - 21h00"];
-
+const SEANCES_HORAIRE = ["09h00 - 10h30", "10h45 - 12h15", "14h00 - 15h30", "15h45 - 17h15", "19h00 - 21h00"]; // Renvoie la liste des créneaux horaires propres à un groupe (filière) —
+// paramétrable individuellement dans Groupes (généralement 5 par jour,
+// mais un groupe peut n'en avoir que 2 ou 3). Si le groupe n'a pas encore
+// été configuré, on retombe sur l'ancien système Jour/Soir pour rester
+// rétrocompatible avec les groupes existants.
+// IMPORTANT : on ajoute aussi systématiquement tout créneau utilisé par un
+// enregistrement déjà existant (Emploi du temps) pour cette filière, même
+// s'il ne fait plus partie de la configuration actuelle — pour qu'aucune
+// séance déjà programmée ne disparaisse jamais de l'affichage suite à un
+// changement de paramétrage. Les données historiques restent figées et
+// visibles ; seul ce qui est proposé pour une NOUVELLE saisie change.
 function getSeancesGroupe(data, filiereNom) {
     const f = (data.filieres || []).find(x => x.intitule === filiereNom);
     const configures = f?.horaires && f.horaires.length > 0 ? f.horaires : f?.typeSeances === "Jour" ? SEANCES_HORAIRE.filter(s => s !== "19h00 - 21h00") : SEANCES_HORAIRE.filter(s => s === "19h00 - 21h00");
     const utilisesHistoriquement = (data.emploiDuTemps || []).filter(e => e.filiere === filiereNom).map(e => e.seance).filter(Boolean);
-    return [...new Set([...configures, ...utilisesHistoriquement])];
-}
-
+    return [... /* @__PURE__ */ new Set([...configures, ...utilisesHistoriquement])];
+} // ── Détection automatique du créneau en cours (Pointage QR) ─────────────
+// Réutilise l'Emploi du temps comme source unique de vérité : pas de
+// planification séparée à maintenir pour savoir "qui a cours, où, quand".
 function creneauEstActifPourDate(slot, dateStr) {
     if (slot.typeRecurrence === "Unique") return slot.dateDebut === dateStr;
     if ((slot.datesExclues || []).includes(dateStr)) return false;
@@ -4177,11 +4190,17 @@ function parseSeanceHoraire(seance) {
 
 function jourFrancaisActuel() {
     const noms = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-    return noms[new Date().getDay()];
-}
-
+    return noms[ /* @__PURE__ */ new Date().getDay()];
+} // Trouve, parmi une liste de créneaux, celui actuellement en cours (ou sur
+// le point de commencer) pour un filtre donné (professeur OU filière).
+// margeMinutesDebut permet de détecter un créneau à venir, en amont de son
+// heure de début (pour afficher un rappel en lecture seule) ; le champ
+// "phase" indique alors si on est "avant" (rappel, pas de confirmation
+// possible) ou "en_cours" (pointage réel ouvert). margeMinutesFin prolonge
+// la fenêtre après l'heure de fin théorique (temps que la clôture
+// automatique se déclenche sur l'appareil de quelqu'un ayant l'app ouverte).
 function creneauEnCours(emploiDuTemps, filtre, margeMinutesDebut = 0, margeMinutesFin = 15) {
-    const maintenant = new Date();
+    const maintenant = /* @__PURE__ */ new Date();
     const dateStr = today();
     const jourFr = jourFrancaisActuel();
     const minutesActuelles = maintenant.getHours() * 60 + maintenant.getMinutes();
@@ -4207,8 +4226,10 @@ const SEANCE_DUREE = {
     "14h00 - 15h30": 1.5,
     "15h45 - 17h15": 1.5,
     "19h00 - 21h00": 2
-};
-
+}; // Calcule la durée réelle (en heures) d'un créneau à partir de ses heures
+// de début/fin — fonctionne avec n'importe quel horaire personnalisé, pas
+// seulement les 5 créneaux standards. Repli sur la table fixe ci-dessus (ou
+// 1h30 par défaut) si le format n'est pas reconnu.
 function dureeSeanceHeures(seance) {
     const h = parseSeanceHoraire(seance);
     if (h) return (h.finMin - h.debutMin) / 60;
@@ -17282,7 +17303,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.233.0";
+const APP_VERSION = "v3.234.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
