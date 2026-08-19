@@ -3431,7 +3431,7 @@ function Notes({
         numeric: true,
         sensitivity: "base"
     }));
-    const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : true) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
+    const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : true) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre) && (!form.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(form.anneeUniversitaire)));
     const moduleChoisi = (data.cours || []).find(c => c.intitule === form.module);
     const semestreInfoForm = (data.semestresDates || []).find(s => s.semestre === form.semestre);
     const etudiantsFiliere = form.filiere && form.anneeUniversitaire ? (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, form.anneeUniversitaire) === form.filiere && (e.promotion === form.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === form.anneeUniversitaire))) : [];
@@ -4607,7 +4607,9 @@ function Presences({
     role,
     user,
     toast
-}) {
+}) { // Les membres de la direction (rôle "directrice") ont le même contrôle
+    // total que l'administrateur sur cette page : saisie, modification,
+    // suppression, fiche hebdomadaire imprimable, et suivi des 25% d'absence.
     const canEdit = ["administrateur", "professeur", "directrice"].includes(role);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -4706,11 +4708,11 @@ function Presences({
     const professeursRecordsTous = [...(data.professeurs || [])].sort((a, b) => `${a.prenom||""} ${a.nom||""}`.trim().localeCompare(`${b.prenom||""} ${b.nom||""}`.trim(), "fr", {
         sensitivity: "base"
     }));
-    const professeursRecords = role === "professeur" && monProfesseur ? [monProfesseur] : professeursRecordsTous;
+    const professeursRecords = role === "professeur" && monProfesseur ? [monProfesseur] : professeursRecordsTous.filter(p => !form.anneeUniversitaire || (p.anneesUniversitaires || []).length === 0 || (p.anneesUniversitaires || []).includes(form.anneeUniversitaire));
     const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
         sensitivity: "base"
     }));
-    const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : !form.professeurCin || c.professeurCin === form.professeurCin) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
+    const modulesOptions = (data.cours || []).filter(c => (role === "professeur" ? c.professeurCin === monProfesseur?.cin : !form.professeurCin || c.professeurCin === form.professeurCin) && (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre) && (!form.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(form.anneeUniversitaire)));
     const semestreInfoForm = (data.semestresDates || []).find(s => s.semestre === form.semestre);
     const filieresOptions = getFilieres(data);
     const etudiantsFiliere = form.filiere && form.anneeUniversitaire ? data.etudiants.filter(e => filiereEtudiantPourAnnee(e, form.anneeUniversitaire) === form.filiere && (e.promotion === form.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === form.anneeUniversitaire))) : []; // Enregistrements déjà présents dans SharePoint pour EXACTEMENT cette
@@ -8526,7 +8528,7 @@ function EmploiDuTemps({
     const seancesAffichees = getSeancesGroupe(data, filterFiliere);
     const joursAffiches = joursCoursAutorises(data, filterFiliere);
     const dateDuJour = jour => addJoursISO(semaineSelectionnee, JOURS_SEMAINE.indexOf(jour));
-    const modulesOptions = (data.cours || []).filter(c => (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
+    const modulesOptions = (data.cours || []).filter(c => (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre) && (!form.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(form.anneeUniversitaire)));
     const moduleChoisi = (data.cours || []).find(c => c.intitule === form.module);
     const openAdd = (jour, seance) => {
         setEditItem(null);
@@ -17789,7 +17791,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.241.1";
+const APP_VERSION = "v3.241.3";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
