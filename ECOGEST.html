@@ -2887,7 +2887,8 @@ function Professeurs({
     role,
     user,
     toast
-}) {
+}) { // Comme le reste du paramétrage pédagogique, seul l'administrateur peut
+    // ajouter/modifier/supprimer — la direction consulte en lecture seule.
     const canEdit = ["administrateur"].includes(role);
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
@@ -3002,7 +3003,7 @@ function Professeurs({
     }, {
         key: "_nomPrenom",
         label: "Nom et prénom",
-        render: (_, row) => React.createElement("span", {
+        render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
             style: {
                 fontWeight: 600
             }
@@ -3012,44 +3013,48 @@ function Professeurs({
         label: "Matière(s) enseignée(s)",
         render: (_, row) => {
             const m = matieresDe(row);
-            return m.length ? m.join(", ") : React.createElement("span", {
+            return m.length ? m.join(", ") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     color: C.muted,
                     fontStyle: "italic"
                 }
-            }, "\u2014");
+            }, "—");
         }
     }, {
         key: "type",
         label: "Type",
-        render: v => React.createElement(Badge, {
+        render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
             color: v === "Permanent" ? C.navy : C.orange
         }, v)
     }, {
         key: "email",
         label: "Email"
     }, {
+        key: "telephone",
+        label: "Téléphone",
+        render: v => v || "—"
+    }, {
         key: "statut",
         label: "Statut",
-        render: v => React.createElement(Badge, {
+        render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
             color: v === "Actif" ? C.green : C.muted
         }, v)
     }, {
         key: "_annees",
         label: "Année(s) universitaire(s)",
-        render: (_, row) => React.createElement("div", {
+        render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
             style: {
                 display: "flex",
                 flexWrap: "wrap",
                 gap: 4
             }
-        }, (row.anneesUniversitaires || []).length === 0 ? React.createElement("span", {
+        }, (row.anneesUniversitaires || []).length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
             style: {
                 color: C.muted,
                 fontStyle: "italic",
                 fontSize: 12
             }
-        }, "\u2014") : row.anneesUniversitaires.map(a => React.createElement("span", {
+        }, "—") : row.anneesUniversitaires.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
             key: a,
             style: {
                 background: `linear-gradient(135deg, #b8511f 0%, ${C.orange} 55%, #f5a742 100%)`,
@@ -3064,40 +3069,40 @@ function Professeurs({
     }, ...(canEdit ? [{
         key: "_modifier",
         label: "Modifier",
-        render: (_, row) => React.createElement(Btn, {
+        render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             small: true,
             variant: "navy",
             onClick: () => openEdit(row)
-        }, "\u270F\uFE0F Modifier")
+        }, "✏️ Modifier")
     }] : []), ...(canEdit ? [{
         key: "_suppr",
         label: "Suppr.",
-        render: (_, row) => React.createElement(Btn, {
+        render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             small: true,
             variant: "danger",
             onClick: () => handleDelete(row)
-        }, "\uD83D\uDDD1")
+        }, "🗑")
     }] : [])];
     const professeursFiltres = (data.professeurs || []).filter(p => (!search || `${p.nom||""} ${p.prenom||""} ${p.cin||""} ${p.email||""}`.toLowerCase().includes(search.toLowerCase())) && (!filterType || p.type === filterType) && (!filterStatut || p.statut === filterStatut) && (!filterAnnee || (p.anneesUniversitaires || []).includes(filterAnnee))).sort((a, b) => (a.prenom || "").localeCompare(b.prenom || "", "fr", {
         sensitivity: "base"
     }) || (a.nom || "").localeCompare(b.nom || "", "fr", {
         sensitivity: "base"
     }));
-    return React.createElement("div", null, React.createElement(PageHeader, {
+    return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
         title: "Corps enseignant",
         sub: `${professeursFiltres.length} professeur(s) — liste SharePoint "${SP.lists.professeurs}"`,
-        action: canEdit && React.createElement(Btn, {
+        action: canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: openAdd
         }, "+ Ajouter un professeur")
-    }), React.createElement("div", {
+    }), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
             marginBottom: 14,
             flexWrap: "wrap"
         }
-    }, React.createElement("input", {
-        placeholder: "\uD83D\uDD0D  Nom, pr\xE9nom, CIN, email...",
+    }, /*#__PURE__*/ React.createElement("input", {
+        placeholder: "🔍  Nom, prénom, CIN, email...",
         value: search,
         onChange: e => setSearch(e.target.value),
         style: {
@@ -3110,7 +3115,7 @@ function Professeurs({
             boxSizing: "border-box",
             fontFamily: "inherit"
         }
-    }), React.createElement("select", {
+    }), /*#__PURE__*/ React.createElement("select", {
         value: filterType,
         onChange: e => setFilterType(e.target.value),
         style: {
@@ -3121,13 +3126,13 @@ function Professeurs({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les types --"), React.createElement("option", {
+    }, "-- Tous les types --"), /*#__PURE__*/ React.createElement("option", {
         value: "Permanent"
-    }, "Permanent"), React.createElement("option", {
+    }, "Permanent"), /*#__PURE__*/ React.createElement("option", {
         value: "Vacataire"
-    }, "Vacataire")), React.createElement("select", {
+    }, "Vacataire")), /*#__PURE__*/ React.createElement("select", {
         value: filterStatut,
         onChange: e => setFilterStatut(e.target.value),
         style: {
@@ -3138,84 +3143,84 @@ function Professeurs({
             fontFamily: "inherit",
             background: C.white
         }
-    }, React.createElement("option", {
+    }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Tous les statuts --"), React.createElement("option", {
+    }, "-- Tous les statuts --"), /*#__PURE__*/ React.createElement("option", {
         value: "Actif"
-    }, "Actif"), React.createElement("option", {
+    }, "Actif"), /*#__PURE__*/ React.createElement("option", {
         value: "Inactif"
-    }, "Inactif")), React.createElement(SelAnnee, {
+    }, "Inactif")), /*#__PURE__*/ React.createElement(SelAnnee, {
         compact: true,
         value: filterAnnee,
         onChange: e => setFilterAnnee(e.target.value),
-        emptyLabel: "\uD83D\uDCC5 Toutes les ann\xE9es"
-    })), React.createElement(Card, {
+        emptyLabel: "📅 Toutes les années"
+    })), /*#__PURE__*/ React.createElement(Card, {
         style: {
             overflow: "hidden"
         }
-    }, React.createElement(DataTable, {
+    }, /*#__PURE__*/ React.createElement(DataTable, {
         cols: cols,
         rows: professeursFiltres
-    })), showModal && React.createElement(Modal, {
+    })), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: editItem ? "Modifier le professeur" : "Ajouter un professeur → SharePoint",
         onClose: () => setShowModal(false)
-    }, React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0 14px"
         }
-    }, React.createElement(Input, {
+    }, /*#__PURE__*/ React.createElement(Input, {
         label: "Nom *",
         value: form.nom,
         onChange: e => setForm(f => ({
             ...f,
             nom: e.target.value
         }))
-    }), React.createElement(Input, {
-        label: "Pr\xE9nom *",
+    }), /*#__PURE__*/ React.createElement(Input, {
+        label: "Prénom *",
         value: form.prenom,
         onChange: e => setForm(f => ({
             ...f,
             prenom: e.target.value
         }))
-    })), React.createElement("div", {
+    })), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0 14px"
         }
-    }, React.createElement(Input, {
+    }, /*#__PURE__*/ React.createElement(Input, {
         label: "CIN *",
         value: form.cin,
         onChange: e => setForm(f => ({
             ...f,
             cin: e.target.value
         }))
-    }), React.createElement(Input, {
+    }), /*#__PURE__*/ React.createElement(Input, {
         label: "Email *",
         value: form.email,
         onChange: e => setForm(f => ({
             ...f,
             email: e.target.value
         }))
-    })), React.createElement(Input, {
-        label: "T\xE9l\xE9phone",
+    })), /*#__PURE__*/ React.createElement(Input, {
+        label: "Téléphone",
         value: form.telephone,
         onChange: e => setForm(f => ({
             ...f,
             telephone: e.target.value
         }))
-    }), !editItem && React.createElement(SelAnneesMultiple, {
-        label: "Ann\xE9e(s) universitaire(s) d'int\xE9gration *",
+    }), !editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnneesMultiple, {
+        label: "Année(s) universitaire(s) d'intégration *",
         values: form.anneesUniversitaires,
         onChange: v => setForm(f => ({
             ...f,
             anneesUniversitaires: v
         }))
-    }), editItem && React.createElement("div", {
+    }), editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             background: C.light,
             borderRadius: 8,
@@ -3224,37 +3229,37 @@ function Professeurs({
             color: "#666",
             marginBottom: 14
         }
-    }, "\u2139\uFE0F La mati\xE8re enseign\xE9e est calcul\xE9e automatiquement \xE0 partir des modules assign\xE9s \xE0 ce professeur (page Modules)."), React.createElement("div", {
+    }, "ℹ️ La matière enseignée est calculée automatiquement à partir des modules assignés à ce professeur (page Modules)."), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0 14px"
         }
-    }, React.createElement(Sel, {
+    }, /*#__PURE__*/ React.createElement(Sel, {
         label: "Type",
         value: form.type,
         onChange: e => setForm(f => ({
             ...f,
             type: e.target.value
         }))
-    }, React.createElement("option", null, "Permanent"), React.createElement("option", null, "Vacataire")), React.createElement(Sel, {
+    }, /*#__PURE__*/ React.createElement("option", null, "Permanent"), /*#__PURE__*/ React.createElement("option", null, "Vacataire")), /*#__PURE__*/ React.createElement(Sel, {
         label: "Statut",
         value: form.statut,
         onChange: e => setForm(f => ({
             ...f,
             statut: e.target.value
         }))
-    }, React.createElement("option", null, "Actif"), React.createElement("option", null, "Inactif"))), React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement("option", null, "Actif"), /*#__PURE__*/ React.createElement("option", null, "Inactif"))), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
             justifyContent: "flex-end"
         }
-    }, React.createElement(Btn, {
+    }, /*#__PURE__*/ React.createElement(Btn, {
         variant: "light",
         onClick: () => setShowModal(false)
-    }, "Annuler"), React.createElement(Btn, {
+    }, "Annuler"), /*#__PURE__*/ React.createElement(Btn, {
         onClick: handleSave,
         disabled: !form.nom || !form.prenom || !form.cin || !editItem && !(form.anneesUniversitaires || []).length
     }, editItem ? "Mettre à jour → SharePoint" : "Enregistrer → SharePoint"))));
@@ -3286,6 +3291,7 @@ function Notes({
     const [vueOuverte, setVueOuverte] = useState({});
     const [anneeReleveNotes, setAnneeReleveNotes] = useState("");
     const [filtreAnneeReleves, setFiltreAnneeReleves] = useState("");
+    const [mesNotesSection, setMesNotesSection] = useState("releves");
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId);
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesNotes = role === "etudiant" ? (data.notes || []).filter(n => user?.numInscription && n.numInscription === user.numInscription || user?.etudiantId && n.etudiantId === user.etudiantId) : role === "professeur" ? (data.notes || []).filter(n => n.enseignantCin === monProfesseur?.cin) : data.notes || [];
@@ -3554,7 +3560,94 @@ function Notes({
         action: canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: openAdd
         }, "+ Ajouter une évaluation")
-    }), role === "etudiant" && monEtudiant && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+        style: {
+            padding: 10,
+            marginBottom: 20
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 2
+        }
+    }, [{
+        key: "releves",
+        icon: "📋",
+        label: "Mes relevés de notes",
+        sub: "synthétique et détaillé, par semestre"
+    }, {
+        key: "detail",
+        icon: "🗓️",
+        label: "Détail de toutes mes évaluations",
+        sub: "liste complète, filtrable"
+    }].map((item, idx, arr) => {
+        const actif = mesNotesSection === item.key;
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            key: item.key,
+            style: {
+                display: "flex",
+                alignItems: "stretch"
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                width: 26,
+                position: "relative",
+                flexShrink: 0
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                position: "absolute",
+                left: 12,
+                top: 0,
+                bottom: idx === arr.length - 1 ? "50%" : 0,
+                width: 2,
+                background: C.border
+            }
+        }), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                width: 12,
+                height: 2,
+                background: C.border
+            }
+        })), /*#__PURE__*/ React.createElement("button", {
+            onClick: () => setMesNotesSection(item.key),
+            style: {
+                flex: 1,
+                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "11px 16px",
+                margin: "3px 0",
+                border: "none",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                background: actif ? `linear-gradient(135deg, ${C.navy} 0%, #1f3a68 100%)` : C.navyLight,
+                color: actif ? "white" : C.navy,
+                boxShadow: actif ? "0 4px 14px rgba(15,35,75,0.28)" : "none",
+                transition: "all .15s"
+            }
+        }, /*#__PURE__*/ React.createElement("span", {
+            style: {
+                fontSize: 19
+            }
+        }, item.icon), /*#__PURE__*/ React.createElement("span", null, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontWeight: 700,
+                fontSize: 13.5
+            }
+        }, item.label), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 11,
+                opacity: actif ? 0.85 : 0.6
+            }
+        }, item.sub))));
+    }))), role === "etudiant" && mesNotesSection === "releves" && monEtudiant && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             marginBottom: 20
         }
@@ -3817,13 +3910,13 @@ function Notes({
                 }, fmt(n.note)));
             })))));
         })());
-    })), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("h4", {
+    })), role === "etudiant" && mesNotesSection === "detail" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("h4", {
         style: {
             margin: "0 0 12px",
             color: C.navy,
             fontSize: 14.5
         }
-    }, "🗓️ Détail de toutes mes évaluations"), /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }, "🗓️ Détail de toutes mes évaluations"), (role !== "etudiant" || mesNotesSection === "detail") && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 16,
             marginBottom: 16
@@ -3933,7 +4026,7 @@ function Notes({
     }, "🖨️ Imprimer les relevés synthétiques (résultats filtrés)"), /*#__PURE__*/ React.createElement(Btn, {
         variant: "navy",
         onClick: () => imprimerRelevesGroupe("detaille")
-    }, "🖨️ Imprimer les relevés détaillés (résultats filtrés)"))), lignesEvaluations.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }, "🖨️ Imprimer les relevés détaillés (résultats filtrés)"))), (role !== "etudiant" || mesNotesSection === "detail") && (lignesEvaluations.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 32,
             textAlign: "center",
@@ -4014,7 +4107,7 @@ function Notes({
             borderTop: premiereLigneFiliereEvalId[row.id] ? `2.5px solid ${C.navy}` : premiereLigneModuleEvalId[row.id] ? `2px dashed ${C.orange}` : void 0,
             borderBottom: derniereLigneFiliereEvalId[row.id] ? `2.5px solid ${C.navy}` : `1px solid ${C.border}`
         })
-    })), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
+    }))), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: Object.keys(notesIdsEdition).length > 0 ? "Modifier l'évaluation → SharePoint" : "Ajouter une évaluation → SharePoint",
         onClose: () => setShowModal(false),
         width: 640
@@ -17351,7 +17444,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.235.0";
+const APP_VERSION = "v3.236.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
