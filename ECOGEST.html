@@ -3285,6 +3285,7 @@ function Notes({
     const [notesIdsEdition, setNotesIdsEdition] = useState({});
     const [vueOuverte, setVueOuverte] = useState({});
     const [anneeReleveNotes, setAnneeReleveNotes] = useState("");
+    const [filtreAnneeReleves, setFiltreAnneeReleves] = useState("");
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId);
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesNotes = role === "etudiant" ? (data.notes || []).filter(n => user?.numInscription && n.numInscription === user.numInscription || user?.etudiantId && n.etudiantId === user.etudiantId) : role === "professeur" ? (data.notes || []).filter(n => n.enseignantCin === monProfesseur?.cin) : data.notes || [];
@@ -3312,7 +3313,12 @@ function Notes({
         const doc = new MiniPDF(W, H);
         paires.forEach((row, i) => {
             if (i > 0) doc.newPage();
-            const etReel = (data.etudiants || []).find(e => e.numInscription === row.numInscription);
+            const etReel = (data.etudiants || []).find(e => e.numInscription === row.numInscription); // La note enregistre elle-même la filière de l'étudiant au moment de
+            // l'évaluation (row.filiere / row._filiere) — c'est cette valeur
+            // historique qu'il faut imprimer, et non la filière ACTUELLE de
+            // l'étudiant (qui peut avoir changé depuis, suite à un passage à
+            // l'année suivante), sans quoi le relevé d'une année passée
+            // afficherait à tort le groupe le plus récent de l'étudiant.
             const et = {
                 ...(etReel || {
                     prenom: row.etudiant || "",
@@ -3493,7 +3499,7 @@ function Notes({
     const modulesOptionsListe = [...new Set((data.notes || []).map(n => n.module).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
         sensitivity: "base"
     }));
-    const notesAffichees = role === "etudiant" ? mesNotes : mesNotes.filter(n => (!filtreFiliereListe || n.filiere === filtreFiliereListe) && (!filtreSemestreListe || n.semestre === filtreSemestreListe) && (!filtreModuleListe || n.module === filtreModuleListe) && (!filtreTypeListe || n.typeEvaluation === filtreTypeListe) && (!anneeReleveNotes || n.anneeUniversitaire === anneeReleveNotes) && (!searchListe || `${n.etudiant||""} ${n.numInscription||""}`.toLowerCase().includes(searchListe.toLowerCase())));
+    const notesAffichees = mesNotes.filter(n => (!filtreFiliereListe || n.filiere === filtreFiliereListe) && (!filtreSemestreListe || n.semestre === filtreSemestreListe) && (!filtreModuleListe || n.module === filtreModuleListe) && (!filtreTypeListe || n.typeEvaluation === filtreTypeListe) && (!anneeReleveNotes || n.anneeUniversitaire === anneeReleveNotes) && (!searchListe || `${n.etudiant||""} ${n.numInscription||""}`.toLowerCase().includes(searchListe.toLowerCase())));
     const codeFiliere = intitule => (data.filieres || []).find(x => x.intitule === intitule)?.code || intitule || "—";
     const sessionsMap = {};
     const lignesEvaluations = notesAffichees.map(n => {
@@ -3552,19 +3558,48 @@ function Notes({
         style: {
             marginBottom: 20
         }
-    }, [...new Set(mesNotes.map(n => n.semestre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 14
+        }
+    }, /*#__PURE__*/ React.createElement("span", {
+        style: {
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: C.navy
+        }
+    }, "Relevés — Année universitaire :"), /*#__PURE__*/ React.createElement(SelAnnee, {
+        compact: true,
+        label: null,
+        value: filtreAnneeReleves,
+        onChange: e => setFiltreAnneeReleves(e.target.value),
+        emptyLabel: "📅 Toutes les années"
+    })), [... /* @__PURE__ */ new Set(mesNotes.filter(n => !filtreAnneeReleves || n.anneeUniversitaire === filtreAnneeReleves).map(n => `${n.anneeUniversitaire||"—"}|||${n.semestre||""}`).filter(Boolean))].sort((a, b) => b.localeCompare(a, "fr", {
         numeric: true,
         sensitivity: "base"
-    })).map(sem => {
-        const mesPresencesEtudiant = (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId);
-        const notesSem = mesNotes.filter(n => n.semestre === sem);
-        const vue = vueOuverte[sem];
+    })).map(cle => {
+        const [anneeGroupe, sem] = cle.split("|||");
+        const mesPresencesEtudiant = (data.presences || []).filter(p => (user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId) && (p.anneeUniversitaire || "—") === anneeGroupe);
+        const notesSem = mesNotes.filter(n => n.semestre === sem && (n.anneeUniversitaire || "—") === anneeGroupe); // La filière à afficher/utiliser pour ce relevé est celle
+        // ENREGISTRÉE SUR LES NOTES de cette année-là (n.filiere) —
+        // pas la filière actuelle de l'étudiant, qui peut avoir
+        // changé depuis suite à un passage à l'année suivante.
+        const filiereDuGroupe = notesSem[0]?.filiere || monEtudiant.filiere;
+        const etudiantPourBulletin = {
+            ...monEtudiant,
+            filiere: filiereDuGroupe
+        };
+        const cleVue = cle;
+        const vue = vueOuverte[cleVue];
         const basculer = cible => setVueOuverte(v => ({
             ...v,
-            [sem]: v[sem] === cible ? null : cible
+            [cleVue]: v[cleVue] === cible ? null : cible
         }));
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            key: sem,
+            key: cle,
             style: {
                 marginBottom: 16
             }
@@ -3583,7 +3618,12 @@ function Notes({
                 color: C.navy,
                 minWidth: 90
             }
-        }, sem, " :"), /*#__PURE__*/ React.createElement(Btn, {
+        }, sem, " ", /*#__PURE__*/ React.createElement("span", {
+            style: {
+                fontWeight: 500,
+                color: C.muted
+            }
+        }, "(", anneeGroupe, ")"), " :"), /*#__PURE__*/ React.createElement(Btn, {
             onClick: () => basculer("synthetique")
         }, "📋 ", vue === "synthetique" ? "Masquer" : "Voir", " le relevé synthétique"), /*#__PURE__*/ React.createElement(Btn, {
             variant: "light",
@@ -3593,7 +3633,7 @@ function Notes({
                 lignes,
                 moyenneSemestre,
                 tauxAbsencePriseEnCompte
-            } = calculerLignesBulletin(monEtudiant, notesSem, sem, data.cours, mesPresencesEtudiant, data.configuration?.filieresAvecTauxAbsence);
+            } = calculerLignesBulletin(etudiantPourBulletin, notesSem, sem, data.cours, mesPresencesEtudiant, data.configuration?.filieresAvecTauxAbsence);
             const fmt = v => v === null || v === void 0 || isNaN(v) ? "—" : v.toFixed(2).replace(".", ",");
             const entetes = tauxAbsencePriseEnCompte ? ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Taux d'absence atteint", "Note rattrapage", "Décision"] : ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Note rattrapage", "Décision"];
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
@@ -3606,13 +3646,13 @@ function Notes({
                     color: C.navy,
                     fontSize: 15
                 }
-            }, "Relevé synthétique — ", sem), /*#__PURE__*/ React.createElement("div", {
+            }, "Relevé synthétique — ", sem, " (", anneeGroupe, ")"), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     fontSize: 11.5,
                     color: C.muted,
                     marginBottom: 14
                 }
-            }, monEtudiant.filiere, " · ", monEtudiant.niveau), /*#__PURE__*/ React.createElement("div", {
+            }, filiereDuGroupe, " · ", monEtudiant.niveau), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     overflowX: "auto"
                 }
@@ -3709,7 +3749,7 @@ function Notes({
                     color: C.navy,
                     fontSize: 15
                 }
-            }, "Relevé détaillé des évaluations — ", sem), /*#__PURE__*/ React.createElement("div", {
+            }, "Relevé détaillé des évaluations — ", sem, " (", anneeGroupe, ")"), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     overflowX: "auto"
                 }
@@ -3777,7 +3817,13 @@ function Notes({
                 }, fmt(n.note)));
             })))));
         })());
-    })), role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    })), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("h4", {
+        style: {
+            margin: "0 0 12px",
+            color: C.navy,
+            fontSize: 14.5
+        }
+    }, "🗓️ Détail de toutes mes évaluations"), /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 16,
             marginBottom: 16
@@ -17305,7 +17351,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.234.1";
+const APP_VERSION = "v3.235.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
