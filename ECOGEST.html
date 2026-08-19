@@ -769,59 +769,131 @@ const SelAnneesMultiple = ({
     label = "Année(s) universitaire(s) *",
     values,
     onChange
-}) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-    style: {
-        marginBottom: 13
-    }
-}, /*#__PURE__*/ React.createElement("label", {
-    style: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#555",
-        display: "block",
-        marginBottom: 6
-    }
-}, label, " ", /*#__PURE__*/ React.createElement("span", {
-    style: {
-        fontWeight: 400,
-        color: C.muted
-    }
-}, "— cochez une ou plusieurs années")), /*#__PURE__*/ React.createElement("div", {
-    style: {
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 8,
-        border: `1px solid ${C.border}`,
-        borderRadius: 8,
-        padding: 10
-    }
-}, ANNEES_UNIVERSITAIRES.map(a => {
-    const coche = (values || []).includes(a);
-    return /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-        key: a,
+}) => {
+    const [nouvelleAnnee, setNouvelleAnnee] = useState(""); // Liste des années proposées : les années "de base" de l'application,
+    // complétées par celles déjà cochées sur cet élément (au cas où l'une
+    // d'elles aurait été ajoutée manuellement puis retirée de la liste de
+    // base) — pour ne jamais perdre l'affichage d'une année déjà utilisée.
+    const anneesProposees = [... /* @__PURE__ */ new Set([...ANNEES_UNIVERSITAIRES, ...(values || [])])].sort((a, b) => a.localeCompare(b, "fr", {
+        numeric: true,
+        sensitivity: "base"
+    }));
+    const ajouterAnnee = () => {
+        const v = nouvelleAnnee.trim();
+        if (!v) return;
+        if (!(values || []).includes(v)) onChange([...(values || []), v]);
+        setNouvelleAnnee("");
+    };
+    return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 12px",
-            borderRadius: 20,
-            cursor: "pointer",
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: coche ? "white" : "#555",
-            background: coche ? `linear-gradient(135deg, #b8511f 0%, ${C.orange} 55%, #f5a742 100%)` : C.light,
-            boxShadow: coche ? "0 2px 8px rgba(180,80,20,0.35)" : "none",
-            transition: "all 0.15s"
+            marginBottom: 13
+        }
+    }, /*#__PURE__*/ React.createElement("label", {
+        style: {
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#555",
+            display: "block",
+            marginBottom: 6
+        }
+    }, label, " ", /*#__PURE__*/ React.createElement("span", {
+        style: {
+            fontWeight: 400,
+            color: C.muted
+        }
+    }, "— cochez une ou plusieurs années, ou ajoutez-en une nouvelle")), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 8
+        }
+    }, anneesProposees.map(a => {
+        const coche = (values || []).includes(a);
+        const estHorsListeBase = !ANNEES_UNIVERSITAIRES.includes(a);
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+            key: a,
+            style: {
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                borderRadius: 20,
+                overflow: "hidden",
+                fontSize: 12.5,
+                fontWeight: 700,
+                boxShadow: coche ? "0 2px 8px rgba(180,80,20,0.35)" : "none"
+            }
+        }, /*#__PURE__*/ React.createElement("label", {
+            style: {
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: `6px ${estHorsListeBase?6:12}px 6px 12px`,
+                cursor: "pointer",
+                color: coche ? "white" : "#555",
+                background: coche ? `linear-gradient(135deg, #b8511f 0%, ${C.orange} 55%, #f5a742 100%)` : C.light,
+                transition: "all 0.15s"
+            }
+        }, /*#__PURE__*/ React.createElement("input", {
+            type: "checkbox",
+            checked: coche,
+            onChange: () => onChange(coche ? (values || []).filter(x => x !== a) : [...(values || []), a]),
+            style: {
+                display: "none"
+            }
+        }), a), estHorsListeBase && /*#__PURE__*/ /* @__PURE__ */ React.createElement("button", {
+            type: "button",
+            title: "Retirer définitivement cette année de la liste proposée",
+            onClick: () => onChange((values || []).filter(x => x !== a)),
+            style: {
+                border: "none",
+                background: coche ? "rgba(255,255,255,0.25)" : "#e2e2e2",
+                color: coche ? "white" : "#777",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 800,
+                width: 20,
+                height: 20,
+                marginRight: 6,
+                borderRadius: "50%",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0
+            }
+        }, "✕"));
+    })), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            gap: 8
         }
     }, /*#__PURE__*/ React.createElement("input", {
-        type: "checkbox",
-        checked: coche,
-        onChange: () => onChange(coche ? (values || []).filter(x => x !== a) : [...(values || []), a]),
+        value: nouvelleAnnee,
+        onChange: e => setNouvelleAnnee(e.target.value),
+        onKeyDown: e => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                ajouterAnnee();
+            }
+        },
+        placeholder: "Ex : 2030-2031",
         style: {
-            display: "none"
+            flex: 1,
+            padding: "7px 10px",
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            fontSize: 12.5,
+            fontFamily: "inherit"
         }
-    }), a);
-})));
+    }), /*#__PURE__*/ React.createElement(Btn, {
+        small: true,
+        variant: "light",
+        onClick: ajouterAnnee
+    }, "+ Ajouter une année")));
+};
 const Modal = ({
     title,
     onClose,
@@ -17717,7 +17789,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.240.2";
+const APP_VERSION = "v3.241.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
