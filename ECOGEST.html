@@ -8412,6 +8412,7 @@ function EmploiDuTemps({
     const emptyForm = {
         filiere: "",
         semestre: "",
+        anneeUniversitaire: "",
         jour: "",
         seance: "",
         module: "",
@@ -8426,6 +8427,7 @@ function EmploiDuTemps({
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId);
     const filieresOptions = getFilieres(data);
     const [filterFiliere, setFilterFiliere] = useState(role === "etudiant" ? monEtudiant?.filiere || "" : filieresOptions[0] || "");
+    const [filterAnnee, setFilterAnnee] = useState(role === "etudiant" ? monEtudiant?.promotion || "2026-2027" : "2026-2027");
     const semestresDisponibles = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean), ...(data.emploiDuTemps || []).map(e => e.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
         numeric: true,
         sensitivity: "base"
@@ -8461,6 +8463,7 @@ function EmploiDuTemps({
             ...emptyForm,
             filiere: filterFiliere,
             semestre: filterSemestre,
+            anneeUniversitaire: filterAnnee,
             jour: jour || "",
             seance: seance || "",
             dateDebut: d,
@@ -8473,6 +8476,7 @@ function EmploiDuTemps({
         setForm({
             filiere: item.filiere,
             semestre: item.semestre,
+            anneeUniversitaire: item.anneeUniversitaire || filterAnnee,
             jour: item.jour,
             seance: item.seance,
             module: item.module,
@@ -8496,6 +8500,7 @@ function EmploiDuTemps({
             Title: `${form.filiere} - ${form.jour} - ${form.seance}`,
             Filiere: form.filiere || "",
             Semestre: form.semestre || "",
+            AnneeUniversitaire: form.anneeUniversitaire || "",
             JourSemaine: form.jour || "",
             Seance: form.seance || "",
             Module: form.module || "",
@@ -8512,6 +8517,7 @@ function EmploiDuTemps({
         };
         setFilterFiliere(form.filiere);
         setFilterSemestre(form.semestre);
+        setFilterAnnee(form.anneeUniversitaire);
         if (editItem) {
             const updated = {
                 ...form,
@@ -8631,7 +8637,7 @@ function EmploiDuTemps({
         }, user.token, item._spId);
         toast(`Occurrence du ${formatDateFR(dateExclue)} annulée ✓ (série conservée)`);
     };
-    const grille = (data.emploiDuTemps || []).filter(e => e.filiere === filterFiliere && e.semestre === filterSemestre);
+    const grille = (data.emploiDuTemps || []).filter(e => e.filiere === filterFiliere && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee);
     const appliqueASemaine = (slot, jour) => {
         const d = dateDuJour(jour);
         if (slot.typeRecurrence === "Unique") return slot.dateDebut === d;
@@ -8641,14 +8647,38 @@ function EmploiDuTemps({
         return true;
     };
     const cellsFor = (jour, seance) => grille.filter(e => e.jour === jour && e.seance === seance && appliqueASemaine(e, jour));
-    const modulesDuGroupe = (data.cours || []).filter(c => (c.filieresListe || [c.filiere]).includes(filterFiliere) && c.semestre === filterSemestre);
+    const modulesDuGroupe = (data.cours || []).filter(c => (c.filieresListe || [c.filiere]).includes(filterFiliere) && c.semestre === filterSemestre && (!filterAnnee || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(filterAnnee))); // Un même module peut être dispensé sur plusieurs années universitaires,
+    // avec des dates de contrôle continu / examen différentes à chaque fois.
+    // Ces dates sont donc désormais conservées PAR ANNÉE (datesCCExamenParAnnee),
+    // et non plus comme une valeur unique partagée entre toutes les années.
+    // Par rétrocompatibilité, si aucune date par année n'a encore été saisie
+    // pour ce module, on retombe sur l'ancienne valeur unique (dateCC/dateExamen)
+    // — dès qu'une date par année existe, elle prend le dessus.
+    const getDateModule = (m, champ) => {
+        const parAnnee = m.datesCCExamenParAnnee || {};
+        if (filterAnnee && parAnnee[filterAnnee]?.[champ]) return parAnnee[filterAnnee][champ];
+        if (Object.keys(parAnnee).length === 0) return m[champ] || "";
+        return "";
+    };
     const handleSetDate = (module, champ, valeur) => {
         if (!user?.token) {
             toast("⚠️ Non connecté à SharePoint — date non enregistrée");
             return;
         }
+        if (!filterAnnee) {
+            toast("⚠️ Sélectionnez d'abord une année universitaire");
+            return;
+        }
+        const parAnnee = {
+            ...(module.datesCCExamenParAnnee || {})
+        };
+        parAnnee[filterAnnee] = {
+            ...(parAnnee[filterAnnee] || {}),
+            [champ]: valeur
+        };
         const updated = {
             ...module,
+            datesCCExamenParAnnee: parAnnee,
             [champ]: valeur
         };
         setData(d => ({
@@ -8656,7 +8686,8 @@ function EmploiDuTemps({
             cours: d.cours.map(c => c.id === module.id ? updated : c)
         }));
         saveToSP("ECOGEST_Cours", {
-            [champ === "dateCC" ? "DateCC" : "DateExamen"]: valeur
+            [champ === "dateCC" ? "DateCC" : "DateExamen"]: valeur,
+            DatesCCExamenJSON: JSON.stringify(parAnnee)
         }, user.token, module._spId).then(result => {
             if (!result) {
                 toast("⚠️ Échec de l'enregistrement de la date");
@@ -8665,13 +8696,13 @@ function EmploiDuTemps({
             toast("Date enregistrée dans SharePoint ✓");
         });
         const label = champ === "dateCC" ? "Contrôle continu" : "Examen";
-        const titre = `${label} - ${module.intitule}`;
+        const titre = `${label} - ${module.intitule} (${filterAnnee})`;
         const existant = (data.calendrier || []).find(e => e.titre === titre && e.filiere === module.filiere);
         const spCal = {
             Title: titre,
             TypeEvenement: "Examen",
             DateDebut: valeur,
-            Description: `${label} du module ${module.intitule} (${module.semestre||""})`,
+            Description: `${label} du module ${module.intitule} (${module.semestre||""} — ${filterAnnee})`,
             Filiere: module.filiere || ""
         };
         if (!valeur) return;
@@ -8739,7 +8770,12 @@ function EmploiDuTemps({
             gap: 10,
             flexWrap: "wrap"
         }
-    }, role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("select", {
+    }, role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnnee, {
+        compact: true,
+        label: null,
+        value: filterAnnee,
+        onChange: e => setFilterAnnee(e.target.value)
+    }), role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("select", {
         value: filterFiliere,
         onChange: e => setFilterFiliere(e.target.value),
         style: {
@@ -9153,7 +9189,7 @@ function EmploiDuTemps({
             color: C.muted,
             marginBottom: 10
         }
-    }, canEdit ? "Modifier une date la synchronise automatiquement avec le Calendrier scolaire." : "Dates communiquées par l'administration.")), /*#__PURE__*/ React.createElement(DataTable, {
+    }, canEdit ? `Modifier une date la synchronise automatiquement avec le Calendrier scolaire. Dates propres à l'année ${filterAnnee||"sélectionnée"}.` : "Dates communiquées par l'administration.")), /*#__PURE__*/ React.createElement(DataTable, {
         cols: [{
             key: "intitule",
             label: "Module"
@@ -9165,7 +9201,8 @@ function EmploiDuTemps({
             key: "_cc",
             label: "Contrôle continu",
             render: (_, m) => {
-                const cd = joursRestants(m.dateCC);
+                const dateVal = getDateModule(m, "dateCC");
+                const cd = joursRestants(dateVal);
                 return canEdit ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                     style: {
                         display: "flex",
@@ -9174,7 +9211,7 @@ function EmploiDuTemps({
                     }
                 }, /*#__PURE__*/ React.createElement("input", {
                     type: "date",
-                    value: m.dateCC || "",
+                    value: dateVal,
                     onChange: e => handleSetDate(m, "dateCC", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -9189,7 +9226,7 @@ function EmploiDuTemps({
                         fontWeight: 700,
                         color: cd.color
                     }
-                }, cd.texte)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, m.dateCC ? formatDateFR(m.dateCC) : "—", " ", cd && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                }, cd.texte)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, dateVal ? formatDateFR(dateVal) : "—", " ", cd && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                     style: {
                         fontSize: 10.5,
                         fontWeight: 700,
@@ -9202,7 +9239,8 @@ function EmploiDuTemps({
             key: "_examen",
             label: "Examen de fin de module",
             render: (_, m) => {
-                const cd = joursRestants(m.dateExamen);
+                const dateVal = getDateModule(m, "dateExamen");
+                const cd = joursRestants(dateVal);
                 return canEdit ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                     style: {
                         display: "flex",
@@ -9211,7 +9249,7 @@ function EmploiDuTemps({
                     }
                 }, /*#__PURE__*/ React.createElement("input", {
                     type: "date",
-                    value: m.dateExamen || "",
+                    value: dateVal,
                     onChange: e => handleSetDate(m, "dateExamen", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -9226,7 +9264,7 @@ function EmploiDuTemps({
                         fontWeight: 700,
                         color: cd.color
                     }
-                }, cd.texte)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, m.dateExamen ? formatDateFR(m.dateExamen) : "—", " ", cd && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                }, cd.texte)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, dateVal ? formatDateFR(dateVal) : "—", " ", cd && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                     style: {
                         fontSize: 10.5,
                         fontWeight: 700,
@@ -9249,7 +9287,13 @@ function EmploiDuTemps({
             gridTemplateColumns: "1fr 1fr",
             gap: "0 14px"
         }
-    }, /*#__PURE__*/ React.createElement(CreatableSelect, {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        value: form.anneeUniversitaire,
+        onChange: e => setForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement(CreatableSelect, {
         label: "Semestre *",
         value: form.semestre,
         onChange: v => setForm(f => ({
@@ -9258,7 +9302,14 @@ function EmploiDuTemps({
             module: ""
         })),
         options: semestresDisponibles
-    }), /*#__PURE__*/ React.createElement(Sel, {
+    })), /*#__PURE__*/ React.createElement("div", {
+        className: "eco-grid2",
+        style: {
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "0 14px"
+        }
+    }, /*#__PURE__*/ React.createElement(Sel, {
         label: "Filière *",
         value: form.filiere,
         onChange: e => setForm(f => ({
@@ -9423,7 +9474,7 @@ function EmploiDuTemps({
         onClick: () => setShowModal(false)
     }, "Annuler"), /*#__PURE__*/ React.createElement(Btn, {
         onClick: handleSave,
-        disabled: !form.filiere || !form.semestre || !form.jour || !form.seance || !form.module || !form.dateDebut
+        disabled: !form.filiere || !form.semestre || !form.anneeUniversitaire || !form.jour || !form.seance || !form.module || !form.dateDebut
     }, editItem ? "Mettre à jour → SharePoint" : "Enregistrer → SharePoint"))), showDeleteChoice && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: "Supprimer ce créneau",
         onClose: () => setShowDeleteChoice(null),
@@ -17666,7 +17717,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.239.1";
+const APP_VERSION = "v3.240.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -18868,8 +18919,8 @@ const SP_LISTS_SCHEMA = {
     ECOGEST_Visiteurs: ["Nom", "Prenom", "CIN", "DateNaissance", "LieuNaissance", "Genre", "Email", "Telephone", "Adresse", "Ville", "Quartier", "BacAnnee", "BacMention", "BacSerie", "Etablissement", "FiliereS", "DateVisite", "Source", "Statut", "Observations", "AnneeUniversitaire", "RecuPar"],
     ECOGEST_Notes: ["EtudiantId", "NomEtudiant", "NumInscription", "Module", "Filiere", "Semestre", "TypeEvaluation", "Note", "DateEvaluation", "Enseignant", "EnseignantCIN", "AnneeUniversitaire"],
     ECOGEST_Presences: ["EtudiantId", "NomEtudiant", "NumInscription", "Module", "CodeModule", "DatePresence", "Heure", "Statut", "Motif", "Enseignant", "EnseignantCIN", "Filiere", "Seance", "Semestre", "DocumentJustification", "JustifiePar", "DateJustification", "AnneeUniversitaire"],
-    ECOGEST_Cours: ["Intitule", "Departement", "ResponsablePedagogique", "Semestre", "Filiere", "Professeur", "ProfesseurCIN", "HeuresTotal", "Salle", "DateCC", "DateExamen", "AnneeUniversitaire"],
-    ECOGEST_EmploiDuTemps: ["Filiere", "Semestre", "JourSemaine", "Seance", "Module", "Professeur", "ProfesseurCIN", "Salle", "TypeRecurrence", "DateDebut", "DateFin", "DatesExclues", "EstRattrapage", "LienTeams", "LienEnregistrements"],
+    ECOGEST_Cours: ["Intitule", "Departement", "ResponsablePedagogique", "Semestre", "Filiere", "Professeur", "ProfesseurCIN", "HeuresTotal", "Salle", "DateCC", "DateExamen", "DatesCCExamenJSON", "AnneeUniversitaire"],
+    ECOGEST_EmploiDuTemps: ["Filiere", "Semestre", "AnneeUniversitaire", "JourSemaine", "Seance", "Module", "Professeur", "ProfesseurCIN", "Salle", "TypeRecurrence", "DateDebut", "DateFin", "DatesExclues", "EstRattrapage", "LienTeams", "LienEnregistrements"],
     ECOGEST_Annonces: ["Titre", "Contenu", "Auteur", "Cible", "DateAnnonce", "DateExpiration", "Priorite", "Statut"],
     ECOGEST_Paiements: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeScolaire", "TotalAPayer", "TotalPaye", "Solde", "Statut", "RemisesJSON", "PenalitesJSON"], // Chaque versement est un enregistrement isolé (une ligne = un paiement),
     // jamais un tableau JSON dans une seule cellule — c'est le correctif définitif
@@ -18885,13 +18936,13 @@ const SP_LISTS_SCHEMA = {
     // les ~90s) soit un "Scan" (créé par un étudiant qui confirme sa présence
     // via le QR affiché, relié à la session par SessionId).
     ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Paramétrage général de l'application (un seul enregistrement).
-    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT"],
+    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
     ECOGEST_Calendrier: ["TypeEvenement", "DateDebut", "DateFin", "Description", "Filiere"]
 };
 const SP_NUMBER_FIELDS = /* @__PURE__ */ new Set(["TotalAPayer", "TotalPaye", "Solde", "Montant", "TarifGlobalFormation", "Tarif20272028", "Tarif20282029", "Tarif20292030", "NoteCC", "NoteExamen", "NoteFinal", "Coef"]);
-const SP_MULTILINE_FIELDS = /* @__PURE__ */ new Set(["RemisesJSON", "PenalitesJSON", "Echeances", "Observations", "NotesConvention", "LienTeams", "LienEnregistrements"]);
+const SP_MULTILINE_FIELDS = /* @__PURE__ */ new Set(["RemisesJSON", "PenalitesJSON", "Echeances", "Observations", "NotesConvention", "LienTeams", "LienEnregistrements", "DatesCCExamenJSON"]);
 
 function spColumnBodyFor(name) {
     if (SP_NUMBER_FIELDS.has(name)) return {
@@ -19296,6 +19347,14 @@ async function loadAllFromSP(token) {
                 salle: g(c, "Salle"),
                 dateCC: g(c, "DateCC"),
                 dateExamen: g(c, "DateExamen"),
+                datesCCExamenParAnnee: (() => {
+                    try {
+                        const parsed = JSON.parse(g(c, "DatesCCExamenJSON") || "{}");
+                        return parsed && typeof parsed === "object" ? parsed : {};
+                    } catch {
+                        return {};
+                    }
+                })(),
                 anneesUniversitaires: (g(c, "AnneeUniversitaire") || "").split("|").map(s => s.trim()).filter(Boolean)
             };
         }),
@@ -19304,6 +19363,7 @@ async function loadAllFromSP(token) {
             id: e._spId,
             filiere: g(e, "Filiere"),
             semestre: g(e, "Semestre"),
+            anneeUniversitaire: g(e, "AnneeUniversitaire"),
             jour: g(e, "JourSemaine"),
             seance: g(e, "Seance"),
             module: g(e, "Module"),
