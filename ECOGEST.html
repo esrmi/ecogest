@@ -3312,11 +3312,13 @@ function Notes({
         const doc = new MiniPDF(W, H);
         paires.forEach((row, i) => {
             if (i > 0) doc.newPage();
-            const et = (data.etudiants || []).find(e => e.numInscription === row.numInscription) || {
-                prenom: row.etudiant || "",
-                nom: "",
-                filiere: row._filiere || "",
-                niveau: ""
+            const etReel = (data.etudiants || []).find(e => e.numInscription === row.numInscription);
+            const et = {
+                ...(etReel || {
+                    prenom: row.etudiant || "",
+                    nom: ""
+                }),
+                filiere: row._filiere || row.filiere || etReel?.filiere || ""
             };
             const semestre = row.semestre || "";
             const notesSem = (data.notes || []).filter(n => n.numInscription === row.numInscription && n.semestre === semestre);
@@ -17303,7 +17305,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.234.0";
+const APP_VERSION = "v3.234.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
