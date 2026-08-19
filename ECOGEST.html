@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.237.0 — 19 Août 2026
+//  ECOGEST_App.jsx — version v3.238.0 — 19 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4666,7 +4666,7 @@ function Presences({
         }
         const filiereObj = (data.filieres || []).find(f => f.intitule === ficheFiliere);
         const etudiantsGroupe = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, ficheAnnee) === ficheFiliere && e.statut !== "Inactif" && (e.promotion === ficheAnnee || (e.parcours || []).some(p => p.anneeUniversitaire === ficheAnnee)));
-        genererFichePresenceHebdo(filiereObj, etudiantsGroupe, lundiDeLaSemaine(ficheSemaine), joursCoursAutorises(data), ficheAnnee);
+        genererFichePresenceHebdo(filiereObj, etudiantsGroupe, lundiDeLaSemaine(ficheSemaine), joursCoursAutorises(data, ficheFiliere), ficheAnnee);
     };
     const openAdd = () => {
         setForm({
@@ -8309,9 +8309,11 @@ function DemandesDocuments({
     }, "Envoyer la demande → SharePoint"))));
 }
 const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]; // Renvoie la liste des jours réellement autorisés pour la planification de
-// cours, selon le réglage du menu Paramétrage : soit les 7 jours (week-end
-// inclus), soit uniquement du lundi au vendredi.
-const joursCoursAutorises = data => data?.configuration?.joursCoursWeekend ? JOURS_SEMAINE : JOURS_SEMAINE.slice(0, 5);
+// cours d'un GROUPE (filière) donné, selon le réglage du menu Paramétrage
+// (Groupes → Jours de cours autorisés) : soit les 7 jours (week-end
+// inclus) pour les groupes cochés, soit uniquement du lundi au vendredi
+// pour tous les autres.
+const joursCoursAutorises = (data, filiere) => filiere && (data?.configuration?.filieresAvecWeekend || []).includes(filiere) ? JOURS_SEMAINE : JOURS_SEMAINE.slice(0, 5);
 const MS_JOUR = 864e5; // Formate une date en "YYYY-MM-DD" à partir de ses composantes LOCALES
 // (année/mois/jour), et non via toISOString() qui convertit d'abord en
 // UTC — ce qui faisait reculer la date d'un jour pour tout utilisateur
@@ -8426,7 +8428,7 @@ function EmploiDuTemps({
     // système Jour/Soir pour les groupes non encore configurés. Les séances
     // peuvent être planifiées sur les 7 jours de la semaine.
     const seancesAffichees = getSeancesGroupe(data, filterFiliere);
-    const joursAffiches = joursCoursAutorises(data);
+    const joursAffiches = joursCoursAutorises(data, filterFiliere);
     const dateDuJour = jour => addJoursISO(semaineSelectionnee, JOURS_SEMAINE.indexOf(jour));
     const modulesOptions = (data.cours || []).filter(c => (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre));
     const moduleChoisi = (data.cours || []).find(c => c.intitule === form.module);
@@ -9264,7 +9266,7 @@ function EmploiDuTemps({
         }))
     }, /*#__PURE__*/ React.createElement("option", {
         value: ""
-    }, "-- Sélectionner --"), joursCoursAutorises(data).map(j => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+    }, "-- Sélectionner --"), joursCoursAutorises(data, form.filiere).map(j => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: j
     }, j))), /*#__PURE__*/ React.createElement(Sel, {
         label: "Séance *",
@@ -10170,22 +10172,24 @@ function Parametrage({
 }) {
     const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
     const [horairesEdit, setHorairesEdit] = useState([]);
-    const handleSetJoursCours = valeur => {
+    const handleToggleFiliereWeekend = filiere => {
         if (!user?.token) {
             toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
             return;
         }
+        const actuelles = data.configuration?.filieresAvecWeekend || [];
+        const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
         const spId = data.configuration?._spId;
         setData(d => ({
             ...d,
             configuration: {
                 ...d.configuration,
-                joursCoursWeekend: valeur
+                filieresAvecWeekend: nouvelles
             }
         }));
         saveToSP("ECOGEST_Parametres", {
             Title: "Configuration ECOGEST",
-            JoursCoursWeekend: valeur ? "true" : "false"
+            FilieresAvecWeekend: nouvelles.join(" | ")
         }, user.token, spId).then(result => {
             if (!result) {
                 toast("⚠️ Échec de l'enregistrement");
@@ -10198,7 +10202,6 @@ function Parametrage({
                     _spId: result.id
                 }
             }));
-            toast(valeur ? "🗓️ Cours autorisés aussi le samedi et le dimanche ✓" : "🗓️ Cours limités aux jours ouvrables (lundi-vendredi) ✓");
         });
     };
     const handleToggleFiliereTauxAbsence = filiere => {
@@ -10579,75 +10582,40 @@ function Parametrage({
             marginBottom: 16,
             lineHeight: 1.6
         }
-    }, "Détermine si les cours peuvent être planifiés le week-end (samedi et dimanche), ou uniquement sur les jours ouvrables. Ce réglage s'applique à l'Emploi du temps (jours proposés dans le formulaire et affichés dans la grille hebdomadaire) ainsi qu'à la fiche de présence hebdomadaire imprimable."), /*#__PURE__*/ React.createElement("div", {
+    }, "Cochez les groupes pour lesquels les cours peuvent être planifiés le week-end (samedi et dimanche). Pour les groupes non cochés, seuls les jours ouvrables (lundi à vendredi) restent proposés. Ce réglage s'applique à l'Emploi du temps (jours proposés dans le formulaire et affichés dans la grille hebdomadaire) ainsi qu'à la fiche de présence hebdomadaire imprimable."), /*#__PURE__*/ React.createElement("div", {
         style: {
-            display: "flex",
-            flexDirection: "column",
-            gap: 8
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            maxHeight: 220,
+            overflowY: "auto"
         }
-    }, /*#__PURE__*/ React.createElement("label", {
+    }, getFilieres(data).map((f, i, arr) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
+        key: f,
         style: {
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            border: `1px solid ${!data.configuration?.joursCoursWeekend?C.navy:C.border}`,
-            borderRadius: 8,
+            gap: 9,
+            padding: "9px 14px",
+            borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
             cursor: "pointer",
-            fontSize: 13,
-            background: !data.configuration?.joursCoursWeekend ? C.navyLight : "transparent"
+            fontSize: 13
         }
     }, /*#__PURE__*/ React.createElement("input", {
-        type: "radio",
-        name: "joursCoursWeekend",
-        checked: !data.configuration?.joursCoursWeekend,
-        onChange: () => handleSetJoursCours(false),
+        type: "checkbox",
+        checked: (data.configuration?.filieresAvecWeekend || []).includes(f),
+        onChange: () => handleToggleFiliereWeekend(f),
         style: {
             width: 16,
             height: 16,
             cursor: "pointer"
         }
-    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
+    }), f, /*#__PURE__*/ React.createElement("span", {
         style: {
-            fontWeight: 700
-        }
-    }, "Jours ouvrables uniquement"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
+            marginLeft: "auto",
+            fontSize: 11,
             color: C.muted
         }
-    }, "Lundi à vendredi — samedi et dimanche exclus"))), /*#__PURE__*/ React.createElement("label", {
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            border: `1px solid ${data.configuration?.joursCoursWeekend?C.navy:C.border}`,
-            borderRadius: 8,
-            cursor: "pointer",
-            fontSize: 13,
-            background: data.configuration?.joursCoursWeekend ? C.navyLight : "transparent"
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "radio",
-        name: "joursCoursWeekend",
-        checked: !!data.configuration?.joursCoursWeekend,
-        onChange: () => handleSetJoursCours(true),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontWeight: 700
-        }
-    }, "Y compris le week-end"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted
-        }
-    }, "Lundi à dimanche — samedi et dimanche inclus"))))), /*#__PURE__*/ React.createElement(Card, {
+    }, (data.configuration?.filieresAvecWeekend || []).includes(f) ? "Lundi → dimanche" : "Lundi → vendredi"))))), /*#__PURE__*/ React.createElement(Card, {
         style: {
             padding: 24,
             maxWidth: 620,
@@ -11035,7 +11003,10 @@ function Parametrage({
             marginBottom: 16,
             lineHeight: 1.6
         }
-    }, "Chaque groupe a ses propres créneaux horaires (généralement 5 par jour, mais certains groupes peuvent en avoir moins). Cliquez sur un groupe ci-dessous pour modifier directement ses créneaux."), (data.filieres || []).filter(f => f.statut === "Active").map(f => {
+    }, "Chaque groupe a ses propres créneaux horaires (généralement 5 par jour, mais certains groupes peuvent en avoir moins). Cliquez sur un groupe ci-dessous pour modifier directement ses créneaux."), (data.filieres || []).filter(f => f.statut === "Active").sort((a, b) => (a.intitule || "").localeCompare(b.intitule || "", "fr", {
+        numeric: true,
+        sensitivity: "base"
+    })).map(f => {
         const horairesActuels = f.horaires && f.horaires.length > 0 ? f.horaires : f.typeSeances === "Jour" ? SEANCES_HORAIRE.filter(s => s !== "19h00 - 21h00") : ["19h00 - 21h00"];
         const ouvert = groupeHorairesOuvert === f.id;
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -17631,7 +17602,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.237.0";
+const APP_VERSION = "v3.238.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -19443,7 +19414,7 @@ async function loadAllFromSP(token) {
             campusRayonMetres: g(parametresSP[0] || {}, "CampusRayonMetres") || "150",
             geolocalisationActive: g(parametresSP[0] || {}, "GeolocalisationActive") === "true" || g(parametresSP[0] || {}, "GeolocalisationActive") === true,
             decalageGMT: g(parametresSP[0] || {}, "DecalageGMT") || "1",
-            joursCoursWeekend: g(parametresSP[0] || {}, "JoursCoursWeekend") === "true" || g(parametresSP[0] || {}, "JoursCoursWeekend") === true
+            filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean)
         },
         calendrier: calendrier.map(c => ({
             _spId: c._spId,
@@ -19457,6 +19428,7 @@ async function loadAllFromSP(token) {
         }))
     };
 }
+
 function App() {
     const [roleAuth, setRole] = useState(null);
     const [userAuth, setUser] = useState(null);
