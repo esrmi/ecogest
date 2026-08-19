@@ -3344,7 +3344,7 @@ function Professeurs({
             ...f,
             telephone: e.target.value
         }))
-    }), !editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnneesMultiple, {
+    }), /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
         label: "Année(s) universitaire(s) d'intégration *",
         values: form.anneesUniversitaires,
         onChange: v => setForm(f => ({
@@ -6938,7 +6938,7 @@ function Cours({
             ...f,
             heures: e.target.value
         }))
-    })), !editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnneesMultiple, {
+    })), /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
         values: form.anneesUniversitaires,
         onChange: v => setForm(f => ({
             ...f,
@@ -17789,7 +17789,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.241.0";
+const APP_VERSION = "v3.241.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
