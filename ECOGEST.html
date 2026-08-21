@@ -7332,6 +7332,7 @@ function Pointage({
     const [editingSeanceId, setEditingSeanceId] = useState(null);
     const [contestationSeance, setContestationSeance] = useState(null);
     const [motifContestation, setMotifContestation] = useState("");
+    const [commentairesRefusContestation, setCommentairesRefusContestation] = useState({});
     const [filtreValidateur, setFiltreValidateur] = useState("Soumise");
     const [filtreAnneePointage, setFiltreAnneePointage] = useState("Toutes");
     useEffect(() => {
@@ -7378,6 +7379,14 @@ function Pointage({
         const [y, mo] = m.split("-");
         const nom = MOIS_ANNEE[parseInt(mo, 10) - 1] || "";
         return `${nom.charAt(0).toUpperCase()}${nom.slice(1)} ${y}`;
+    }; // Ajoute n mois à une chaîne "AAAA-MM" — sert notamment à reporter
+    // automatiquement une séance dont la contestation a été acceptée sur la
+    // fiche du mois suivant.
+    const ajouterMoisAMois = (moisStr, n) => {
+        const [a, m] = (moisStr || "").split("-").map(Number);
+        if (!a || !m) return "";
+        const d = new Date(a, m - 1 + n, 1);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
     }; // Une fiche "du mois M" correspond à la période allant du 26 du mois
     // précédent au 25 du mois M (ex: fiche "Août 2026" = 26/07/2026 \u2192
     // 25/08/2026). Cette règle s'applique à tous les mois, sans exception.
@@ -7746,9 +7755,131 @@ function Pointage({
             toast("⚠️ Non connecté à SharePoint");
             return;
         }
-        if (!window.confirm(`Accepter cette contestation et valider la séance (${c.module}, ${formatDateFR(c.date)}) ?`)) return;
+        if (!window.confirm(`Accepter cette contestation, valider la séance (${c.module}, ${formatDateFR(c.date)}) et la reporter automatiquement sur la fiche du mois suivant du professeur ?`)) return;
         const seance = (data.pointageSeances || []).find(s => s.id === c.seanceId);
-        if (seance) handleValiderSeance(seance, "Validee");
+        const ficheOrigine = seance ? (data.pointageFiches || []).find(f => f.id === seance.ficheId) : null;
+        let ficheCibleLabel = "";
+        if (seance) handleValiderSeance(seance, "Validee"); // Report automatique : la fiche d'origine peut déjà être en cours de
+        // traitement (voire déjà payée) au moment où la contestation est
+        // tranchée — la simple validation de la séance ne suffit donc pas à
+        // garantir son paiement. On la reporte donc, déjà validée, sur la fiche
+        // du MOIS SUIVANT du même professeur (créée si besoin), en laissant sur
+        // les deux fiches une note explicite reliant l'une à l'autre.
+        if (seance && ficheOrigine) {
+            const moisSuivant = ajouterMoisAMois(ficheOrigine.mois, 1);
+            ficheCibleLabel = formatMoisLabel(moisSuivant);
+            let ficheCible = (data.pointageFiches || []).find(f => f.professeurId === ficheOrigine.professeurId && f.mois === moisSuivant);
+            if (!ficheCible) {
+                const nouvelIdFiche = Date.now() + Math.random();
+                ficheCible = {
+                    id: nouvelIdFiche,
+                    _spId: null,
+                    professeurId: ficheOrigine.professeurId,
+                    professeurNom: ficheOrigine.professeurNom,
+                    mois: moisSuivant,
+                    anneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant),
+                    statut: "Brouillon",
+                    dateCreation: today(),
+                    dateSoumission: "",
+                    dateValidation: "",
+                    valideePar: "",
+                    dateAccuseReception: "",
+                    accuseReceptionPar: "",
+                    dateTraitement: "",
+                    traitePar: ""
+                };
+                setData(d => ({
+                    ...d,
+                    pointageFiches: [...(d.pointageFiches || []), ficheCible]
+                }));
+                const resultFiche = await saveToSP("ECOGEST_PointageFiches", {
+                    Title: `${ficheOrigine.professeurNom} - ${moisSuivant}`,
+                    ProfesseurId: String(ficheOrigine.professeurId),
+                    ProfesseurNom: ficheOrigine.professeurNom,
+                    Mois: moisSuivant,
+                    Statut: "Brouillon",
+                    DateCreation: today(),
+                    AnneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant)
+                }, user.token, null);
+                if (resultFiche) {
+                    ficheCible = {
+                        ...ficheCible,
+                        _spId: resultFiche.id
+                    };
+                    setData(d => ({
+                        ...d,
+                        pointageFiches: d.pointageFiches.map(f => f.id === nouvelIdFiche ? {
+                            ...f,
+                            _spId: resultFiche.id
+                        } : f)
+                    }));
+                }
+            }
+            const commentaireReport = `↩️ Séance du ${formatDateFR(seance.date)} reportée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} suite à une contestation acceptée le ${formatDateFR(today())}.`;
+            const nouvelIdSeance = Date.now() + Math.random() + 0.5;
+            const seanceReportee = {
+                id: nouvelIdSeance,
+                _spId: null,
+                ficheId: ficheCible.id,
+                professeurId: ficheOrigine.professeurId,
+                professeurNom: ficheOrigine.professeurNom,
+                date: seance.date,
+                module: seance.module,
+                filiere: seance.filiere,
+                semestre: seance.semestre,
+                heureDebut: seance.heureDebut,
+                heureFin: seance.heureFin,
+                nbHeures: seance.nbHeures,
+                commentaire: commentaireReport,
+                statut: "Validee",
+                confirmee: true,
+                valideePar: user?.nom || user?.email || "",
+                dateValidation: today()
+            };
+            setData(d => ({
+                ...d,
+                pointageSeances: [...(d.pointageSeances || []), seanceReportee]
+            }));
+            saveToSP("ECOGEST_PointageSeances", {
+                Title: `${ficheOrigine.professeurNom} - ${seance.date} (report)`,
+                FicheId: String(ficheCible.id),
+                ProfesseurId: String(ficheOrigine.professeurId),
+                ProfesseurNom: ficheOrigine.professeurNom,
+                DatePointage: seance.date || "",
+                Module: seance.module || "",
+                Filiere: seance.filiere || "",
+                Semestre: seance.semestre || "",
+                HeureDebut: seance.heureDebut || "",
+                HeureFin: seance.heureFin || "",
+                NbHeures: String(seance.nbHeures || 0),
+                Commentaire: commentaireReport,
+                Statut: "Validee",
+                Confirmee: "true",
+                ValideePar: user?.nom || user?.email || "",
+                DateValidation: today()
+            }, user.token, null).then(result => {
+                if (result) setData(d => ({
+                    ...d,
+                    pointageSeances: d.pointageSeances.map(s => s.id === nouvelIdSeance ? {
+                        ...s,
+                        _spId: result.id
+                    } : s)
+                }));
+            });
+            const commentaireOrigine = `${seance.commentaire?seance.commentaire+" — ":""}✅ Contestation acceptée le ${formatDateFR(today())} — comptabilisée sur la fiche de ${ficheCibleLabel}.`;
+            setData(d => ({
+                ...d,
+                pointageSeances: d.pointageSeances.map(s => s.id === seance.id ? {
+                    ...s,
+                    commentaire: commentaireOrigine
+                } : s)
+            }));
+            if (seance._spId) saveToSP("ECOGEST_PointageSeances", {
+                Commentaire: commentaireOrigine
+            }, user.token, seance._spId);
+        } else if (!seance) {
+            toast("⚠️ Séance d'origine introuvable — impossible de la reporter automatiquement");
+        }
         await saveToSP("ECOGEST_ContestationsPointage", {
             Statut: "Acceptée",
             DateTraitement: today(),
@@ -7762,27 +7893,41 @@ function Pointage({
                 dateTraitement: today()
             } : x)
         }));
-        toast("Contestation acceptée — séance validée ✓");
+        toast(ficheCibleLabel ? `Contestation acceptée — séance validée et reportée sur la fiche de ${ficheCibleLabel} ✓` : "Contestation acceptée — séance validée ✓");
     };
     const handleRefuserContestation = async c => {
         if (!user?.token) {
             toast("⚠️ Non connecté à SharePoint");
             return;
         }
+        const commentaireAdmin = (commentairesRefusContestation[c.id] || "").trim();
+        if (!commentaireAdmin) {
+            toast("⚠️ Merci d'indiquer une réponse au professeur avant de refuser");
+            return;
+        }
         if (!window.confirm("Refuser cette contestation ? Le statut de la séance ne changera pas.")) return;
         await saveToSP("ECOGEST_ContestationsPointage", {
             Statut: "Refusée",
             DateTraitement: today(),
-            TraitePar: user?.nom || user?.email || ""
+            TraitePar: user?.nom || user?.email || "",
+            CommentaireAdmin: commentaireAdmin
         }, user.token, c._spId);
         setData(d => ({
             ...d,
             contestationsPointage: d.contestationsPointage.map(x => x.id === c.id ? {
                 ...x,
                 statut: "Refusée",
-                dateTraitement: today()
+                dateTraitement: today(),
+                commentaireAdmin
             } : x)
         }));
+        setCommentairesRefusContestation(prev => {
+            const next = {
+                ...prev
+            };
+            delete next[c.id];
+            return next;
+        });
         toast("Contestation refusée ✓");
     };
     const mesContestationsEnAttente = (data.contestationsPointage || []).filter(c => c.professeurCin === monProfesseur?.cin && c.statut === "En attente");
@@ -8529,13 +8674,17 @@ function Pointage({
             style: {
                 display: "flex",
                 flexDirection: "column",
-                gap: 10
+                gap: 14
             }
         }, contestationsEnAttentePourIliass.map(c => { // Si la contestation elle-même n'a pas (encore) toutes ses
             // informations, on complète depuis la séance d'origine
             // (source plus fiable, déjà utilisée partout ailleurs dans
-            // ce module) pour ne jamais afficher un panneau vide.
+            // ce module) pour ne jamais afficher un panneau vide — et on
+            // s'en sert aussi pour afficher le détail complet (groupe,
+            // horaire, durée) que la contestation elle-même ne stocke
+            // pas.
             const seanceRef = (data.pointageSeances || []).find(s => s.id === c.seanceId);
+            const ficheRef = seanceRef ? (data.pointageFiches || []).find(f => f.id === seanceRef.ficheId) : null;
             const moduleAffiche = c.module || seanceRef?.module || "Module non précisé";
             const dateAffichee = c.date || seanceRef?.date || "";
             const nomProfAffiche = c.professeurNom || seanceRef?.professeurNom || "professeur inconnu";
@@ -8544,24 +8693,74 @@ function Pointage({
                 style: {
                     border: `1px solid ${C.border}`,
                     borderRadius: 10,
-                    padding: 12,
+                    padding: 14
+                }
+            }, /*#__PURE__*/ React.createElement("div", {
+                style: {
                     display: "flex",
                     flexWrap: "wrap",
                     gap: 12,
-                    alignItems: "center",
                     justifyContent: "space-between"
                 }
             }, /*#__PURE__*/ React.createElement("div", {
                 style: {
-                    fontSize: 12.5
+                    fontSize: 12.5,
+                    flex: 1,
+                    minWidth: 260
                 }
             }, /*#__PURE__*/ React.createElement("div", {
                 style: {
                     fontWeight: 700,
                     color: C.navy,
-                    marginBottom: 3
+                    marginBottom: 6,
+                    fontSize: 13.5
                 }
             }, moduleAffiche, " ", dateAffichee && `— ${formatDateFR(dateAffichee)}`), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginBottom: 8
+                }
+            }, seanceRef?.filiere && /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
+                code: filiereCode(seanceRef.filiere, data.filieres) || seanceRef.filiere
+            }), seanceRef?.semestre && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    fontSize: 10.5,
+                    background: C.navyLight,
+                    color: C.navy,
+                    borderRadius: 12,
+                    padding: "3px 9px",
+                    fontWeight: 600
+                }
+            }, seanceRef.semestre), seanceRef?.heureDebut && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    fontSize: 10.5,
+                    background: C.light,
+                    color: "#555",
+                    borderRadius: 12,
+                    padding: "3px 9px",
+                    fontWeight: 600
+                }
+            }, "🕒 ", seanceRef.heureDebut, "-", seanceRef.heureFin), seanceRef?.nbHeures != null && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    fontSize: 10.5,
+                    background: C.light,
+                    color: "#555",
+                    borderRadius: 12,
+                    padding: "3px 9px",
+                    fontWeight: 600
+                }
+            }, "⏱ ", seanceRef.nbHeures, "h"), ficheRef?.mois && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    fontSize: 10.5,
+                    background: C.light,
+                    color: "#555",
+                    borderRadius: 12,
+                    padding: "3px 9px",
+                    fontWeight: 600
+                }
+            }, "📅 Fiche ", formatMoisLabel(ficheRef.mois))), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     color: C.muted,
                     marginBottom: 6
@@ -8576,17 +8775,48 @@ function Pointage({
             }, c.motif ? `« ${c.motif} »` : "(motif non précisé)")), /*#__PURE__*/ React.createElement("div", {
                 style: {
                     display: "flex",
+                    flexDirection: "column",
                     gap: 8,
-                    flexShrink: 0
+                    flexShrink: 0,
+                    minWidth: 200
                 }
             }, /*#__PURE__*/ React.createElement(Btn, {
                 small: true,
+                onClick: () => handleAccepterContestation(c)
+            }, "✓ Accepter (valider + reporter sur le mois suivant)"), /*#__PURE__*/ React.createElement(Btn, {
+                small: true,
                 variant: "danger",
                 onClick: () => handleRefuserContestation(c)
-            }, "✕ Refuser"), /*#__PURE__*/ React.createElement(Btn, {
-                small: true,
-                onClick: () => handleAccepterContestation(c)
-            }, "✓ Accepter (valider la séance)")));
+            }, "✕ Refuser"))), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    marginTop: 10
+                }
+            }, /*#__PURE__*/ React.createElement("label", {
+                style: {
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#555",
+                    display: "block",
+                    marginBottom: 4
+                }
+            }, "Réponse au professeur (obligatoire en cas de refus)"), /*#__PURE__*/ React.createElement("textarea", {
+                value: commentairesRefusContestation[c.id] || "",
+                onChange: e => setCommentairesRefusContestation(prev => ({
+                    ...prev,
+                    [c.id]: e.target.value
+                })),
+                placeholder: "Ex : la feuille de présence signée ne mentionne pas votre nom pour cette séance...",
+                rows: 2,
+                style: {
+                    width: "100%",
+                    padding: "8px 10px",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontFamily: "inherit",
+                    resize: "vertical"
+                }
+            })));
         }))), /*#__PURE__*/ React.createElement("div", {
             style: {
                 marginBottom: 16,
@@ -18475,7 +18705,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.245.2";
+const APP_VERSION = "v3.246.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
