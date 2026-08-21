@@ -15650,15 +15650,34 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         qui: fiche.traitePar,
         quand: fiche.dateTraitement
     }];
-    etapes.forEach(e => {
-        const puce = e.fait ? [0.16, 0.6, 0.32] : [0.75, 0.75, 0.75];
-        doc.rect(tableX, y - 3.2 * MM, 3.2 * MM, 3.2 * MM, puce);
-        doc.text(tableX + 6 * MM, y - 2.4 * MM, e.label, {
+    etapes.forEach((e, idx) => {
+        const cx = tableX + 1.7 * MM,
+            cy = y - 1.7 * MM;
+        if (e.fait) { // Coche dessinée en vecteur (2 segments) plutôt qu'un caractère
+            // Unicode "✓" — ce mini-moteur PDF ne prend en charge que la table
+            // WinAnsi et afficherait un "?" pour tout symbole hors de cette
+            // plage. Le vecteur, lui, s'affiche correctement à coup sûr.
+            doc.rect(tableX, y - 3.4 * MM, 3.4 * MM, 3.4 * MM, [0.9, 0.97, 0.93]);
+            doc.line(tableX + 0.6 * MM, cy, cx - 0.1 * MM, cy - 1 * MM, 0.9, [0.16, 0.6, 0.32]);
+            doc.line(cx - 0.1 * MM, cy - 1 * MM, tableX + 2.9 * MM, cy + 1 * MM, 0.9, [0.16, 0.6, 0.32]);
+        } else { // Étape pas encore franchie : simple cadre creux numéroté, pour
+            // indiquer à la fois "pas encore fait" ET l'ordre de l'étape.
+            doc.line(tableX, y - 3.4 * MM, tableX + 3.4 * MM, y - 3.4 * MM, 0.6, [0.75, 0.75, 0.75]);
+            doc.line(tableX, y, tableX + 3.4 * MM, y, 0.6, [0.75, 0.75, 0.75]);
+            doc.line(tableX, y - 3.4 * MM, tableX, y, 0.6, [0.75, 0.75, 0.75]);
+            doc.line(tableX + 3.4 * MM, y - 3.4 * MM, tableX + 3.4 * MM, y, 0.6, [0.75, 0.75, 0.75]);
+            doc.textCentered(cx, cy - 1.1, String(idx + 1), {
+                size: 7,
+                bold: true,
+                color: [0.6, 0.6, 0.6]
+            });
+        }
+        doc.text(tableX + 7 * MM, y - 2.4 * MM, e.label, {
             size: 9.5,
             bold: e.fait,
             color: e.fait ? NAVY_RGB : [0.5, 0.5, 0.5]
         });
-        if (e.fait) doc.text(tableX + 6 * MM, y - 6.2 * MM, `— ${e.qui||""} · ${formatDateFR(e.quand)||""}`, {
+        if (e.fait) doc.text(tableX + 7 * MM, y - 6.2 * MM, `— ${e.qui||""} · ${formatDateFR(e.quand)||""}`, {
             size: 8,
             color: [0.5, 0.5, 0.5]
         });
@@ -18173,7 +18192,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.244.0";
+const APP_VERSION = "v3.244.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
