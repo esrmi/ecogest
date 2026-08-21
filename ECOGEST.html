@@ -8098,9 +8098,20 @@ function Pointage({
             // le total d'heures affiché — cohérent avec la fiche PDF imprimable.
             const totalHeures = seances.filter(s => s.statut === "Validee").reduce((s, x) => s + (x.nbHeures || 0), 0);
             const nbNonValidees = seances.filter(s => s.statut !== "Validee").length;
-            const modulesOptions = (data.cours || []).filter(c => c.professeurCin === monProfesseur?.cin);
+            const periode = periodeDuMois(ficheOuverte.mois); // Le semestre auquel appartient cette fiche est déduit de sa période
+            // (26 du mois précédent → 25 du mois M) comparée aux dates de
+            // semestre configurées (Paramétrage → Dates des semestres) — une
+            // fiche peut ainsi être automatiquement rattachée au bon semestre
+            // sans que l'utilisateur ait à le préciser lui-même.
+            const semestreDeLaFiche = (data.semestresDates || []).find(s => s.dateDebut && s.dateFin && periode && periode.debut <= s.dateFin && periode.fin >= s.dateDebut)?.semestre; // Modules proposés au professeur pour l'ajout d'une séance : les
+            // siens, ET rattachés à l'année universitaire et au semestre de cette
+            // fiche précise — pour ne jamais lui proposer un module d'une autre
+            // période. Si aucun semestre n'a pu être déduit (dates non
+            // configurées), ou si le module n'a jamais été rattaché à une année
+            // précise, on ne filtre pas sur ce critère plutôt que de tout
+            // masquer par erreur.
+            const modulesOptions = (data.cours || []).filter(c => c.professeurCin === monProfesseur?.cin && (!ficheOuverte.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(ficheOuverte.anneeUniversitaire)) && (!semestreDeLaFiche || c.semestre === semestreDeLaFiche));
             const toutesConfirmees = seances.length > 0 && seances.every(s => s.confirmee);
-            const periode = periodeDuMois(ficheOuverte.mois);
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
                 title: `🕛 Pointage — ${formatMoisLabel(ficheOuverte.mois)}`,
                 sub: `${seances.length} séance(s) · ${totalHeures}h validées${nbNonValidees>0?` (${nbNonValidees} en attente/rejetée(s), non comptées)`:""} · Période : du ${formatDateFR(periode.debut)} au ${formatDateFR(periode.fin)}`,
@@ -18705,7 +18716,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.246.0";
+const APP_VERSION = "v3.246.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
