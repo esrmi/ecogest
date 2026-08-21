@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.243.0 — 21 Août 2026
+//  ECOGEST_App.jsx — version v3.245.0 — 21 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -7338,14 +7338,14 @@ function Pointage({
             setShowFicheId(null);
             setPointageFiltreCible?.(null);
         }
-    }, [pointageFiltreCible]); // Le module Pointage doit toujours refl\xE9ter les vraies donn\xE9es SharePoint
+    }, [pointageFiltreCible]); // Le module Pointage doit toujours refléter les vraies données SharePoint
     // pour tout le monde (professeur, Iliass, Kawtar, Yasser, Fatima Zahra,
-    // Abdelilah) \u2014 jamais une copie locale p\xE9rim\xE9e propre \xE0 une session :
-    // 1) rafra\xEEchissement d\xE8s l'arriv\xE9e sur la page (liste ou fiche),
-    // 2) rafra\xEEchissement suppl\xE9mentaire \xE0 l'ouverture d'une fiche pr\xE9cise,
-    // 3) rafra\xEEchissement automatique toutes les 30 secondes tant que la page
+    // Abdelilah) \u2014 jamais une copie locale périmée propre à une session :
+    // 1) rafraîchissement dès l'arrivée sur la page (liste ou fiche),
+    // 2) rafraîchissement supplémentaire à l'ouverture d'une fiche précise,
+    // 3) rafraîchissement automatique toutes les 30 secondes tant que la page
     //    Pointage reste ouverte, pour que toutes les sessions convergent vite
-    //    vers le m\xEAme \xE9tat sans action manuelle.
+    //    vers le même état sans action manuelle.
     useEffect(() => {
         if (!user?.token) return;
         const rafraichir = () => loadAllFromSP(user.token).then(spData => {
@@ -7376,9 +7376,9 @@ function Pointage({
         const [y, mo] = m.split("-");
         const nom = MOIS_ANNEE[parseInt(mo, 10) - 1] || "";
         return `${nom.charAt(0).toUpperCase()}${nom.slice(1)} ${y}`;
-    }; // Une fiche "du mois M" correspond \xE0 la p\xE9riode allant du 26 du mois
-    // pr\xE9c\xE9dent au 25 du mois M (ex: fiche "Ao\xFBt 2026" = 26/07/2026 \u2192
-    // 25/08/2026). Cette r\xE8gle s'applique \xE0 tous les mois, sans exception.
+    }; // Une fiche "du mois M" correspond à la période allant du 26 du mois
+    // précédent au 25 du mois M (ex: fiche "Août 2026" = 26/07/2026 \u2192
+    // 25/08/2026). Cette règle s'applique à tous les mois, sans exception.
     const periodeDuMois = moisStr => {
         if (!moisStr) return null;
         const [y, m] = moisStr.split("-").map(Number);
@@ -7510,7 +7510,7 @@ function Pointage({
             Commentaire: formSeance.commentaire || ""
         };
         if (editingSeanceId) {
-            const seanceExistante = (data.pointageSeances || []).find(s => s.id === editingSeanceId); // Toute modification d'une s\xE9ance annule sa confirmation \u2014 le
+            const seanceExistante = (data.pointageSeances || []).find(s => s.id === editingSeanceId); // Toute modification d'une séance annule sa confirmation \u2014 le
             // professeur doit la reconfirmer avant de pouvoir soumettre la fiche.
             setData(d => ({
                 ...d,
@@ -7671,9 +7671,112 @@ function Pointage({
         if (user?.token && seance._spId) saveToSP("ECOGEST_PointageSeances", {
             Commentaire: commentaire
         }, user.token, seance._spId);
-    }; // \xC9tape 1 (M. Iliass Elmzioui uniquement) : une fois toutes les s\xE9ances
-    // valid\xE9es ou rejet\xE9es, la fiche passe \xE0 "ValideeIliass" et est
-    // transmise \xE0 Mme Bouabid pour accus\xE9 de r\xE9ception.
+    }; // Pouvoir de correction directe (Iliass Elmzioui uniquement) : même après
+    // que la fiche a quitté le statut "Soumise", Iliass peut à tout moment
+    // rouvrir une séance déjà validée/rejetée pour corriger une erreur
+    // constatée après coup (typiquement suite à une réclamation informelle
+    // du professeur, ou à sa propre relecture).
+    const handleRouvrirSeance = seance => {
+        if (!window.confirm(`Rouvrir cette séance (${seance.module}, ${formatDateFR(seance.date)}) pour en corriger le statut ?`)) return;
+        handleValiderSeance(seance, "EnAttente");
+    }; // Contestation formelle (professeur) : sur une séance REJETÉE, le
+    // professeur peut soumettre une contestation motivée, même après que la
+    // fiche a quitté le statut "Soumise" — Iliass Elmzioui la retrouve dans
+    // un panneau dédié et peut l'accepter (la séance repasse alors
+    // directement à "Validée") ou la refuser.
+    const handleContesterSeance = async seance => {
+        if (!user?.token || !monProfesseur) {
+            toast("⚠️ Non connecté à SharePoint — contestation non envoyée");
+            return;
+        }
+        const motif = window.prompt(`Expliquez pourquoi cette séance (${seance.module}, ${formatDateFR(seance.date)}) a été rejetée à tort :`);
+        if (!motif || !motif.trim()) return;
+        const spF = {
+            Title: `Contestation — ${seance.module} — ${monProfesseur.prenom} ${monProfesseur.nom}`,
+            FicheId: String(seance.ficheId),
+            SeanceId: String(seance.id),
+            ProfesseurCIN: monProfesseur.cin || "",
+            ProfesseurNom: `${monProfesseur.prenom} ${monProfesseur.nom}`,
+            Motif: motif.trim(),
+            Module: seance.module || "",
+            Date: seance.date || "",
+            StatutSeanceAvant: seance.statut || "",
+            Statut: "En attente",
+            DateContestation: today()
+        };
+        const result = await saveToSP("ECOGEST_ContestationsPointage", spF, user.token);
+        if (!result) {
+            toast("⚠️ Échec de l'envoi de la contestation");
+            return;
+        }
+        setData(d => ({
+            ...d,
+            contestationsPointage: [...(d.contestationsPointage || []), {
+                id: Date.now() + Math.random(),
+                _spId: result.id,
+                ficheId: seance.ficheId,
+                seanceId: seance.id,
+                professeurCin: monProfesseur.cin,
+                professeurNom: `${monProfesseur.prenom} ${monProfesseur.nom}`,
+                motif: motif.trim(),
+                module: seance.module,
+                date: seance.date,
+                statutSeanceAvant: seance.statut,
+                statut: "En attente",
+                dateContestation: today()
+            }]
+        }));
+        notifierPersonnalise(`ECOGEST — Contestation de pointage (${monProfesseur.prenom} ${monProfesseur.nom})`, "Contestation d'une séance rejetée", `${monProfesseur.prenom} ${monProfesseur.nom}`, _emailIntro(`<strong>${_emailEscapeHtml(`${monProfesseur.prenom} ${monProfesseur.nom}`)}</strong> conteste le rejet d'une séance :`) + _emailChipsRow([_emailChip("Module", seance.module), _emailChip("Date", formatDateFR(seance.date))]) + `<p style="margin:10px 0;font-size:14px;color:#333;">${_emailEscapeHtml(motif.trim())}</p>`, [EMAIL_VALIDATEUR_SEANCES]);
+        toast("📨 Contestation envoyée à M. Iliass Elmzioui ✓");
+    };
+    const handleAccepterContestation = async c => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint");
+            return;
+        }
+        if (!window.confirm(`Accepter cette contestation et valider la séance (${c.module}, ${formatDateFR(c.date)}) ?`)) return;
+        const seance = (data.pointageSeances || []).find(s => s.id === c.seanceId);
+        if (seance) handleValiderSeance(seance, "Validee");
+        await saveToSP("ECOGEST_ContestationsPointage", {
+            Statut: "Acceptée",
+            DateTraitement: today(),
+            TraitePar: user?.nom || user?.email || ""
+        }, user.token, c._spId);
+        setData(d => ({
+            ...d,
+            contestationsPointage: d.contestationsPointage.map(x => x.id === c.id ? {
+                ...x,
+                statut: "Acceptée",
+                dateTraitement: today()
+            } : x)
+        }));
+        toast("Contestation acceptée — séance validée ✓");
+    };
+    const handleRefuserContestation = async c => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint");
+            return;
+        }
+        if (!window.confirm("Refuser cette contestation ? Le statut de la séance ne changera pas.")) return;
+        await saveToSP("ECOGEST_ContestationsPointage", {
+            Statut: "Refusée",
+            DateTraitement: today(),
+            TraitePar: user?.nom || user?.email || ""
+        }, user.token, c._spId);
+        setData(d => ({
+            ...d,
+            contestationsPointage: d.contestationsPointage.map(x => x.id === c.id ? {
+                ...x,
+                statut: "Refusée",
+                dateTraitement: today()
+            } : x)
+        }));
+        toast("Contestation refusée ✓");
+    };
+    const mesContestationsEnAttente = (data.contestationsPointage || []).filter(c => c.professeurCin === monProfesseur?.cin && c.statut === "En attente");
+    const contestationsEnAttentePourIliass = estIliass || estValidateur ? (data.contestationsPointage || []).filter(c => c.statut === "En attente") : []; // Étape 1 (M. Iliass Elmzioui uniquement) : une fois toutes les séances
+    // validées ou rejetées, la fiche passe à "ValideeIliass" et est
+    // transmise à Mme Bouabid pour accusé de réception.
     const handleValiderFiche = fiche => {
         if (!window.confirm("Marquer les séances de cette fiche comme validées et la transmettre à Mme Kawtar Bouabid pour accusé de réception ?")) return;
         const maj = {
@@ -7693,8 +7796,8 @@ function Pointage({
         }, user.token, fiche._spId);
         notifierPersonnalise(`ECOGEST — Fiche de pointage validée (${fiche.professeurNom})`, "Fiche de pointage validée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Iliass Elmzioui")}</strong> a validé les séances de cette fiche. Elle est transmise à Mme Bouabid pour accusé de réception.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_ACCUSE_RECEPTION);
         toast("Fiche validée — transmise à Mme Bouabid ✓");
-    }; // \xC9tape 2 (Mme Kawtar Bouabid uniquement) : accus\xE9 de r\xE9ception de la
-    // fiche, transmission \xE0 Mme Zniber pour traitement du paiement.
+    }; // Étape 2 (Mme Kawtar Bouabid uniquement) : accusé de réception de la
+    // fiche, transmission à Mme Zniber pour traitement du paiement.
     const handleAccuserReception = fiche => {
         if (!window.confirm("Accuser réception de cette fiche et la transmettre à Mme Fatima Zahra Zniber pour traitement du paiement ?")) return;
         const maj = {
@@ -7714,8 +7817,8 @@ function Pointage({
         }, user.token, fiche._spId);
         notifierPersonnalise(`ECOGEST — Réception accusée (${fiche.professeurNom})`, "Réception accusée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Kawtar Bouabid")}</strong> a accusé réception de cette fiche. Elle est transmise à Mme Zniber pour traitement du paiement.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_TRAITEMENT_PAIEMENT);
         toast("Réception accusée — transmise à Mme Zniber ✓");
-    }; // \xC9tape 3 (Mme Fatima Zahra Zniber uniquement) : confirmation du
-    // traitement du paiement, la fiche est marqu\xE9e enti\xE8rement termin\xE9e.
+    }; // Étape 3 (Mme Fatima Zahra Zniber uniquement) : confirmation du
+    // traitement du paiement, la fiche est marquée entièrement terminée.
     const handleConfirmerTraitement = fiche => {
         if (!window.confirm("Confirmer que le paiement de cette fiche a été traité, et marquer la fiche comme terminée ?")) return;
         const maj = {
@@ -7739,9 +7842,9 @@ function Pointage({
     };
     const MAP_STATUTS_FICHE = {
         Brouillon: [C.muted, "📝 Brouillon"],
-        Soumise: [C.orange, "⏳ À valider (Iliass)"],
-        ValideeIliass: [C.teal, "📤 À réceptionner"],
-        ReceptionAccusee: [C.purple, "💰 À traiter"],
+        Soumise: [C.orange, "⏳ À valider (Iliass Elmzioui)"],
+        ValideeIliass: [C.teal, "📤 À réceptionner (Kawtar Bouabid)"],
+        ReceptionAccusee: [C.purple, "💰 À traiter (Fatima Zahra Zniber)"],
         Terminee: [C.green, "✅ Terminée"]
     };
     const badgeStatutFiche = statut => {
@@ -7761,8 +7864,8 @@ function Pointage({
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
             color: color
         }, label);
-    }; // Petit r\xE9capitulatif des 4 \xE9tapes du circuit, affich\xE9 en haut de la
-    // fiche pour que chacun voie clairement o\xF9 elle en est et qui doit agir.
+    }; // Petit récapitulatif des 4 étapes du circuit, affiché en haut de la
+    // fiche pour que chacun voie clairement où elle en est et qui doit agir.
     const Circuit = ({
         fiche
     }) => {
@@ -8028,7 +8131,34 @@ function Pointage({
                         color: C.red,
                         onClick: () => handleSupprimerSeance(row)
                     }))
-                }] : [])],
+                }] : [{
+                    key: "_contestation",
+                    label: "",
+                    render: (_, row) => {
+                        if (row.statut !== "Rejetee") return null;
+                        const enAttente = mesContestationsEnAttente.find(c => c.seanceId === row.id);
+                        if (enAttente) return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                            title: "En attente de la décision de M. Iliass Elmzioui",
+                            style: {
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: C.orange,
+                                background: "#fdeee3",
+                                padding: "4px 8px",
+                                borderRadius: 12,
+                                whiteSpace: "nowrap"
+                            }
+                        }, "🕒 Contestation en attente");
+                        return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
+                            small: true,
+                            variant: "light",
+                            onClick: () => handleContesterSeance(row)
+                        }, "⚠️ Contester");
+                    }
+                }])],
                 rows: seances,
                 emptyMsg: "Aucune séance ajoutée"
             })));
@@ -8272,7 +8402,7 @@ function Pointage({
                             fontSize: 11
                         }
                     }, "—")
-                }, ...(ficheOuverte.statut === "Soumise" && estIliass ? [{
+                }, ...(estIliass ? [{
                     key: "_valider",
                     label: "Valider",
                     render: (_, row) => row.statut === "EnAttente" ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -8290,12 +8420,23 @@ function Pointage({
                         title: "Rejeter",
                         color: C.red,
                         onClick: () => handleValiderSeance(row, "Rejetee")
-                    })) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    })) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                        style: {
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                        }
+                    }, /*#__PURE__*/ React.createElement("span", {
                         style: {
                             fontSize: 11,
                             color: C.muted
                         }
-                    }, row.valideePar)
+                    }, row.valideePar), /*#__PURE__*/ React.createElement(IconBtn, {
+                        icon: "🔓",
+                        title: "Rouvrir cette séance pour corriger son statut",
+                        color: C.orange,
+                        onClick: () => handleRouvrirSeance(row)
+                    }))
                 }] : [])],
                 rows: seances,
                 emptyMsg: "Aucune séance"
@@ -8304,7 +8445,72 @@ function Pointage({
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
             title: "🕛 Pointage des enseignants vacataires",
             sub: "Circuit : Soumission (professeur) → Validation (Iliass Elmzioui) → Accusé de réception (Kawtar Bouabid) → Traitement du paiement (Fatima Zahra Zniber)"
-        }), /*#__PURE__*/ React.createElement("div", {
+        }), contestationsEnAttentePourIliass.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 18,
+                marginBottom: 20,
+                border: `2px solid ${C.orange}`
+            }
+        }, /*#__PURE__*/ React.createElement("h4", {
+            style: {
+                margin: "0 0 12px",
+                color: C.orange,
+                fontSize: 14.5
+            }
+        }, "⚠️ Contestations de séances en attente (", contestationsEnAttentePourIliass.length, ")"), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                flexDirection: "column",
+                gap: 10
+            }
+        }, contestationsEnAttentePourIliass.map(c => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            key: c.id,
+            style: {
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                padding: 12,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                alignItems: "center",
+                justifyContent: "space-between"
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12.5
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontWeight: 700,
+                color: C.navy,
+                marginBottom: 3
+            }
+        }, c.module, " — ", formatDateFR(c.date)), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                color: C.muted,
+                marginBottom: 6
+            }
+        }, "Contesté par ", /*#__PURE__*/ React.createElement("strong", null, c.professeurNom), " le ", formatDateFR(c.dateContestation), " — statut initial : ", badgeStatutSeance(c.statutSeanceAvant)), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12,
+                background: C.light,
+                borderRadius: 8,
+                padding: "6px 10px"
+            }
+        }, "« ", c.motif, " »")), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                gap: 8,
+                flexShrink: 0
+            }
+        }, /*#__PURE__*/ React.createElement(Btn, {
+            small: true,
+            variant: "danger",
+            onClick: () => handleRefuserContestation(c)
+        }, "✕ Refuser"), /*#__PURE__*/ React.createElement(Btn, {
+            small: true,
+            onClick: () => handleAccepterContestation(c)
+        }, "✓ Accepter (valider la séance)")))))), /*#__PURE__*/ React.createElement("div", {
             style: {
                 marginBottom: 16,
                 display: "flex",
@@ -8312,9 +8518,9 @@ function Pointage({
                 flexWrap: "wrap"
             }
         }, [
-            ["Soumise", "⏳ À valider"],
-            ["ValideeIliass", "📤 À réceptionner"],
-            ["ReceptionAccusee", "💰 À traiter"],
+            ["Soumise", "⏳ À valider — Iliass Elmzioui"],
+            ["ValideeIliass", "📤 À réceptionner — Kawtar Bouabid"],
+            ["ReceptionAccusee", "💰 À traiter — Fatima Zahra Zniber"],
             ["Terminee", "✅ Terminées"],
             ["Brouillon", "📝 Brouillons"],
             ["Toutes", "Toutes"]
@@ -14992,10 +15198,10 @@ function calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, cours
             rattrapageNote
         };
     });
-    const moyenneSemestre = nbModulesNotes > 0 ? sommeNotesModules / nbModulesNotes : null; // R\xE8gle de d\xE9cision du jury :
-    // - Moyenne du semestre < 10 : seuls les modules avec une note < 10 sont non valid\xE9s
-    //   (les modules \xE0 10 ou plus restent valid\xE9s, pas de compensation en dessous de la moyenne)
-    // - Moyenne du semestre >= 10 : compensation activ\xE9e, un module avec une note >= 6 est valid\xE9
+    const moyenneSemestre = nbModulesNotes > 0 ? sommeNotesModules / nbModulesNotes : null; // Règle de décision du jury :
+    // - Moyenne du semestre < 10 : seuls les modules avec une note < 10 sont non validés
+    //   (les modules à 10 ou plus restent validés, pas de compensation en dessous de la moyenne)
+    // - Moyenne du semestre >= 10 : compensation activée, un module avec une note >= 6 est validé
     const lignes = brut.map(l => {
         let decision = "";
         if (l.noteModule !== null) {
@@ -18192,7 +18398,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.244.1";
+const APP_VERSION = "v3.245.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -18893,7 +19099,8 @@ const LIST_LABELS = {
     ECOGEST_PointageFiches: "Fiches de pointage",
     ECOGEST_PointageSeances: "Séances de pointage",
     ECOGEST_SessionsQR: "Pointage QR",
-    ECOGEST_DemandesEvaluations: "Demandes de modification (Évaluations)"
+    ECOGEST_DemandesEvaluations: "Demandes de modification (Évaluations)",
+    ECOGEST_ContestationsPointage: "Contestations (Pointage)"
 };
 const _notifState = {
     active: false,
@@ -19228,13 +19435,13 @@ async function saveToSPOnline(list, fields, token, spId) {
         return null;
     }
 } // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-//  MODE HORS LIGNE : cache local des donn\xE9es + file d'attente de synchronisation
+//  MODE HORS LIGNE : cache local des données + file d'attente de synchronisation
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// Toute \xE9criture (saveToSP / deleteFromSP) passe d\xE9sormais par cette
+// Toute écriture (saveToSP / deleteFromSP) passe désormais par cette
 // couche : en ligne, elle se comporte exactement comme avant (aucun appelant
-// existant n'a besoin d'\xEAtre modifi\xE9). Hors ligne, elle met l'op\xE9ration en
-// file d'attente dans le navigateur et renvoie IMM\xC9DIATEMENT un r\xE9sultat
-// "optimiste" (avec un identifiant temporaire pour une cr\xE9ation), pour que
+// existant n'a besoin d'être modifié). Hors ligne, elle met l'opération en
+// file d'attente dans le navigateur et renvoie IMMÉDIATEMENT un résultat
+// "optimiste" (avec un identifiant temporaire pour une création), pour que
 // tout le code appelant continue de fonctionner sans savoir qu'il est hors ligne.
 const OFFLINE_QUEUE_KEY = "ecogest_offline_queue_v1";
 const OFFLINE_DATA_CACHE_KEY = "ecogest_data_cache_v1";
@@ -19401,8 +19608,8 @@ const SP_LISTS_SCHEMA = {
     ECOGEST_Paiements: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeScolaire", "TotalAPayer", "TotalPaye", "Solde", "Statut", "RemisesJSON", "PenalitesJSON"], // Chaque versement est un enregistrement isolé (une ligne = un paiement),
     // jamais un tableau JSON dans une seule cellule — c'est le correctif définitif
     // au problème de troncature/duplication rencontré avec l'ancien modèle.
-    ECOGEST_Versements: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeUniversitaire", "DateVersement", "Montant", "Mode", "Reference", "Banque", "NumCheque", "Motif", "Recu", "Agent"], // Archives permanentes : copie conserv\xE9e ind\xE9finiment de tout paiement/versement
-    // supprim\xE9 manuellement par un administrateur. La suppression reste toujours
+    ECOGEST_Versements: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeUniversitaire", "DateVersement", "Montant", "Mode", "Reference", "Banque", "NumCheque", "Motif", "Recu", "Agent"], // Archives permanentes : copie conservée indéfiniment de tout paiement/versement
+    // supprimé manuellement par un administrateur. La suppression reste toujours
     // une action manuelle explicite \u2014 jamais automatique \u2014 mais rien n'est perdu.
     ECOGEST_PaiementsArchives: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeScolaire", "TotalAPayer", "TotalPaye", "Solde", "Statut", "RemisesJSON", "PenalitesJSON", "DateSuppression", "SupprimePar"],
     ECOGEST_VersementsArchives: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeUniversitaire", "DateVersement", "Montant", "Mode", "Reference", "Banque", "NumCheque", "Motif", "Recu", "Agent", "DateSuppression", "SupprimePar"],
@@ -19415,7 +19622,11 @@ const SP_LISTS_SCHEMA = {
     // professeur — restent "En attente" jusqu'à validation ou refus par un
     // administrateur/directrice ; la modification/suppression réelle des
     // notes n'est appliquée qu'au moment de la validation.
-    ECOGEST_DemandesEvaluations: ["ProfesseurCIN", "ProfesseurNom", "Type", "Filiere", "Module", "Semestre", "TypeEvaluation", "Date", "AnneeUniversitaire", "DetailsJSON", "Statut", "DateDemande", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
+    ECOGEST_DemandesEvaluations: ["ProfesseurCIN", "ProfesseurNom", "Type", "Filiere", "Module", "Semestre", "TypeEvaluation", "Date", "AnneeUniversitaire", "DetailsJSON", "Statut", "DateDemande", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Contestations d'une séance de pointage rejetée/en attente, soumises par
+    // un professeur — restent "En attente" jusqu'à validation ou refus par
+    // Iliass Elmzioui ; l'acceptation revalide directement la séance
+    // concernée.
+    ECOGEST_ContestationsPointage: ["FicheId", "SeanceId", "ProfesseurCIN", "ProfesseurNom", "Motif", "Module", "Date", "StatutSeanceAvant", "Statut", "DateContestation", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
     ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
@@ -19578,7 +19789,7 @@ async function loadAllFromSP(token) {
             if (typeof k === "string" && item[k] !== void 0 && item[k] !== null && item[k] !== "") return item[k];
         return "";
     };
-    const [etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP, demandesEvaluationsSP] = await Promise.all([fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR"), fetchList("ECOGEST_DemandesEvaluations")]);
+    const [etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP, demandesEvaluationsSP, contestationsPointageSP] = await Promise.all([fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR"), fetchList("ECOGEST_DemandesEvaluations"), fetchList("ECOGEST_ContestationsPointage")]);
     const versementsByEtudiant = {};
     versementsSP.forEach(v => {
         const eid = g(v, "NumInscription");
@@ -20032,6 +20243,23 @@ async function loadAllFromSP(token) {
             dateTraitement: g(r, "DateTraitement"),
             traitePar: g(r, "TraitePar"),
             commentaireAdmin: g(r, "CommentaireAdmin")
+        })),
+        contestationsPointage: contestationsPointageSP.map(c => ({
+            _spId: c._spId,
+            id: c._spId,
+            ficheId: g(c, "FicheId"),
+            seanceId: g(c, "SeanceId"),
+            professeurCin: g(c, "ProfesseurCIN"),
+            professeurNom: g(c, "ProfesseurNom"),
+            motif: g(c, "Motif"),
+            module: g(c, "Module"),
+            date: g(c, "Date"),
+            statutSeanceAvant: g(c, "StatutSeanceAvant"),
+            statut: g(c, "Statut") || "En attente",
+            dateContestation: g(c, "DateContestation"),
+            dateTraitement: g(c, "DateTraitement"),
+            traitePar: g(c, "TraitePar"),
+            commentaireAdmin: g(c, "CommentaireAdmin")
         })), // universitaire active, appliquée automatiquement à toutes les opérations
         // (versements...) sans que l'utilisateur ait à la sélectionner à chaque fois.
         configuration: {
@@ -20324,10 +20552,10 @@ function App() {
             const memePersonne = (p.nom || "").trim().toLowerCase() === (et.nom || "").trim().toLowerCase() && (p.prenom || "").trim().toLowerCase() === (et.prenom || "").trim().toLowerCase();
             return !memePersonne;
         });
-        if (orphelins.length === 0) return; // IMPORTANT : la suppression de donn\xE9es financi\xE8res ne doit JAMAIS \xEAtre automatique.
-        // On se contente ici de signaler le probl\xE8me dans la console pour investigation
+        if (orphelins.length === 0) return; // IMPORTANT : la suppression de données financières ne doit JAMAIS être automatique.
+        // On se contente ici de signaler le problème dans la console pour investigation
         // manuelle par un administrateur \u2014 aucune suppression locale ni SharePoint n'est
-        // d\xE9clench\xE9e automatiquement.
+        // déclenchée automatiquement.
         console.warn(`⚠️ ${orphelins.length} compte(s) de paiement sans correspondance exacte avec un étudiant actuel (vérification manuelle recommandée, aucune suppression automatique effectuée) :`, orphelins.map(p => `${p.prenom} ${p.nom} (${p.numInscription})`));
     }, [data.etudiants, data.paiements, userAuth]); // Protection contre un instantané ponctuellement incomplet renvoyé par
     // l'API Graph pour un étudiant (ex: juste après l'enregistrement d'un
