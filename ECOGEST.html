@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.245.0 — 21 Août 2026
+//  ECOGEST_App.jsx — version v3.247.0 — 21 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -7419,7 +7419,7 @@ function Pointage({
             professeurId: monProfesseur.id,
             professeurNom,
             mois: moisNouvelleFiche,
-            anneeUniversitaire: moisVersAnneeUniversitaire(moisNouvelleFiche),
+            anneeUniversitaire: moisVersAnneeUniversitaire(moisNouvelleFiche, moisDebutAnneeUniversitaire(data.semestresDates)),
             statut: "Brouillon",
             dateCreation: today(),
             dateSoumission: "",
@@ -7449,7 +7449,7 @@ function Pointage({
                 Mois: moisNouvelleFiche,
                 Statut: "Brouillon",
                 DateCreation: today(),
-                AnneeUniversitaire: moisVersAnneeUniversitaire(moisNouvelleFiche)
+                AnneeUniversitaire: moisVersAnneeUniversitaire(moisNouvelleFiche, moisDebutAnneeUniversitaire(data.semestresDates))
             }, user.token, null);
             if (result) setData(d => ({
                 ...d,
@@ -7777,7 +7777,7 @@ function Pointage({
                     professeurId: ficheOrigine.professeurId,
                     professeurNom: ficheOrigine.professeurNom,
                     mois: moisSuivant,
-                    anneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant),
+                    anneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant, moisDebutAnneeUniversitaire(data.semestresDates)),
                     statut: "Brouillon",
                     dateCreation: today(),
                     dateSoumission: "",
@@ -7799,7 +7799,7 @@ function Pointage({
                     Mois: moisSuivant,
                     Statut: "Brouillon",
                     DateCreation: today(),
-                    AnneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant)
+                    AnneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant, moisDebutAnneeUniversitaire(data.semestresDates))
                 }, user.token, null);
                 if (resultFiche) {
                     ficheCible = {
@@ -14650,15 +14650,27 @@ const today = () => {
 }; // Dérive l'année universitaire (ex: "2026-2027") à partir d'un mois au
 // format "YYYY-MM" — utilisé pour rattacher automatiquement les fiches de
 // pointage des professeurs (qui ne connaissent qu'un mois) à une année
-// universitaire, sans avoir à la ressaisir manuellement. Convention : une
-// année universitaire commence en septembre.
-function moisVersAnneeUniversitaire(moisStr) {
+// universitaire, sans avoir à la ressaisir manuellement.
+// Le seuil de bascule (moisDebutAnnee, 1-12) N'EST PAS figé dans le code :
+// il doit être dérivé du mois de "Début" du Semestre 1, tel que configuré
+// dans Paramétrage → Dates des semestres (voir moisDebutAnneeUniversitaire
+// ci-dessous), afin de rester correct même si l'établissement décale un
+// jour sa date de rentrée. Le repli sur 8 (août) ne sert que tant qu'aucune
+// date de Semestre 1 n'a encore été configurée.
+function moisVersAnneeUniversitaire(moisStr, moisDebutAnnee = 8) {
     if (!moisStr) return "";
     const [anneeStr, moisNumStr] = moisStr.split("-");
     const annee = parseInt(anneeStr, 10);
     const moisNum = parseInt(moisNumStr, 10);
     if (!annee || !moisNum) return "";
-    return moisNum >= 9 ? `${annee}-${annee+1}` : `${annee-1}-${annee}`;
+    return moisNum >= moisDebutAnnee ? `${annee}-${annee+1}` : `${annee-1}-${annee}`;
+} // Détermine le mois (1-12) à partir duquel une nouvelle année universitaire
+// commence, en le lisant directement sur la date de "Début" du Semestre 1
+// configurée dans Paramétrage → Dates des semestres — jamais codé en dur.
+function moisDebutAnneeUniversitaire(semestresDates) {
+    const s1 = (semestresDates || []).find(s => s.semestre === "Semestre 1");
+    const m = s1?.dateDebut ? parseInt(String(s1.dateDebut).split("-")[1], 10) : NaN;
+    return m >= 1 && m <= 12 ? m : 8;
 } // Horodatage complet en heure locale (et non UTC/GMT) pour les champs qui
 // enregistrent une date ET une heure précise en texte brut dans SharePoint
 // (ex: CreeLe/ScanneLe du Pointage QR) — sans conversion, SharePoint
@@ -18716,7 +18728,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.246.1";
+const APP_VERSION = "v3.247.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -20186,7 +20198,15 @@ async function loadAllFromSP(token) {
         const interne = colMapEtudiants[displayKey] || colMapEtudiants[displayKey.toLowerCase()];
         return interne ? rawFields[interne] : void 0;
     };
-    console.log("🔎 Résolution ParcoursJSON/AnneeValidee — nom interne réel :", "ParcoursJSON ->", colMapEtudiants["ParcoursJSON"], "| AnneeValidee ->", colMapEtudiants["AnneeValidee"]);
+    console.log("🔎 Résolution ParcoursJSON/AnneeValidee — nom interne réel :", "ParcoursJSON ->", colMapEtudiants["ParcoursJSON"], "| AnneeValidee ->", colMapEtudiants["AnneeValidee"]); // Calculé une seule fois ici, à partir des données BRUTES SharePoint
+    // (semestresDatesSP), puisque data.semestresDates n'existe pas encore à
+    // ce stade — sert à recalculer correctement l'année universitaire de
+    // chaque fiche de pointage ci-dessous, sans seuil codé en dur.
+    const _semestre1Brut = (semestresDatesSP || []).find(s => g(s, "Semestre") === "Semestre 1");
+    const _moisDebutAnneeUniv = moisDebutAnneeUniversitaire([{
+        semestre: "Semestre 1",
+        dateDebut: g(_semestre1Brut || {}, "DateDebut")
+    }]);
     return {
         etudiants: etudiantsFinal.map(e => ({
             _spId: e._spId,
@@ -20483,10 +20503,12 @@ async function loadAllFromSP(token) {
             id: f._spId,
             professeurId: g(f, "ProfesseurId"),
             professeurNom: g(f, "ProfesseurNom"),
-            mois: g(f, "Mois"), // Rétrocompatible : si la colonne n'existe pas encore ou est vide
-            // (fiches créées avant ce changement), on dérive l'année depuis le
-            // mois plutôt que de la laisser vide.
-            anneeUniversitaire: g(f, "AnneeUniversitaire") || moisVersAnneeUniversitaire(g(f, "Mois")),
+            mois: g(f, "Mois"), // Toujours recalculée depuis le mois (source fiable et déterministe)
+            // plutôt que de faire confiance à une valeur enregistrée dans
+            // SharePoint — celle-ci pourrait être obsolète pour une fiche créée
+            // avant une correction du seuil de bascule d'année (ex: fiches
+            // "Août" créées quand le seuil était encore fixé à septembre).
+            anneeUniversitaire: moisVersAnneeUniversitaire(g(f, "Mois"), _moisDebutAnneeUniv),
             statut: g(f, "Statut") || "Brouillon",
             dateCreation: g(f, "DateCreation"),
             dateSoumission: g(f, "DateSoumission"),
