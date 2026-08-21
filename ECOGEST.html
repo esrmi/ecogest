@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.238.0 — 19 Août 2026
+//  ECOGEST_App.jsx — version v3.243.0 — 21 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -1834,8 +1834,13 @@ function Etudiants({
             toast("⚠️ Sélectionnez un groupe dans le filtre pour imprimer sa liste");
             return;
         }
-        const filiereObj = (data.filieres || []).find(f => f.intitule === filterFiliere);
-        const etudiantsGroupe = filteredSorted.filter(e => e.filiere === filterFiliere);
+        const filiereObj = (data.filieres || []).find(f => f.intitule === filterFiliere); // filteredSorted est déjà correctement filtré (via filiereEtudiantPourAnnee
+        // + éligibilité par promotion/parcours) pour l'année sélectionnée — un
+        // second filtre sur e.filiere (groupe ACTUEL) réintroduirait le même bug
+        // que celui déjà corrigé sur la fiche de présence hebdomadaire : un
+        // étudiant promu depuis serait exclu à tort d'une impression portant sur
+        // une année passée.
+        const etudiantsGroupe = filteredSorted;
         genererListeEtudiantsFiliere(filiereObj, etudiantsGroupe);
     };
     const openAdd = () => {
@@ -3405,7 +3410,7 @@ function Notes({
     toast
 }) {
     const canEdit = ["administrateur", "professeur"].includes(role);
-    const canPrint = ["administrateur", "directrice", "professeur"].includes(role);
+    const canPrint = ["administrateur", "directrice"].includes(role);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const emptyForm = {
@@ -3504,7 +3509,64 @@ function Notes({
         setNotesIdsEdition(ids);
         setShowModal(true);
     };
-    const nbNotesSaisies = Object.values(notesSaisies).filter(v => v !== "" && v !== void 0).length;
+    const nbNotesSaisies = Object.values(notesSaisies).filter(v => v !== "" && v !== void 0).length; // Demandes de modification/suppression d'évaluations déjà soumises par ce
+    // professeur, encore "En attente" — sert à afficher un badge et à éviter
+    // les doublons de demande sur une même session/note.
+    const mesDemandesEvaluations = (data.demandesEvaluations || []).filter(r => r.professeurCin === monProfesseur?.cin);
+    const demandeEnAttentePourSession = (dateVal, filiereVal, moduleVal, typeVal) => mesDemandesEvaluations.find(r => r.statut === "En attente" && r.type === "Modification" && r.date === dateVal && r.filiere === filiereVal && r.module === moduleVal && r.typeEvaluation === typeVal);
+    const demandeEnAttentePourNote = noteId => mesDemandesEvaluations.find(r => r.statut === "En attente" && r.type === "Suppression" && (r.details || []).some(d => d.noteId === noteId));
+    const soumettreDemandeEvaluation = async (type, sessionInfo, details) => {
+        if (!user?.token || !monProfesseur) {
+            toast("⚠️ Non connecté à SharePoint — demande non envoyée");
+            return false;
+        }
+        const spF = {
+            Title: `${type} — ${sessionInfo.module} — ${monProfesseur.prenom} ${monProfesseur.nom}`,
+            ProfesseurCIN: monProfesseur.cin || "",
+            ProfesseurNom: `${monProfesseur.prenom} ${monProfesseur.nom}`,
+            Type: type,
+            Filiere: sessionInfo.filiere || "",
+            Module: sessionInfo.module || "",
+            Semestre: sessionInfo.semestre || "",
+            TypeEvaluation: sessionInfo.typeEvaluation || "",
+            Date: sessionInfo.date || "",
+            AnneeUniversitaire: sessionInfo.anneeUniversitaire || "",
+            DetailsJSON: JSON.stringify(details),
+            Statut: "En attente",
+            DateDemande: today()
+        };
+        const result = await saveToSP("ECOGEST_DemandesEvaluations", spF, user.token);
+        if (!result) {
+            toast("⚠️ Échec de l'envoi de la demande à l'administration");
+            return false;
+        }
+        setData(d => ({
+            ...d,
+            demandesEvaluations: [...(d.demandesEvaluations || []), {
+                id: Date.now() + Math.random(),
+                _spId: result.id,
+                professeurCin: monProfesseur.cin,
+                professeurNom: `${monProfesseur.prenom} ${monProfesseur.nom}`,
+                type,
+                filiere: sessionInfo.filiere,
+                module: sessionInfo.module,
+                semestre: sessionInfo.semestre,
+                typeEvaluation: sessionInfo.typeEvaluation,
+                date: sessionInfo.date,
+                anneeUniversitaire: sessionInfo.anneeUniversitaire,
+                details,
+                statut: "En attente",
+                dateDemande: today()
+            }]
+        }));
+        demarrerLotNotification();
+        const acteur = `${monProfesseur.prenom} ${monProfesseur.nom}`;
+        terminerLotNotification(`ECOGEST — Demande de ${type.toLowerCase()} d'évaluation — ${sessionInfo.module}`, `Demande de ${type.toLowerCase()} en attente de validation`, sessionInfo.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> demande une <strong>${type.toLowerCase()}</strong> concernant ${details.length} évaluation(s) — validation requise :`) + _emailChipsRow([_emailChip("Filière", sessionInfo.filiere), _emailChip("Module", sessionInfo.module), _emailChip("Type", sessionInfo.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(sessionInfo.date))]) + _emailListeHtml(details.map(dd => ({
+            gauche: dd.etudiant,
+            droite: type === "Modification" ? `${dd.ancienneNote} → ${dd.nouvelleNote}` : `${dd.note}/20`
+        }))));
+        return true;
+    };
     const handleSaveNotes = async () => {
         if (!user?.token) {
             toast("⚠️ Non connecté à SharePoint — notes non enregistrées");
@@ -3524,13 +3586,60 @@ function Notes({
             toast("⚠️ Toutes les notes saisies sont hors de la plage 0-20 — corrigez-les");
             return;
         }
-        if (entrees.length < toutes.length) toast(`⚠️ ${toutes.length-entrees.length} note(s) hors plage 0-20 ignorée(s)`);
+        if (entrees.length < toutes.length) toast(`⚠️ ${toutes.length-entrees.length} note(s) hors plage 0-20 ignorée(s)`); // Un professeur ne peut pas modifier directement une évaluation déjà
+        // enregistrée — les entrées correspondant à des notes EXISTANTES sont
+        // séparées et envoyées comme demande de modification à valider par un
+        // administrateur/directrice. La saisie de notes toutes NOUVELLES reste
+        // en revanche immédiate (ce n'est pas une "modification").
+        const estProfesseur = role === "professeur";
+        const entreesNouvelles = entrees.filter(([etId]) => !notesIdsEdition[etId]);
+        const entreesExistantes = entrees.filter(([etId]) => notesIdsEdition[etId]);
+        if (estProfesseur && entreesExistantes.length > 0) {
+            const dejaEnAttente = demandeEnAttentePourSession(form.date, form.filiere, form.module, form.typeEvaluation);
+            if (dejaEnAttente) {
+                toast("⚠️ Une demande de modification est déjà en attente de validation pour cette évaluation");
+                return;
+            }
+            setSaving(true);
+            const detailsDemande = entreesExistantes.map(([etId, valeur]) => {
+                const et = etudiantsFiliere.find(e => String(e.id) === etId);
+                const noteExistante = (data.notes || []).find(n => n.id === notesIdsEdition[etId]?.id);
+                if (!et || !noteExistante) return null;
+                return {
+                    noteId: noteExistante.id,
+                    noteSpId: noteExistante._spId,
+                    etudiantId: et.id,
+                    etudiant: `${et.prenom} ${et.nom}`,
+                    ancienneNote: noteExistante.note,
+                    nouvelleNote: parseFloat(valeur)
+                };
+            }).filter(Boolean);
+            const ok = await soumettreDemandeEvaluation("Modification", {
+                filiere: form.filiere,
+                module: form.module,
+                semestre: form.semestre,
+                typeEvaluation: form.typeEvaluation,
+                date: form.date,
+                anneeUniversitaire: form.anneeUniversitaire
+            }, detailsDemande);
+            setSaving(false);
+            if (ok) toast(`📨 Demande de modification envoyée à l'administration (${detailsDemande.length} note(s)) ✓`);
+            if (entreesNouvelles.length === 0) {
+                if (ok) {
+                    setShowModal(false);
+                    setForm(emptyForm);
+                    setNotesSaisies({});
+                    setNotesIdsEdition({});
+                }
+                return;
+            }
+        }
         setSaving(true);
         demarrerLotNotification();
         const enregistrees = [];
-        const misesAJour = [];
         const detailNotesPourEmail = [];
-        for (const [etId, valeur] of entrees) {
+        const entreesASaisirDirectement = estProfesseur ? entreesNouvelles : entrees;
+        for (const [etId, valeur] of entreesASaisirDirectement) {
             const et = etudiantsFiliere.find(e => String(e.id) === etId);
             if (!et) continue;
             const spF = {
@@ -3552,7 +3661,8 @@ function Notes({
             if (existant) {
                 const result = await saveToSP("ECOGEST_Notes", spF, user.token, existant._spId);
                 if (result) {
-                    misesAJour.push({
+                    enregistrees.push({
+                        __maj: true,
                         id: existant.id,
                         note: parseFloat(valeur),
                         date: form.date
@@ -3595,9 +3705,11 @@ function Notes({
         } else {
             _notifBatch.active = false;
         }
-        if (enregistrees.length > 0) setData(d => ({
+        const misesAJour = enregistrees.filter(e => e.__maj);
+        const creees = enregistrees.filter(e => !e.__maj);
+        if (creees.length > 0) setData(d => ({
             ...d,
-            notes: [...d.notes, ...enregistrees]
+            notes: [...d.notes, ...creees]
         }));
         if (misesAJour.length > 0) setData(d => ({
             ...d,
@@ -3610,16 +3722,42 @@ function Notes({
                 } : n;
             })
         }));
-        if (enregistrees.length + misesAJour.length < entrees.length) toast(`⚠️ ${entrees.length-enregistrees.length-misesAJour.length} note(s) non enregistrée(s) — échec SharePoint`);
-        else toast(`${enregistrees.length+misesAJour.length} note(s) enregistrée(s) dans SharePoint ✓`);
-        if (enregistrees.length + misesAJour.length > 0) {
+        if (enregistrees.length < entreesASaisirDirectement.length) toast(`⚠️ ${entreesASaisirDirectement.length-enregistrees.length} note(s) non enregistrée(s) — échec SharePoint`);
+        else if (entreesASaisirDirectement.length > 0) toast(`${enregistrees.length} note(s) enregistrée(s) dans SharePoint ✓`);
+        if (enregistrees.length > 0 || estProfesseur && entreesExistantes.length > 0) {
             setShowModal(false);
             setForm(emptyForm);
             setNotesSaisies({});
             setNotesIdsEdition({});
         }
     };
-    const handleDeleteNote = n => {
+    const handleDeleteNote = async n => {
+        if (role === "professeur") {
+            const dejaEnAttente = demandeEnAttentePourNote(n.id);
+            if (dejaEnAttente) {
+                toast("⚠️ Une demande de suppression est déjà en attente de validation pour cette évaluation");
+                return;
+            }
+            if (!window.confirm(`Envoyer une demande de suppression pour la note de "${n.etudiant}" (${n.module}) à l'administration ?`)) return;
+            setSaving(true);
+            const ok = await soumettreDemandeEvaluation("Suppression", {
+                filiere: n.filiere,
+                module: n.module,
+                semestre: n.semestre,
+                typeEvaluation: n.typeEvaluation,
+                date: n.date,
+                anneeUniversitaire: n.anneeUniversitaire
+            }, [{
+                noteId: n.id,
+                noteSpId: n._spId,
+                etudiantId: n.etudiantId,
+                etudiant: n.etudiant,
+                note: n.note
+            }]);
+            setSaving(false);
+            if (ok) toast("📨 Demande de suppression envoyée à l'administration ✓");
+            return;
+        }
         if (!window.confirm(`Supprimer la note de "${n.etudiant}" (${n.module}) ?`)) return;
         setData(d => ({
             ...d,
@@ -3685,13 +3823,158 @@ function Notes({
         });
         if (lignesEvaluations.length > 0) derniereLigneFiliereEvalId[lignesEvaluations[lignesEvaluations.length - 1].id] = true;
     }
+    const handleValiderDemande = async r => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint");
+            return;
+        }
+        if (!window.confirm(`Valider cette demande de ${r.type.toLowerCase()} (${r.details.length} note(s)) ?`)) return;
+        if (r.type === "Modification") {
+            for (const d of r.details) {
+                await saveToSP("ECOGEST_Notes", {
+                    Note: String(d.nouvelleNote)
+                }, user.token, d.noteSpId);
+            }
+            setData(dd => ({
+                ...dd,
+                notes: dd.notes.map(n => {
+                    const match = r.details.find(d => d.noteId === n.id);
+                    return match ? {
+                        ...n,
+                        note: match.nouvelleNote
+                    } : n;
+                })
+            }));
+        } else {
+            for (const d of r.details) {
+                if (d.noteSpId) await deleteFromSP("ECOGEST_Notes", d.noteSpId, user.token);
+            }
+            const idsASupprimer = r.details.map(d => d.noteId);
+            setData(dd => ({
+                ...dd,
+                notes: dd.notes.filter(n => !idsASupprimer.includes(n.id))
+            }));
+        }
+        await saveToSP("ECOGEST_DemandesEvaluations", {
+            Statut: "Validée",
+            DateTraitement: today(),
+            TraitePar: `${user?.prenom||""} ${user?.nom||""}`.trim()
+        }, user.token, r._spId);
+        setData(dd => ({
+            ...dd,
+            demandesEvaluations: dd.demandesEvaluations.map(x => x.id === r.id ? {
+                ...x,
+                statut: "Validée",
+                dateTraitement: today()
+            } : x)
+        }));
+        toast(`Demande de ${r.type.toLowerCase()} validée et appliquée ✓`);
+    };
+    const handleRefuserDemande = async r => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint");
+            return;
+        }
+        if (!window.confirm(`Refuser cette demande de ${r.type.toLowerCase()} ? Aucune note ne sera modifiée.`)) return;
+        await saveToSP("ECOGEST_DemandesEvaluations", {
+            Statut: "Refusée",
+            DateTraitement: today(),
+            TraitePar: `${user?.prenom||""} ${user?.nom||""}`.trim()
+        }, user.token, r._spId);
+        setData(dd => ({
+            ...dd,
+            demandesEvaluations: dd.demandesEvaluations.map(x => x.id === r.id ? {
+                ...x,
+                statut: "Refusée",
+                dateTraitement: today()
+            } : x)
+        }));
+        toast("Demande refusée ✓");
+    };
+    const demandesEnAttenteAdmin = role === "administrateur" || role === "directrice" ? (data.demandesEvaluations || []).filter(r => r.statut === "En attente") : [];
     return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
         title: role === "etudiant" ? "Mes notes" : "Évaluations",
         sub: role === "etudiant" ? `${mesNotes.length} note(s) enregistrée(s)` : `Liste SharePoint "${SP.lists.notes}" — ${data.notes.length} enregistrements`,
         action: canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: openAdd
         }, "+ Ajouter une évaluation")
-    }), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }), demandesEnAttenteAdmin.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+        style: {
+            padding: 18,
+            marginBottom: 20,
+            border: `2px solid ${C.orange}`
+        }
+    }, /*#__PURE__*/ React.createElement("h4", {
+        style: {
+            margin: "0 0 12px",
+            color: C.orange,
+            fontSize: 14.5
+        }
+    }, "📨 Demandes de modification en attente (", demandesEnAttenteAdmin.length, ")"), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 10
+        }
+    }, demandesEnAttenteAdmin.map(r => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        key: r.id,
+        style: {
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 12,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            alignItems: "center",
+            justifyContent: "space-between"
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 12.5
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontWeight: 700,
+            color: C.navy,
+            marginBottom: 3
+        }
+    }, r.type === "Modification" ? "✏️ Modification" : "🗑 Suppression", " — ", r.module, " (", r.filiere, ",", " ", r.semestre, ")"), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            color: C.muted,
+            marginBottom: 6
+        }
+    }, "Demandé par ", /*#__PURE__*/ React.createElement("strong", null, r.professeurNom), " le ", formatDateFR(r.dateDemande), " — évaluation du", " ", formatDateFR(r.date), " (", r.typeEvaluation, ", ", r.anneeUniversitaire, ")"), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6
+        }
+    }, (r.details || []).map((d, i) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+        key: i,
+        style: {
+            fontSize: 11,
+            background: C.light,
+            borderRadius: 12,
+            padding: "3px 9px"
+        }
+    }, d.etudiant, " :", " ", r.type === "Modification" ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, /*#__PURE__*/ React.createElement("strong", null, d.ancienneNote), " → ", /*#__PURE__*/ React.createElement("strong", {
+        style: {
+            color: C.orange
+        }
+    }, d.nouvelleNote)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("strong", null, d.note, "/20"))))), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            gap: 8,
+            flexShrink: 0
+        }
+    }, /*#__PURE__*/ React.createElement(Btn, {
+        small: true,
+        variant: "danger",
+        onClick: () => handleRefuserDemande(r)
+    }, "✕ Refuser"), /*#__PURE__*/ React.createElement(Btn, {
+        small: true,
+        onClick: () => handleValiderDemande(r)
+    }, "✓ Valider")))))), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 10,
             marginBottom: 20
@@ -4216,19 +4499,57 @@ function Notes({
         }, ...(canEdit ? [{
             key: "_modifier",
             label: "Modifier",
-            render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
-                small: true,
-                variant: "navy",
-                onClick: () => openEditSession(row.date, row._filiere, row.semestre, row._module, row._type, sessionsMap[row.date + "|||" + row._filiere + "|||" + row._module + "|||" + row._type])
-            }, "✏️")
+            render: (_, row) => {
+                const demandeAttente = role === "professeur" ? demandeEnAttentePourSession(row.date, row._filiere, row._module, row._type) : null;
+                if (demandeAttente) return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    title: "Une demande de modification est en attente de validation par l'administration",
+                    style: {
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: C.orange,
+                        background: "#fdeee3",
+                        padding: "4px 8px",
+                        borderRadius: 12,
+                        whiteSpace: "nowrap"
+                    }
+                }, "🕒 En attente");
+                return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
+                    small: true,
+                    variant: "navy",
+                    title: role === "professeur" ? "Demander une modification" : "Modifier",
+                    onClick: () => openEditSession(row.date, row._filiere, row.semestre, row._module, row._type, sessionsMap[row.date + "|||" + row._filiere + "|||" + row._module + "|||" + row._type])
+                }, role === "professeur" ? "📨 Demander" : "✏️");
+            }
         }] : []), ...(canEdit ? [{
             key: "_suppr",
             label: "Suppr.",
-            render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
-                small: true,
-                variant: "danger",
-                onClick: () => handleDeleteNote(row)
-            }, "🗑")
+            render: (_, row) => {
+                const demandeAttente = role === "professeur" ? demandeEnAttentePourNote(row.id) : null;
+                if (demandeAttente) return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    title: "Une demande de suppression est en attente de validation par l'administration",
+                    style: {
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: C.red,
+                        background: "#fdeeec",
+                        padding: "4px 8px",
+                        borderRadius: 12,
+                        whiteSpace: "nowrap"
+                    }
+                }, "🕒 En attente");
+                return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
+                    small: true,
+                    variant: "danger",
+                    title: role === "professeur" ? "Demander une suppression" : "Supprimer",
+                    onClick: () => handleDeleteNote(row)
+                }, "🗑");
+            }
         }] : [])],
         rows: lignesEvaluations,
         emptyMsg: "Aucune évaluation trouvée",
@@ -4610,7 +4931,11 @@ function Presences({
 }) { // Les membres de la direction (rôle "directrice") ont le même contrôle
     // total que l'administrateur sur cette page : saisie, modification,
     // suppression, fiche hebdomadaire imprimable, et suivi des 25% d'absence.
-    const canEdit = ["administrateur", "professeur", "directrice"].includes(role);
+    const canEdit = ["administrateur", "professeur", "directrice"].includes(role); // Un professeur peut saisir/modifier/supprimer SES absences (canEdit),
+    // mais ne doit voir que la section "Saisie des absences" — la fiche de
+    // présence hebdomadaire imprimable et le suivi des 25% d'absence restent
+    // réservés à l'administrateur et à la directrice.
+    const voirArbrePresences = ["administrateur", "directrice"].includes(role);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const emptyForm = {
@@ -5013,7 +5338,7 @@ function Presences({
                 opacity: actif ? 0.85 : 0.6
             }
         }, item.sub))));
-    }))), canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }))), voirArbrePresences && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 10,
             marginBottom: 20
@@ -5105,7 +5430,7 @@ function Presences({
                 opacity: actif ? 0.85 : 0.6
             }
         }, item.sub))));
-    }))), canEdit && presencesSection === "fiche" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }))), voirArbrePresences && presencesSection === "fiche" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 16,
             marginBottom: 16
@@ -5598,7 +5923,7 @@ function Presences({
             emptyMsg: "Aucun module trouvé",
             compact: true
         })));
-    })(), (!canEdit || presencesSection === "saisie") && (role !== "etudiant" || mesAbsencesSection === "seances") && (() => {
+    })(), (!voirArbrePresences || presencesSection === "saisie") && (role !== "etudiant" || mesAbsencesSection === "seances") && (() => {
         const filieresOptionsListe = getFilieres(data);
         const semestresOptionsListe = [...new Set((data.presences || []).map(p => p.semestre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
             numeric: true,
@@ -5768,7 +6093,7 @@ function Presences({
                 fontFamily: "inherit"
             }
         }))));
-    })(), (!canEdit || presencesSection === "saisie") && (role !== "etudiant" || mesAbsencesSection === "seances") && (() => {
+    })(), (!voirArbrePresences || presencesSection === "saisie") && (role !== "etudiant" || mesAbsencesSection === "seances") && (() => {
         const presencesAffichees = mesPresencesFiltrees;
         const handleDeletePresence = p => {
             if (!window.confirm(`Supprimer l'absence de "${p.etudiant}" ?`)) return;
@@ -5923,13 +6248,17 @@ function Presences({
                 borderBottom: derniereLigneFilierePresId[row.id] ? `2.5px solid ${C.navy}` : `1px solid ${C.border}`
             })
         }));
-    })(), canEdit && presencesSection === "seuil25" && (() => {
+    })(), voirArbrePresences && presencesSection === "seuil25" && (() => {
         const filieresOptions25 = getFilieres(data);
         const semestresOptions25 = [...new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
             numeric: true,
             sensitivity: "base"
-        }));
-        const presencesBase25 = (data.presences || []).filter(p => (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25)); // Regroupe les heures manquées par couple (étudiant, module,
+        })); // Un professeur ne doit voir ce taux d'absence à 25% que pour SES
+        // PROPRES modules — on repart donc de mesPresences (déjà
+        // restreinte à ses séances) plutôt que de la totalité des
+        // présences de l'établissement, pour ne jamais exposer les
+        // absences enregistrées par d'autres professeurs.
+        const presencesBase25 = mesPresences.filter(p => (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25)); // Regroupe les heures manquées par couple (étudiant, module,
         // année universitaire) afin de pouvoir calculer un taux
         // d'absence par module et repérer les étudiants ayant atteint
         // le seuil des 25% — une même paire étudiant/module peut se
@@ -7505,14 +7834,16 @@ function Pointage({
     if (estProf) {
         const ficheOuverte = showFicheId ? fichesDeCeProf.find(f => f.id === showFicheId) : null;
         if (ficheOuverte) {
-            const seances = seancesDeFiche(ficheOuverte.id).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-            const totalHeures = seances.reduce((s, x) => s + (x.nbHeures || 0), 0);
+            const seances = seancesDeFiche(ficheOuverte.id).sort((a, b) => (a.date || "").localeCompare(b.date || "")); // Seules les séances déjà VALIDÉES par Iliass Elmzioui comptent dans
+            // le total d'heures affiché — cohérent avec la fiche PDF imprimable.
+            const totalHeures = seances.filter(s => s.statut === "Validee").reduce((s, x) => s + (x.nbHeures || 0), 0);
+            const nbNonValidees = seances.filter(s => s.statut !== "Validee").length;
             const modulesOptions = (data.cours || []).filter(c => c.professeurCin === monProfesseur?.cin);
             const toutesConfirmees = seances.length > 0 && seances.every(s => s.confirmee);
             const periode = periodeDuMois(ficheOuverte.mois);
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
                 title: `🕛 Pointage — ${formatMoisLabel(ficheOuverte.mois)}`,
-                sub: `${seances.length} séance(s) · ${totalHeures}h au total · Période : du ${formatDateFR(periode.debut)} au ${formatDateFR(periode.fin)}`,
+                sub: `${seances.length} séance(s) · ${totalHeures}h validées${nbNonValidees>0?` (${nbNonValidees} en attente/rejetée(s), non comptées)`:""} · Période : du ${formatDateFR(periode.debut)} au ${formatDateFR(periode.fin)}`,
                 action: /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                     style: {
                         display: "flex",
@@ -7760,8 +8091,8 @@ function Pointage({
                 render: (_, row) => seancesDeFiche(row.id).length
             }, {
                 key: "id2",
-                label: "Heures",
-                render: (_, row) => `${seancesDeFiche(row.id).reduce((s,x)=>s+(x.nbHeures||0),0)}h`
+                label: "Heures validées",
+                render: (_, row) => `${seancesDeFiche(row.id).filter(s=>s.statut==="Validee").reduce((s,x)=>s+(x.nbHeures||0),0)}h`
             }, {
                 key: "id3",
                 label: "",
@@ -7814,11 +8145,11 @@ function Pointage({
         const ficheOuverte = showFicheId ? (data.pointageFiches || []).find(f => f.id === showFicheId) : null;
         if (ficheOuverte) {
             const seances = seancesDeFiche(ficheOuverte.id).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-            const totalHeures = seances.reduce((s, x) => s + (x.nbHeures || 0), 0);
+            const totalHeures = seances.filter(s => s.statut === "Validee").reduce((s, x) => s + (x.nbHeures || 0), 0);
             const nbEnAttente = seances.filter(s => s.statut === "EnAttente").length;
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
                 title: `🕛 ${ficheOuverte.professeurNom} — ${formatMoisLabel(ficheOuverte.mois)}`,
-                sub: `${seances.length} séance(s) · ${totalHeures}h au total`,
+                sub: `${seances.length} séance(s) · ${totalHeures}h validées`,
                 action: /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                     style: {
                         display: "flex",
@@ -8059,8 +8390,8 @@ function Pointage({
                 render: (_, row) => seancesDeFiche(row.id).length
             }, {
                 key: "id2",
-                label: "Heures",
-                render: (_, row) => `${seancesDeFiche(row.id).reduce((s,x)=>s+(x.nbHeures||0),0)}h`
+                label: "Heures validées",
+                render: (_, row) => `${seancesDeFiche(row.id).filter(s=>s.statut==="Validee").reduce((s,x)=>s+(x.nbHeures||0),0)}h`
             }, {
                 key: "id3",
                 label: "",
@@ -8641,7 +8972,7 @@ function EmploiDuTemps({
                     demarrerLotNotification();
                     const propages = [];
                     for (const autreFiliere of autresFilieres) {
-                        const dejaExiste = (data.emploiDuTemps || []).some(e => e.filiere === autreFiliere && e.semestre === form.semestre && e.jour === form.jour && e.seance === form.seance && e.module === form.module);
+                        const dejaExiste = (data.emploiDuTemps || []).some(e => e.filiere === autreFiliere && e.semestre === form.semestre && e.anneeUniversitaire === form.anneeUniversitaire && e.jour === form.jour && e.seance === form.seance && e.module === form.module);
                         if (dejaExiste) continue;
                         const spF2 = {
                             ...spF,
@@ -15120,6 +15451,12 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         while (t.length > 1 && measureTextWidth(t + "…", size, bold) > maxW) t = t.slice(0, -1);
         return t + "…";
     };
+    const STATUT_LABELS = {
+        EnAttente: ["En attente", [0.85, 0.55, 0.1]],
+        Validee: ["Validée", [0.06, 0.55, 0.35]],
+        Rejetee: ["Rejetée", [0.82, 0.2, 0.18]]
+    };
+    const infoStatut = s => STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
     const logoW = 20 * MM,
         logoH = 16.875 * MM;
     const headerBottomY = H - 30 * MM;
@@ -15150,19 +15487,22 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         tableW = W - 2 * marge;
     const cols = [{
         label: "Date",
-        w: 22 * MM
+        w: 20 * MM
     }, {
         label: "Module",
-        w: 62 * MM
+        w: 50 * MM
     }, {
         label: "Horaires",
-        w: 32 * MM
+        w: 26 * MM
     }, {
         label: "Durée",
-        w: 18 * MM
+        w: 16 * MM
+    }, {
+        label: "Statut",
+        w: 24 * MM
     }, {
         label: "Commentaire",
-        w: tableW - (22 + 62 + 32 + 18) * MM
+        w: tableW - (20 + 50 + 26 + 16 + 24) * MM
     }];
     const headerH = 9 * MM,
         rowH = 8 * MM;
@@ -15213,19 +15553,41 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
             drawTableHeader();
             rowBottoms = [];
         }
-        if (i % 2 === 1) doc.rect(tableX, y - rowH, tableW, rowH, [0.96, 0.96, 0.97]);
-        const vals = [formatDateFR(s.date) || "—", s.module || "—", `${s.heureDebut||""}-${s.heureFin||""}`, `${fmt2(s.nbHeures)}h`, s.commentaire || ""];
+        const [labelStatut, couleurStatut] = infoStatut(s);
+        const estValidee = s.statut === "Validee"; // Une séance non encore validée (ou rejetée) par Iliass Elmzioui est
+        // clairement mise en évidence — fond teinté, durée et statut en
+        // couleur — pour qu'elle ne soit jamais confondue avec une séance
+        // réellement comptabilisée dans le total payé.
+        if (!estValidee) doc.rect(tableX, y - rowH, tableW, rowH, [1, 0.96, 0.93]);
+        else if (i % 2 === 1) doc.rect(tableX, y - rowH, tableW, rowH, [0.96, 0.96, 0.97]);
+        const vals = [formatDateFR(s.date) || "—", s.module || "—", `${s.heureDebut||""}-${s.heureFin||""}`];
         let cx = tableX;
         vals.forEach((v, ci) => {
             const maxW = cols[ci].w - 3 * MM;
             const texte = truncateFit(v, maxW, 8);
-            if (ci === 1 || ci === 4) doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, texte, {
+            if (ci === 1) doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, texte, {
                 size: 8
             });
             else doc.textCentered(cx + cols[ci].w / 2, y - rowH / 2 - 1.3, texte, {
                 size: 8
             });
             cx += cols[ci].w;
+        });
+        doc.textCentered(cx + cols[3].w / 2, y - rowH / 2 - 1.3, `${fmt2(s.nbHeures)}h`, {
+            size: 8,
+            bold: !estValidee,
+            color: estValidee ? [0, 0, 0] : couleurStatut
+        });
+        cx += cols[3].w;
+        doc.textCentered(cx + cols[4].w / 2, y - rowH / 2 - 1.3, labelStatut, {
+            size: 7.5,
+            bold: true,
+            color: couleurStatut
+        });
+        cx += cols[4].w;
+        const commentaireTexte = truncateFit(s.commentaire || "", cols[5].w - 3 * MM, 8);
+        doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, commentaireTexte, {
+            size: 8
         });
         y -= rowH;
         rowBottoms.push(y);
@@ -15236,17 +15598,30 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         doc.newPage();
         doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
         y = H - 40 * MM;
-    }
-    const totalHeures = (seances || []).reduce((s, x) => s + (x.nbHeures || 0), 0);
-    doc.text(tableX, y, "Total des heures :", {
+    } // Seules les séances effectivement VALIDÉES par Iliass Elmzioui sont
+    // comptabilisées dans le total payé — une séance encore en attente ou
+    // rejetée n'a pas à être incluse, sous peine de gonfler artificiellement
+    // le montant dû avant même sa validation.
+    const seancesValidees = (seances || []).filter(s => s.statut === "Validee");
+    const seancesNonValidees = (seances || []).filter(s => s.statut !== "Validee");
+    const totalHeures = seancesValidees.reduce((s, x) => s + (x.nbHeures || 0), 0);
+    const totalHeuresNonValidees = seancesNonValidees.reduce((s, x) => s + (x.nbHeures || 0), 0);
+    doc.text(tableX, y, "Total des heures validées :", {
         size: 12.5,
         bold: true
     });
-    doc.text(tableX + 55 * MM, y, `${fmt2(totalHeures)}h`, {
+    doc.text(tableX + 68 * MM, y, `${fmt2(totalHeures)}h`, {
         size: 13.5,
         bold: true,
         color: NAVY_RGB
     });
+    if (seancesNonValidees.length > 0) {
+        y -= 6.5 * MM;
+        doc.text(tableX, y, `dont ${fmt2(totalHeuresNonValidees)}h sur ${seancesNonValidees.length} séance(s) en attente ou rejetée(s) — non comptabilisée(s)`, {
+            size: 9,
+            color: [0.82, 0.2, 0.18]
+        });
+    }
     y -= 14 * MM;
     doc.text(tableX, y, "Circuit de validation", {
         size: 11,
@@ -15725,7 +16100,7 @@ function FichePaiementEtudiant({
                 EtudiantId: String(ep.etudiantId || ""),
                 NumInscription: ep.numInscription || "",
                 NomEtudiant: `${ep.prenom||""} ${ep.nom||""}`.trim(),
-                Filiere: ep.filiere || "",
+                Filiere: filiereEtudiantPourAnnee(ep, v.anneeUniversitaire) || ep.filiere || "",
                 AnneeUniversitaire: v.anneeUniversitaire || "",
                 DateVersement: v.date || "",
                 Montant: String(v.montant || 0),
@@ -16565,7 +16940,7 @@ function Paiements({
                 EtudiantId: String(newEp.etudiantId || ""),
                 NumInscription: newEp.numInscription || "",
                 NomEtudiant: `${newEp.prenom||""} ${newEp.nom||""}`.trim(),
-                Filiere: newEp.filiere || "",
+                Filiere: filiereEtudiantPourAnnee(newEp, newVersement.anneeUniversitaire) || newEp.filiere || "",
                 AnneeUniversitaire: newVersement.anneeUniversitaire || "",
                 DateVersement: newVersement.date || "",
                 Montant: String(newVersement.montant || 0),
@@ -16631,7 +17006,7 @@ function Paiements({
             EtudiantId: String(ep.etudiantId || ""),
             NumInscription: ep.numInscription || "",
             NomEtudiant: `${ep.prenom||""} ${ep.nom||""}`.trim(),
-            Filiere: ep.filiere || "",
+            Filiere: filiereEtudiantPourAnnee(ep, v.anneeUniversitaire) || ep.filiere || "",
             AnneeUniversitaire: v.anneeUniversitaire || "",
             DateVersement: v.date || "",
             Montant: String(v.montant || 0),
@@ -16785,8 +17160,12 @@ function Paiements({
         etudiantIdRef: e.id,
         etudiantNom: e.nom,
         etudiantPrenom: e.prenom,
-        numInscription: e.numInscription,
-        filiere: e.filiere
+        numInscription: e.numInscription, // La filière rattachée au versement doit refléter le groupe de
+        // l'étudiant PENDANT l'année de ce versement, pas son groupe actuel
+        // (qui peut avoir changé depuis suite à un passage à l'année
+        // suivante) — sinon le filtre par groupe ferait disparaître à tort
+        // les paiements passés d'un étudiant promu.
+        filiere: filiereEtudiantPourAnnee(e, v.anneeUniversitaire) || e.filiere
     })));
     const opsFiltered = allVersements.filter(v => {
         const matchAnnee = v.anneeUniversitaire === anneeDashboard;
@@ -17446,8 +17825,11 @@ function Paiements({
             color: C.navy,
             marginBottom: 12
         }
-    }, "📊 Par filière"), [...new Set(eps.map(e => e.filiere))].map(f => {
-        const fEps = eps.filter(e => e.filiere === f);
+    }, "📊 Par filière"), [... /* @__PURE__ */ new Set(eps.map(e => filiereEtudiantPourAnnee(e, anneeDashboard) || e.filiere))].map(f => { // Regroupement par filière EFFECTIVE de l'étudiant pendant
+        // l'année du rapport (anneeDashboard), pas sa filière
+        // actuelle — sinon un étudiant promu depuis apparaîtrait à
+        // tort dans le mauvais groupe pour une année passée.
+        const fEps = eps.filter(e => (filiereEtudiantPourAnnee(e, anneeDashboard) || e.filiere) === f);
         const fPaye = fEps.reduce((s, e) => s + (e.versements || []).filter(v => v.anneeUniversitaire === anneeDashboard).reduce((s2, v) => s2 + (v.montant || 0), 0), 0);
         const fTotal = fEps.reduce((s, e) => s + tarifAnneeEp(e, anneeDashboard), 0);
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -17791,7 +18173,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.241.3";
+const APP_VERSION = "v3.244.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -18491,7 +18873,8 @@ const LIST_LABELS = {
     ECOGEST_SemestresDates: "Dates des semestres",
     ECOGEST_PointageFiches: "Fiches de pointage",
     ECOGEST_PointageSeances: "Séances de pointage",
-    ECOGEST_SessionsQR: "Pointage QR"
+    ECOGEST_SessionsQR: "Pointage QR",
+    ECOGEST_DemandesEvaluations: "Demandes de modification (Évaluations)"
 };
 const _notifState = {
     active: false,
@@ -19009,14 +19392,18 @@ const SP_LISTS_SCHEMA = {
     // professeur au démarrage d'une séance, avec un Token qui tourne toutes
     // les ~90s) soit un "Scan" (créé par un étudiant qui confirme sa présence
     // via le QR affiché, relié à la session par SessionId).
-    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Paramétrage général de l'application (un seul enregistrement).
+    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Demandes de modification/suppression d'évaluations soumises par un
+    // professeur — restent "En attente" jusqu'à validation ou refus par un
+    // administrateur/directrice ; la modification/suppression réelle des
+    // notes n'est appliquée qu'au moment de la validation.
+    ECOGEST_DemandesEvaluations: ["ProfesseurCIN", "ProfesseurNom", "Type", "Filiere", "Module", "Semestre", "TypeEvaluation", "Date", "AnneeUniversitaire", "DetailsJSON", "Statut", "DateDemande", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
     ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
     ECOGEST_Calendrier: ["TypeEvenement", "DateDebut", "DateFin", "Description", "Filiere"]
 };
 const SP_NUMBER_FIELDS = /* @__PURE__ */ new Set(["TotalAPayer", "TotalPaye", "Solde", "Montant", "TarifGlobalFormation", "Tarif20272028", "Tarif20282029", "Tarif20292030", "NoteCC", "NoteExamen", "NoteFinal", "Coef"]);
-const SP_MULTILINE_FIELDS = /* @__PURE__ */ new Set(["RemisesJSON", "PenalitesJSON", "Echeances", "Observations", "NotesConvention", "LienTeams", "LienEnregistrements", "DatesCCExamenJSON"]);
+const SP_MULTILINE_FIELDS = /* @__PURE__ */ new Set(["RemisesJSON", "PenalitesJSON", "Echeances", "Observations", "NotesConvention", "LienTeams", "LienEnregistrements", "DatesCCExamenJSON", "DetailsJSON"]);
 
 function spColumnBodyFor(name) {
     if (SP_NUMBER_FIELDS.has(name)) return {
@@ -19172,7 +19559,7 @@ async function loadAllFromSP(token) {
             if (typeof k === "string" && item[k] !== void 0 && item[k] !== null && item[k] !== "") return item[k];
         return "";
     };
-    const [etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP] = await Promise.all([fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR")]);
+    const [etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP, demandesEvaluationsSP] = await Promise.all([fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR"), fetchList("ECOGEST_DemandesEvaluations")]);
     const versementsByEtudiant = {};
     versementsSP.forEach(v => {
         const eid = g(v, "NumInscription");
@@ -19600,6 +19987,32 @@ async function loadAllFromSP(token) {
             etudiantNom: g(s, "EtudiantNom"),
             numInscription: g(s, "NumInscription"),
             scanneLe: g(s, "ScanneLe")
+        })),
+        demandesEvaluations: demandesEvaluationsSP.map(r => ({
+            _spId: r._spId,
+            id: r._spId,
+            professeurCin: g(r, "ProfesseurCIN"),
+            professeurNom: g(r, "ProfesseurNom"),
+            type: g(r, "Type") || "Modification",
+            filiere: g(r, "Filiere"),
+            module: g(r, "Module"),
+            semestre: g(r, "Semestre"),
+            typeEvaluation: g(r, "TypeEvaluation"),
+            date: g(r, "Date"),
+            anneeUniversitaire: g(r, "AnneeUniversitaire"),
+            details: (() => {
+                try {
+                    const parsed = JSON.parse(g(r, "DetailsJSON") || "[]");
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            })(),
+            statut: g(r, "Statut") || "En attente",
+            dateDemande: g(r, "DateDemande"),
+            dateTraitement: g(r, "DateTraitement"),
+            traitePar: g(r, "TraitePar"),
+            commentaireAdmin: g(r, "CommentaireAdmin")
         })), // universitaire active, appliquée automatiquement à toutes les opérations
         // (versements...) sans que l'utilisateur ait à la sélectionner à chaque fois.
         configuration: {
