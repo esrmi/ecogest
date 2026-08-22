@@ -4773,7 +4773,12 @@ function creneauEstActifPourDate(slot, dateStr) {
 }
 
 function parseSeanceHoraire(seance) {
-    const m = String(seance || "").match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/);
+    // Accepte indifféremment le séparateur heures/minutes "h" (format
+    // standard partout ailleurs, ex: "09h00 - 10h30") OU ":" (ex: une
+    // valeur historique mal formatée, du type "00:00 - 06:00") — pour que
+    // la détection du créneau en cours ne soit jamais mise en échec par
+    // une donnée existante non conforme au format habituel.
+    const m = String(seance || "").match(/(\d{1,2})[h:](\d{2})\s*-\s*(\d{1,2})[h:](\d{2})/);
     if (!m) return null;
     return {
         debutMin: parseInt(m[1], 10) * 60 + parseInt(m[2], 10),
@@ -19216,7 +19221,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.253.0";
+const APP_VERSION = "v3.253.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
