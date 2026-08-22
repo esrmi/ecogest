@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.247.0 — 21 Août 2026
+//  ECOGEST_App.jsx — version v3.249.0 — 22 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -7351,15 +7351,18 @@ function Pointage({
     //    vers le même état sans action manuelle.
     useEffect(() => {
         if (!user?.token) return;
-        const rafraichir = () => loadAllFromSP(user.token).then(spData => {
-            if (spData) setData(spData);
-        }).catch(err => console.warn("Rafraîchissement Pointage échoué:", err.message));
+        const rafraichir = () => {
+            if (!isBrowserOnline()) return;
+            loadAllFromSP(user.token).then(spData => {
+                if (spData) setData(spData);
+            }).catch(err => console.warn("Rafraîchissement Pointage échoué:", err.message));
+        };
         rafraichir();
         const intervalle = setInterval(rafraichir, 3e4);
         return () => clearInterval(intervalle);
     }, []);
     useEffect(() => {
-        if (showFicheId && user?.token) {
+        if (showFicheId && user?.token && isBrowserOnline()) {
             loadAllFromSP(user.token).then(spData => {
                 if (spData) setData(spData);
             }).catch(err => console.warn("Rafraîchissement de la fiche échoué:", err.message));
@@ -7367,6 +7370,10 @@ function Pointage({
     }, [showFicheId]);
     const handleRafraichirManuel = () => {
         if (!user?.token) return;
+        if (!isBrowserOnline()) {
+            toast("🔌 Mode hors ligne actif — impossible d'actualiser depuis SharePoint pour le moment");
+            return;
+        }
         loadAllFromSP(user.token).then(spData => {
             if (spData) {
                 setData(spData);
@@ -7463,6 +7470,10 @@ function Pointage({
         toast("Fiche de pointage créée ✓");
     };
     const openEditSeance = seance => {
+        if (seance.verrouillee) {
+            toast("🔒 Cette séance a été transférée suite à une contestation acceptée — elle n'est plus modifiable");
+            return;
+        }
         setEditingSeanceId(seance.id);
         setFormSeance({
             date: seance.date || today(),
@@ -7585,6 +7596,10 @@ function Pointage({
         toast("Séance ajoutée – à confirmer avant soumission ✓");
     };
     const handleSupprimerSeance = seance => {
+        if (seance.verrouillee) {
+            toast("🔒 Cette séance a été transférée suite à une contestation acceptée — elle n'est plus supprimable");
+            return;
+        }
         if (!window.confirm("Supprimer cette séance ?")) return;
         setData(d => ({
             ...d,
@@ -7755,17 +7770,26 @@ function Pointage({
             toast("⚠️ Non connecté à SharePoint");
             return;
         }
-        if (!window.confirm(`Accepter cette contestation, valider la séance (${c.module}, ${formatDateFR(c.date)}) et la reporter automatiquement sur la fiche du mois suivant du professeur ?`)) return;
+        if (!window.confirm(`Accepter cette contestation et transférer cette séance (${c.module}, ${formatDateFR(c.date)}) sur la fiche du mois suivant du professeur ? Elle ne sera alors plus comptabilisée dans la fiche du mois en cours.`)) return;
         const seance = (data.pointageSeances || []).find(s => s.id === c.seanceId);
         const ficheOrigine = seance ? (data.pointageFiches || []).find(f => f.id === seance.ficheId) : null;
         let ficheCibleLabel = "";
-        if (seance) handleValiderSeance(seance, "Validee"); // Report automatique : la fiche d'origine peut déjà être en cours de
-        // traitement (voire déjà payée) au moment où la contestation est
-        // tranchée — la simple validation de la séance ne suffit donc pas à
-        // garantir son paiement. On la reporte donc, déjà validée, sur la fiche
-        // du MOIS SUIVANT du même professeur (créée si besoin), en laissant sur
-        // les deux fiches une note explicite reliant l'une à l'autre.
-        if (seance && ficheOrigine) {
+        if (!seance) {
+            toast("⚠️ Séance d'origine introuvable — impossible de la transférer");
+        } else if (!ficheOrigine) {
+            toast("⚠️ Fiche d'origine introuvable — impossible de déterminer le mois suivant");
+        } else { // Transfert de la séance : il ne s'agit PAS d'une copie — c'est la
+            // MÊME séance (même identifiant, même historique) qui change
+            // simplement de fiche de rattachement (FicheId), afin de n'être
+            // comptabilisée QUE dans la fiche du mois suivant (les totaux
+            // d'heures se basent déjà uniquement sur les séances rattachées à
+            // chaque fiche — un simple changement de FicheId suffit donc à la
+            // retirer du décompte de sa fiche d'origine). Sa date d'origine
+            // (seance.date) n'est JAMAIS modifiée : c'est elle qui assure la
+            // traçabilité complète de l'opération, y compris une fois affichée
+            // dans la fiche du mois suivant. Elle est en outre verrouillée :
+            // l'enseignant ne pourra plus ni la modifier ni la supprimer, dans
+            // aucune des deux fiches.
             const moisSuivant = ajouterMoisAMois(ficheOrigine.mois, 1);
             ficheCibleLabel = formatMoisLabel(moisSuivant);
             let ficheCible = (data.pointageFiches || []).find(f => f.professeurId === ficheOrigine.professeurId && f.mois === moisSuivant);
@@ -7815,70 +7839,31 @@ function Pointage({
                     }));
                 }
             }
-            const commentaireReport = `↩️ Séance du ${formatDateFR(seance.date)} reportée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} suite à une contestation acceptée le ${formatDateFR(today())}.`;
-            const nouvelIdSeance = Date.now() + Math.random() + 0.5;
-            const seanceReportee = {
-                id: nouvelIdSeance,
-                _spId: null,
-                ficheId: ficheCible.id,
-                professeurId: ficheOrigine.professeurId,
-                professeurNom: ficheOrigine.professeurNom,
-                date: seance.date,
-                module: seance.module,
-                filiere: seance.filiere,
-                semestre: seance.semestre,
-                heureDebut: seance.heureDebut,
-                heureFin: seance.heureFin,
-                nbHeures: seance.nbHeures,
-                commentaire: commentaireReport,
-                statut: "Validee",
-                confirmee: true,
-                valideePar: user?.nom || user?.email || "",
-                dateValidation: today()
-            };
-            setData(d => ({
-                ...d,
-                pointageSeances: [...(d.pointageSeances || []), seanceReportee]
-            }));
-            saveToSP("ECOGEST_PointageSeances", {
-                Title: `${ficheOrigine.professeurNom} - ${seance.date} (report)`,
-                FicheId: String(ficheCible.id),
-                ProfesseurId: String(ficheOrigine.professeurId),
-                ProfesseurNom: ficheOrigine.professeurNom,
-                DatePointage: seance.date || "",
-                Module: seance.module || "",
-                Filiere: seance.filiere || "",
-                Semestre: seance.semestre || "",
-                HeureDebut: seance.heureDebut || "",
-                HeureFin: seance.heureFin || "",
-                NbHeures: String(seance.nbHeures || 0),
-                Commentaire: commentaireReport,
-                Statut: "Validee",
-                Confirmee: "true",
-                ValideePar: user?.nom || user?.email || "",
-                DateValidation: today()
-            }, user.token, null).then(result => {
-                if (result) setData(d => ({
-                    ...d,
-                    pointageSeances: d.pointageSeances.map(s => s.id === nouvelIdSeance ? {
-                        ...s,
-                        _spId: result.id
-                    } : s)
-                }));
-            });
-            const commentaireOrigine = `${seance.commentaire?seance.commentaire+" — ":""}✅ Contestation acceptée le ${formatDateFR(today())} — comptabilisée sur la fiche de ${ficheCibleLabel}.`;
+            const dateTransfert = today();
             setData(d => ({
                 ...d,
                 pointageSeances: d.pointageSeances.map(s => s.id === seance.id ? {
                     ...s,
-                    commentaire: commentaireOrigine
+                    ficheId: ficheCible.id,
+                    statut: "Validee",
+                    confirmee: true,
+                    verrouillee: true,
+                    ficheOrigineMois: ficheOrigine.mois,
+                    dateTransfert,
+                    valideePar: user?.nom || user?.email || "",
+                    dateValidation: dateTransfert
                 } : s)
             }));
-            if (seance._spId) saveToSP("ECOGEST_PointageSeances", {
-                Commentaire: commentaireOrigine
+            saveToSP("ECOGEST_PointageSeances", {
+                FicheId: String(ficheCible.id),
+                Statut: "Validee",
+                Confirmee: "true",
+                Verrouillee: "true",
+                FicheOrigineMois: ficheOrigine.mois,
+                DateTransfert: dateTransfert,
+                ValideePar: user?.nom || user?.email || "",
+                DateValidation: dateTransfert
             }, user.token, seance._spId);
-        } else if (!seance) {
-            toast("⚠️ Séance d'origine introuvable — impossible de la reporter automatiquement");
         }
         await saveToSP("ECOGEST_ContestationsPointage", {
             Statut: "Acceptée",
@@ -7893,7 +7878,7 @@ function Pointage({
                 dateTraitement: today()
             } : x)
         }));
-        toast(ficheCibleLabel ? `Contestation acceptée — séance validée et reportée sur la fiche de ${ficheCibleLabel} ✓` : "Contestation acceptée — séance validée ✓");
+        toast(ficheCibleLabel ? `Contestation acceptée — séance transférée sur la fiche de ${ficheCibleLabel} ✓` : "Contestation acceptée ✓");
     };
     const handleRefuserContestation = async c => {
         if (!user?.token) {
@@ -8279,11 +8264,27 @@ function Pointage({
                 }] : [{
                     key: "statut",
                     label: "Statut",
-                    render: v => badgeStatutSeance(v)
+                    render: (v, row) => row.verrouillee ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
+                        color: C.teal
+                    }, "↩️ Transférée (", formatMoisLabel(row.ficheOrigineMois), ")") : badgeStatutSeance(v)
                 }]), ...(ficheOuverte.statut === "Brouillon" ? [{
                     key: "_actions",
                     label: "Actions",
-                    render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                    render: (_, row) => row.verrouillee ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                        title: `Séance transférée depuis la fiche de ${formatMoisLabel(row.ficheOrigineMois)} suite à une contestation acceptée — non modifiable`,
+                        style: {
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: C.muted,
+                            background: C.light,
+                            padding: "4px 8px",
+                            borderRadius: 12,
+                            whiteSpace: "nowrap"
+                        }
+                    }, "🔒 Verrouillée") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                         style: {
                             display: "flex",
                             gap: 4
@@ -8303,6 +8304,14 @@ function Pointage({
                     key: "_contestation",
                     label: "",
                     render: (_, row) => {
+                        if (row.verrouillee) return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                            title: `Séance transférée depuis la fiche de ${formatMoisLabel(row.ficheOrigineMois)} suite à une contestation acceptée`,
+                            style: {
+                                fontSize: 10.5,
+                                color: C.muted,
+                                whiteSpace: "nowrap"
+                            }
+                        }, "🔒 Verrouillée");
                         if (row.statut !== "Rejetee") return null;
                         const enAttente = mesContestationsEnAttente.find(c => c.seanceId === row.id);
                         if (enAttente) return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
@@ -11171,7 +11180,45 @@ function Parametrage({
     setData,
     user,
     toast
-}) {
+}) { // Mode de connexion (Connecté / Hors ligne) : réutilise intégralement le
+    // mécanisme de cache local + file d'attente déjà en place dans toute
+    // l'application (voir isBrowserOnline/appliquerModeConnexionForcee) —
+    // aucun nouveau système de synchronisation n'est introduit ici.
+    const handleSetModeConnexion = mode => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+            return;
+        }
+        if (mode === "HorsLigne" && !loadDataCache()) {
+            toast("⚠️ Aucune donnée n'est encore en cache localement — restez au moins une fois en mode Connecté avant de pouvoir activer le mode Hors ligne");
+            return;
+        }
+        const modeAvant = data.configuration?.modeConnexion || "Connecte"; // Si l'on repasse en "Connecté", on lève d'abord le forçage pour que
+        // CET enregistrement parte réellement vers SharePoint plutôt que
+        // d'être mis en file d'attente par erreur.
+        if (mode === "Connecte") appliquerModeConnexionForcee(null);
+        const spId = data.configuration?._spId;
+        saveToSP("ECOGEST_Parametres", {
+            Title: "Configuration ECOGEST",
+            ModeConnexion: mode
+        }, user.token, spId).then(result => {
+            if (!result) {
+                if (mode === "Connecte") appliquerModeConnexionForcee(modeAvant);
+                toast("⚠️ Échec de l'enregistrement du mode de connexion");
+                return;
+            }
+            setData(d => ({
+                ...d,
+                configuration: {
+                    ...d.configuration,
+                    modeConnexion: mode,
+                    _spId: result._offline ? d.configuration?._spId : result.id || d.configuration?._spId
+                }
+            }));
+            appliquerModeConnexionForcee(mode);
+            toast(mode === "HorsLigne" ? "🔌 Mode Hors ligne activé — l'application n'utilisera plus que les données déjà en cache local" : "🌐 Mode Connecté activé — synchronisation avec SharePoint reprise");
+        });
+    };
     const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
     const [horairesEdit, setHorairesEdit] = useState([]);
     const handleToggleFiliereWeekend = filiere => {
@@ -11512,6 +11559,106 @@ function Parametrage({
         title: "Paramétrage",
         sub: "Réglages généraux appliqués à l'ensemble de l'application"
     }), /*#__PURE__*/ React.createElement(Card, {
+        style: {
+            padding: 24,
+            maxWidth: 620,
+            marginBottom: 20,
+            border: `2px solid ${data.configuration?.modeConnexion==="HorsLigne"?C.red:"transparent"}`
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            fontWeight: 700,
+            color: C.orange,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 10
+        }
+    }, "🔌 Mode de connexion"), /*#__PURE__*/ React.createElement("p", {
+        style: {
+            fontSize: 13,
+            color: "#555",
+            marginBottom: 16,
+            lineHeight: 1.6
+        }
+    }, "Détermine si l'application communique en temps réel avec SharePoint, ou si elle travaille exclusivement à partir des données déjà enregistrées localement (dernière synchronisation réussie). S'applique à l'ensemble de l'application, pour tous les rôles."), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 8
+        }
+    }, /*#__PURE__*/ React.createElement("label", {
+        style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            border: `1px solid ${(data.configuration?.modeConnexion||"Connecte")==="Connecte"?C.navy:C.border}`,
+            borderRadius: 8,
+            cursor: "pointer",
+            fontSize: 13,
+            background: (data.configuration?.modeConnexion || "Connecte") === "Connecte" ? C.navyLight : "transparent"
+        }
+    }, /*#__PURE__*/ React.createElement("input", {
+        type: "radio",
+        name: "modeConnexion",
+        checked: (data.configuration?.modeConnexion || "Connecte") === "Connecte",
+        onChange: () => handleSetModeConnexion("Connecte"),
+        style: {
+            width: 16,
+            height: 16,
+            cursor: "pointer"
+        }
+    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontWeight: 700
+        }
+    }, "🌐 Connecté"), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11.5,
+            color: C.muted
+        }
+    }, "Fonctionnement normal — lecture/écriture en temps réel avec SharePoint (mode par défaut)."))), /*#__PURE__*/ React.createElement("label", {
+        style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            border: `1px solid ${data.configuration?.modeConnexion==="HorsLigne"?C.red:C.border}`,
+            borderRadius: 8,
+            cursor: "pointer",
+            fontSize: 13,
+            background: data.configuration?.modeConnexion === "HorsLigne" ? "#fdeeec" : "transparent"
+        }
+    }, /*#__PURE__*/ React.createElement("input", {
+        type: "radio",
+        name: "modeConnexion",
+        checked: data.configuration?.modeConnexion === "HorsLigne",
+        onChange: () => handleSetModeConnexion("HorsLigne"),
+        style: {
+            width: 16,
+            height: 16,
+            cursor: "pointer"
+        }
+    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontWeight: 700
+        }
+    }, "🔌 Hors ligne"), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11.5,
+            color: C.muted
+        }
+    }, "Aucun appel réseau vers SharePoint — l'application affiche les dernières données mises en cache. Les modifications effectuées sont conservées localement et synchronisées automatiquement au retour en mode Connecté.")))), data.configuration?.modeConnexion === "HorsLigne" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        style: {
+            marginTop: 12,
+            fontSize: 11.5,
+            color: C.red,
+            background: "#fdeeec",
+            borderRadius: 8,
+            padding: "8px 12px"
+        }
+    }, "⚠️ Mode Hors ligne actif pour tous les utilisateurs de l'application, sur tous les appareils — pensez à repasser en mode Connecté dès que la situation le permet, pour que les modifications en attente soient synchronisées avec SharePoint.")), /*#__PURE__*/ React.createElement(Card, {
         style: {
             padding: 24,
             maxWidth: 480,
@@ -15992,7 +16139,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         Validee: ["Validée", [0.06, 0.55, 0.35]],
         Rejetee: ["Rejetée", [0.82, 0.2, 0.18]]
     };
-    const infoStatut = s => STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
+    const infoStatut = s => s.verrouillee ? [`Transférée (${formatMoisLabelFn?formatMoisLabelFn(s.ficheOrigineMois):s.ficheOrigineMois||""})`, [0.1, 0.45, 0.55]] : STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
     const logoW = 20 * MM,
         logoH = 16.875 * MM;
     const headerBottomY = H - 30 * MM;
@@ -16095,6 +16242,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         // couleur — pour qu'elle ne soit jamais confondue avec une séance
         // réellement comptabilisée dans le total payé.
         if (!estValidee) doc.rect(tableX, y - rowH, tableW, rowH, [1, 0.96, 0.93]);
+        else if (s.verrouillee) doc.rect(tableX, y - rowH, tableW, rowH, [0.91, 0.97, 0.98]);
         else if (i % 2 === 1) doc.rect(tableX, y - rowH, tableW, rowH, [0.96, 0.96, 0.97]);
         const vals = [formatDateFR(s.date) || "—", s.module || "—", `${s.heureDebut||""}-${s.heureFin||""}`];
         let cx = tableX;
@@ -16115,7 +16263,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
             color: estValidee ? [0, 0, 0] : couleurStatut
         });
         cx += cols[3].w;
-        doc.textCentered(cx + cols[4].w / 2, y - rowH / 2 - 1.3, labelStatut, {
+        doc.textCentered(cx + cols[4].w / 2, y - rowH / 2 - 1.3, truncateFit(labelStatut, cols[4].w - 2 * MM, 7.5, true), {
             size: 7.5,
             bold: true,
             color: couleurStatut
@@ -18728,7 +18876,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.247.0";
+const APP_VERSION = "v3.249.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -19774,9 +19922,21 @@ async function saveToSPOnline(list, fields, token, spId) {
 // "optimiste" (avec un identifiant temporaire pour une création), pour que
 // tout le code appelant continue de fonctionner sans savoir qu'il est hors ligne.
 const OFFLINE_QUEUE_KEY = "ecogest_offline_queue_v1";
-const OFFLINE_DATA_CACHE_KEY = "ecogest_data_cache_v1";
+const OFFLINE_DATA_CACHE_KEY = "ecogest_data_cache_v1"; // Bascule manuelle "Mode de connexion" (Paramétrage → Connecté / Hors
+// ligne) : quand elle vaut "HorsLigne", TOUT le code qui interroge
+// isBrowserOnline() (déjà utilisé partout pour décider entre un appel
+// SharePoint réel ou la file d'attente/le cache local) se comporte comme
+// si la connexion était coupée — qu'elle le soit réellement ou non. On
+// réutilise ainsi intégralement le mécanisme de cache/file d'attente déjà
+// en place, sans rien réinventer, pour un comportement garanti fiable.
+let _modeConnexionForcee = null;
+
+function appliquerModeConnexionForcee(mode) {
+    _modeConnexionForcee = mode === "HorsLigne" ? "HorsLigne" : null;
+}
 
 function isBrowserOnline() {
+    if (_modeConnexionForcee === "HorsLigne") return false;
     return typeof navigator !== "undefined" ? navigator.onLine !== false : true;
 }
 
@@ -19828,6 +19988,23 @@ function loadDataCache() {
     } catch (e) {
         return null;
     }
+} // Applique le mode de connexion mémorisé (Paramétrage) dès le chargement
+// du script, en le lisant directement dans le cache local (sans attendre
+// le premier rendu React) — pour qu'AUCUN appel réseau ne puisse partir
+// par erreur avant que le mode "Hors ligne" ne soit effectif.
+appliquerModeConnexionForcee(loadDataCache()?.data?.configuration?.modeConnexion); // Charge les données initiales en respectant le mode de connexion choisi :
+// en mode "Hors ligne", on n'effectue AUCUN appel réseau et on retourne
+// directement les données déjà en cache local (ou vide si jamais chargées
+// une première fois en mode Connecté) ; en mode "Connecté" (par défaut),
+// comportement inchangé (chargement SharePoint réel).
+async function chargerDonneesInitiales(token) {
+    const cached = loadDataCache();
+    if (cached?.data?.configuration?.modeConnexion === "HorsLigne") {
+        console.log("🔌 Mode Hors ligne actif (Paramétrage) — utilisation des données déjà en cache local, aucun appel réseau.");
+        return cached.data;
+    }
+    await setupSharePointLists(token);
+    return loadAllFromSP(token);
 }
 async function saveToSP(list, fields, token, spId) {
     if (!isBrowserOnline()) {
@@ -19944,7 +20121,7 @@ const SP_LISTS_SCHEMA = {
     ECOGEST_PaiementsArchives: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeScolaire", "TotalAPayer", "TotalPaye", "Solde", "Statut", "RemisesJSON", "PenalitesJSON", "DateSuppression", "SupprimePar"],
     ECOGEST_VersementsArchives: ["EtudiantId", "NumInscription", "NomEtudiant", "Filiere", "AnneeUniversitaire", "DateVersement", "Montant", "Mode", "Reference", "Banque", "NumCheque", "Motif", "Recu", "Agent", "DateSuppression", "SupprimePar"],
     ECOGEST_PointageFiches: ["ProfesseurId", "ProfesseurNom", "Mois", "Statut", "DateCreation", "DateSoumission", "DateValidation", "ValideePar", "DateAccuseReception", "AccuseReceptionPar", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
-    ECOGEST_PointageSeances: ["FicheId", "ProfesseurId", "ProfesseurNom", "Statut", "Confirmee", "DatePointage", "Module", "Filiere", "Semestre", "HeureDebut", "HeureFin", "NbHeures", "Commentaire", "ValideePar", "DateValidation"], // Pointage QR : chaque enregistrement est soit une "Session" (créée par le
+    ECOGEST_PointageSeances: ["FicheId", "ProfesseurId", "ProfesseurNom", "Statut", "Confirmee", "DatePointage", "Module", "Filiere", "Semestre", "HeureDebut", "HeureFin", "NbHeures", "Commentaire", "ValideePar", "DateValidation", "Verrouillee", "FicheOrigineMois", "DateTransfert"], // Pointage QR : chaque enregistrement est soit une "Session" (créée par le
     // professeur au démarrage d'une séance, avec un Token qui tourne toutes
     // les ~90s) soit un "Scan" (créé par un étudiant qui confirme sa présence
     // via le QR affiché, relié à la session par SessionId).
@@ -19957,7 +20134,7 @@ const SP_LISTS_SCHEMA = {
     // Iliass Elmzioui ; l'acceptation revalide directement la séance
     // concernée.
     ECOGEST_ContestationsPointage: ["FicheId", "SeanceId", "ProfesseurCIN", "ProfesseurNom", "Motif", "Module", "Date", "StatutSeanceAvant", "Statut", "DateContestation", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
-    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT"],
+    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT", "ModeConnexion"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
     ECOGEST_Calendrier: ["TypeEvenement", "DateDebut", "DateFin", "Description", "Filiere"]
@@ -20536,7 +20713,10 @@ async function loadAllFromSP(token) {
             confirmee: g(s, "Confirmee") === "true" || g(s, "Confirmee") === true,
             commentaire: g(s, "Commentaire"),
             valideePar: g(s, "ValideePar"),
-            dateValidation: g(s, "DateValidation")
+            dateValidation: g(s, "DateValidation"),
+            verrouillee: g(s, "Verrouillee") === "true" || g(s, "Verrouillee") === true,
+            ficheOrigineMois: g(s, "FicheOrigineMois"),
+            dateTransfert: g(s, "DateTransfert")
         })),
         sessionsQR: sessionsQRSP.map(s => ({
             _spId: s._spId,
@@ -20612,7 +20792,8 @@ async function loadAllFromSP(token) {
             campusRayonMetres: g(parametresSP[0] || {}, "CampusRayonMetres") || "150",
             geolocalisationActive: g(parametresSP[0] || {}, "GeolocalisationActive") === "true" || g(parametresSP[0] || {}, "GeolocalisationActive") === true,
             decalageGMT: g(parametresSP[0] || {}, "DecalageGMT") || "1",
-            filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean)
+            filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean),
+            modeConnexion: g(parametresSP[0] || {}, "ModeConnexion") === "HorsLigne" ? "HorsLigne" : "Connecte"
         },
         calendrier: calendrier.map(c => ({
             _spId: c._spId,
@@ -20787,7 +20968,18 @@ function App() {
     const toast = msg => {
         setToastMsg(msg);
         setTimeout(() => setToastMsg(""), 3e3);
-    }; // Tient l'état module-level des notifications email à jour : activé ou
+    }; // Applique le mode de connexion (Connecté/Hors ligne) pour CETTE session
+    // dès que la configuration chargée (en direct ou depuis le cache) le
+    // révèle — nécessaire pour que le réglage choisi par un administrateur
+    // se propage correctement aux autres utilisateurs déjà connectés, dès
+    // leur prochain rafraîchissement des données, sans attendre un
+    // rechargement complet de la page.
+    useEffect(() => {
+        if (data.configuration?.modeConnexion) {
+            appliquerModeConnexionForcee(data.configuration.modeConnexion);
+            setIsOnline(isBrowserOnline());
+        }
+    }, [data.configuration?.modeConnexion]); // Tient l'état module-level des notifications email à jour : activé ou
     // non (Paramétrage), token courant, identité de l'acteur, et liste des
     // destinataires — soit tous les concernés (administrateur + direction),
     // soit l'administrateur uniquement, selon le choix fait en Paramétrage.
@@ -21010,7 +21202,7 @@ function App() {
                         }
                         lastPageSyncRef.current = Date.now();
                         setSpLoading(true);
-                        setupSharePointLists(token).then(() => loadAllFromSP(token)).then(spData => {
+                        chargerDonneesInitiales(token).then(spData => {
                             if (spData) setData(spData);
                             setSpLoading(false);
                         }).catch(err => {
@@ -21020,7 +21212,7 @@ function App() {
                     } else {
                         lastPageSyncRef.current = Date.now();
                         setSpLoading(true);
-                        setupSharePointLists(token).then(() => loadAllFromSP(token)).then(spData => {
+                        chargerDonneesInitiales(token).then(spData => {
                             const matched = (spData?.etudiants || []).find(e => (e.email || "").toLowerCase() === email || (e.emailPersonnel || "").toLowerCase() === email);
                             const matchedProf = !matched ? (spData?.professeurs || []).find(p => (p.email || "").toLowerCase() === email) : null;
                             if (matched) {
@@ -21995,7 +22187,7 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
         style: {
             fontSize: 16
         }
-    }, !isOnline ? "🔌" : syncingQueue ? "🔄" : "⏳"), /*#__PURE__*/ React.createElement("span", null, !isOnline ? `Hors ligne — vos modifications sont enregistrées et seront synchronisées au retour de la connexion${pendingSyncCount>0?` (${pendingSyncCount} en attente)`:""}` : syncingQueue ? "Synchronisation en cours..." : `${pendingSyncCount} modification(s) en attente de synchronisation`), isOnline && !syncingQueue && pendingSyncCount > 0 && userAuth?.token && /*#__PURE__*/ React.createElement("button", {
+    }, !isOnline ? data.configuration?.modeConnexion === "HorsLigne" ? "🔌" : "📡" : syncingQueue ? "🔄" : "⏳"), /*#__PURE__*/ React.createElement("span", null, !isOnline ? data.configuration?.modeConnexion === "HorsLigne" ? `Mode Hors ligne activé (Paramétrage) — vos modifications sont enregistrées localement et seront synchronisées au retour en mode Connecté${pendingSyncCount>0?` (${pendingSyncCount} en attente)`:""}` : `Connexion internet perdue — vos modifications sont enregistrées et seront synchronisées automatiquement dès son retour${pendingSyncCount>0?` (${pendingSyncCount} en attente)`:""}` : syncingQueue ? "Synchronisation en cours..." : `${pendingSyncCount} modification(s) en attente de synchronisation`), isOnline && !syncingQueue && pendingSyncCount > 0 && userAuth?.token && /*#__PURE__*/ React.createElement("button", {
         onClick: () => runSync(userAuth.token),
         style: {
             border: "none",
