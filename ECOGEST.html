@@ -7876,10 +7876,24 @@ function Pointage({
                     valideePar: acteur,
                     dateValidation: dateTransfert
                 } : s)
-            }));
-            saveToSP("ECOGEST_PointageSeances", {
+            })); // Le rattachement à la nouvelle fiche (FicheId) est l'information la
+            // plus critique de tout ce mécanisme — sans lui, la séance reste
+            // invisible dans la fiche du mois suivant. On l'envoie donc d'ABORD,
+            // séparément et seul avec "Statut" (qui bénéficie déjà d'un repli
+            // automatique en cas de rejet côté SharePoint) — puis les champs plus
+            // récents (Verrouillee, FicheOrigineMois, DateTransfert...) dans un
+            // second appel indépendant : si l'une de ces colonnes n'existe pas
+            // encore côté SharePoint, son échec éventuel ne doit jamais empêcher
+            // le transfert réel de la séance de fonctionner.
+            const resultTransfert = await saveToSP("ECOGEST_PointageSeances", {
                 FicheId: String(ficheCible.id),
-                Statut: "Validee",
+                Statut: "Validee"
+            }, user.token, seance._spId);
+            if (!resultTransfert) {
+                toast("⚠️ Échec du rattachement de la séance à la nouvelle fiche — transfert annulé, réessayez");
+                return;
+            }
+            saveToSP("ECOGEST_PointageSeances", {
                 Confirmee: "true",
                 Verrouillee: "true",
                 FicheOrigineMois: ficheOrigine.mois,
@@ -7887,7 +7901,9 @@ function Pointage({
                 Commentaire: commentaireComplet,
                 ValideePar: acteur,
                 DateValidation: dateTransfert
-            }, user.token, seance._spId);
+            }, user.token, seance._spId).then(resultDetails => {
+                if (!resultDetails) toast("⚠️ Séance bien transférée, mais certains détails (verrouillage, historique) n'ont pas pu être enregistrés — vérifiez les colonnes Verrouillee/FicheOrigineMois/DateTransfert dans ECOGEST_PointageSeances");
+            });
         }
         await saveToSP("ECOGEST_ContestationsPointage", {
             Statut: "Acceptée",
@@ -18944,7 +18960,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.249.2";
+const APP_VERSION = "v3.249.3";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
