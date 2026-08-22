@@ -7501,9 +7501,19 @@ function Pointage({
             return;
         }
         const periode = periodeDuMois(fiche.mois);
-        if (periode && (formSeance.date < periode.debut || formSeance.date > periode.fin)) {
-            toast(`⚠️ La date doit être comprise entre le ${formatDateFR(periode.debut)} et le ${formatDateFR(periode.fin)} (période de la fiche ${formatMoisLabel(fiche.mois)})`);
-            return;
+        const dateHorsPeriode = periode && (formSeance.date < periode.debut || formSeance.date > periode.fin);
+        if (dateHorsPeriode) { // Un professeur ne peut jamais saisir une date hors de la période de
+            // sa propre fiche (protection contre les erreurs de saisie). Iliass
+            // Elmzioui, en revanche, peut explicitement passer outre — cas
+            // précis d'un rattrapage : une séance oubliée sur un mois déjà
+            // traité/payé, qu'il ajoute directement sur la fiche du mois en
+            // cours (avec sa date d'origine, conservée pour la traçabilité)
+            // plutôt que de rouvrir l'ancienne fiche déjà close.
+            if (!estIliass) {
+                toast(`⚠️ La date doit être comprise entre le ${formatDateFR(periode.debut)} et le ${formatDateFR(periode.fin)} (période de la fiche ${formatMoisLabel(fiche.mois)})`);
+                return;
+            }
+            if (!window.confirm(`La date saisie (${formatDateFR(formSeance.date)}) est en dehors de la période normale de cette fiche (${formatDateFR(periode.debut)} au ${formatDateFR(periode.fin)}).\n\nC'est le cas attendu pour un RATTRAPAGE : une séance oubliée sur un mois déjà traité, ajoutée ici avec sa date d'origine conservée.\n\nConfirmer l'ajout malgré tout ?`)) return;
         }
         const cours = (data.cours || []).find(c => c.intitule === formSeance.module);
         const [h1, m1] = formSeance.heureDebut.split(":").map(Number);
@@ -7552,17 +7562,23 @@ function Pointage({
             annulerEditionSeance();
             return;
         }
-        const nouvelId = Date.now() + Math.random();
+        const nouvelId = Date.now() + Math.random(); // Une séance ajoutée par Iliass Elmzioui lui-même (typiquement un
+        // rattrapage sur une fiche déjà traitée) est directement validée,
+        // puisqu'il est l'autorité de validation — inutile de repasser par le
+        // statut "En attente".
+        const statutInitial = estIliass ? "Validee" : "EnAttente";
+        const dateValidationInitiale = estIliass ? today() : "";
+        const valideeParInitial = estIliass ? user?.nom || user?.email || "" : "";
         const nouvelleSeance = {
             id: nouvelId,
             _spId: null,
             ficheId: fiche.id,
             professeurId: fiche.professeurId,
             professeurNom: fiche.professeurNom,
-            statut: "EnAttente",
-            confirmee: false,
-            valideePar: "",
-            dateValidation: "",
+            statut: statutInitial,
+            confirmee: estIliass,
+            valideePar: valideeParInitial,
+            dateValidation: dateValidationInitiale,
             ...champsCommuns
         };
         setData(d => ({
@@ -7575,8 +7591,10 @@ function Pointage({
                 FicheId: String(fiche.id),
                 ProfesseurId: String(fiche.professeurId),
                 ProfesseurNom: fiche.professeurNom,
-                Statut: "EnAttente",
-                Confirmee: "false",
+                Statut: statutInitial,
+                Confirmee: estIliass ? "true" : "false",
+                ValideePar: valideeParInitial,
+                DateValidation: dateValidationInitiale,
                 ...champsSP
             }, user.token, null).then(result => {
                 if (result) setData(d => ({
@@ -7595,7 +7613,7 @@ function Pointage({
             heureFin: "10:00",
             commentaire: ""
         });
-        toast("Séance ajoutée – à confirmer avant soumission ✓");
+        toast(estIliass ? "Séance de rattrapage ajoutée et validée ✓" : "Séance ajoutée – à confirmer avant soumission ✓");
     };
     const handleSupprimerSeance = seance => {
         if (seance.verrouillee) {
@@ -8539,7 +8557,14 @@ function Pointage({
         if (ficheOuverte) {
             const seances = seancesDeFiche(ficheOuverte.id).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
             const totalHeures = seances.filter(s => s.statut === "Validee").reduce((s, x) => s + (x.nbHeures || 0), 0);
-            const nbEnAttente = seances.filter(s => s.statut === "EnAttente").length;
+            const nbEnAttente = seances.filter(s => s.statut === "EnAttente").length; // Modules proposés à Iliass pour l'ajout d'une séance de rattrapage :
+            // ceux du PROFESSEUR DE LA FICHE (et non de lui-même). Le filtre par
+            // semestre est volontairement omis ici — la séance rattrapée
+            // appartient par définition à une période passée, potentiellement
+            // différente du semestre de la fiche du mois en cours ; seul le
+            // filtre par année universitaire est conservé, par sécurité minimale.
+            const profDeLaFiche = (data.professeurs || []).find(p => p.id === ficheOuverte.professeurId);
+            const modulesOptionsRattrapage = (data.cours || []).filter(c => c.professeurCin === profDeLaFiche?.cin && (!ficheOuverte.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(ficheOuverte.anneeUniversitaire)));
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
                 title: `🕛 ${ficheOuverte.professeurNom} — ${formatMoisLabel(ficheOuverte.mois)}`,
                 sub: `${seances.length} séance(s) · ${totalHeures}h validées`,
@@ -8601,7 +8626,82 @@ function Pointage({
                     fontSize: 12,
                     color: C.muted
                 }
-            }, "En attente de traitement du paiement par Mme Fatima Zahra Zniber")), /*#__PURE__*/ React.createElement(Card, {
+            }, "En attente de traitement du paiement par Mme Fatima Zahra Zniber")), estIliass && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    padding: 18,
+                    marginBottom: 16,
+                    border: `1px dashed ${C.orange}`
+                }
+            }, /*#__PURE__*/ React.createElement("h4", {
+                style: {
+                    margin: "0 0 4px",
+                    color: C.orange,
+                    fontSize: 13.5
+                }
+            }, "➕ Ajouter une séance de rattrapage"), /*#__PURE__*/ React.createElement("p", {
+                style: {
+                    fontSize: 11.5,
+                    color: C.muted,
+                    margin: "0 0 12px"
+                }
+            }, "Pour une séance oubliée sur un mois déjà traité/payé : la date peut être choisie hors de la période normale de cette fiche (une confirmation sera demandée) — elle est enregistrée avec sa date d'origine et validée directement."), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                    gap: 10,
+                    marginBottom: 10
+                }
+            }, /*#__PURE__*/ React.createElement(Input, {
+                label: "Date *",
+                type: "date",
+                value: formSeance.date,
+                onChange: e => setFormSeance(f => ({
+                    ...f,
+                    date: e.target.value
+                }))
+            }), /*#__PURE__*/ React.createElement(Sel, {
+                label: "Module *",
+                value: formSeance.module,
+                onChange: e => setFormSeance(f => ({
+                    ...f,
+                    module: e.target.value
+                }))
+            }, /*#__PURE__*/ React.createElement("option", {
+                value: ""
+            }, "-- Sélectionner --"), modulesOptionsRattrapage.map(c => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+                key: c.id,
+                value: c.intitule
+            }, c.intitule))), /*#__PURE__*/ React.createElement(Input, {
+                label: "Heure début *",
+                type: "time",
+                value: formSeance.heureDebut,
+                onChange: e => setFormSeance(f => ({
+                    ...f,
+                    heureDebut: e.target.value
+                }))
+            }), /*#__PURE__*/ React.createElement(Input, {
+                label: "Heure fin *",
+                type: "time",
+                value: formSeance.heureFin,
+                onChange: e => setFormSeance(f => ({
+                    ...f,
+                    heureFin: e.target.value
+                }))
+            })), /*#__PURE__*/ React.createElement(Input, {
+                label: "Commentaire (recommandé pour un rattrapage)",
+                value: formSeance.commentaire,
+                onChange: e => setFormSeance(f => ({
+                    ...f,
+                    commentaire: e.target.value
+                })),
+                placeholder: "Ex: Séance oubliée par le professeur, signalée le..."
+            }), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    marginTop: 10
+                }
+            }, /*#__PURE__*/ React.createElement(Btn, {
+                onClick: () => handleEnregistrerSeance(ficheOuverte)
+            }, "+ Ajouter la séance"))), /*#__PURE__*/ React.createElement(Card, {
                 style: {
                     overflow: "hidden"
                 }
@@ -18999,7 +19099,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.250.0";
+const APP_VERSION = "v3.251.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22012,6 +22112,13 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
             statutCible = "ValideeIliass";
             count = fiches.filter(f => f.statut === "ValideeIliass" || f.statut === "ReceptionAccusee").length;
             message = `fiche(s) de pointage en attente de l'ordre de virement`;
+        } else if (["k.bouabid@esrmi.ma"].includes(emailActuel)) {
+            // Mme Bouabid n'a plus d'étape à valider dans le circuit, mais
+            // reste tenue informée, à titre de suivi, des fiches récemment
+            // validées par M. Elmzioui.
+            statutCible = "ValideeIliass";
+            count = fiches.filter(f => f.statut === "ValideeIliass" || f.statut === "ReceptionAccusee").length;
+            message = `nouvelle(s) fiche(s) de pointage validée(s) par M. Iliass Elmzioui`;
         } else {
             return null;
         }
