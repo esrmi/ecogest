@@ -11204,7 +11204,7 @@ function Parametrage({
         }, user.token, spId).then(result => {
             if (!result) {
                 if (mode === "Connecte") appliquerModeConnexionForcee(modeAvant);
-                toast("⚠️ Échec de l'enregistrement du mode de connexion");
+                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'ModeConnexion' existe bien dans la liste SharePoint ECOGEST_Parametres");
                 return;
             }
             setData(d => ({
@@ -15151,8 +15151,10 @@ function pdfEscapeText(str) {
         let code = ch.codePointAt(0);
         if (code > 255) {
             code = UNICODE_TO_WINANSI[code];
-            if (code === void 0) {
-                out += "?";
+            if (code === void 0) { // Un caractère hors de la table WinAnsi (émoji, script non latin...)
+                // ne peut pas être représenté par ce moteur PDF minimal — mieux
+                // vaut l'omettre silencieusement qu'afficher un "?" qui ressemble à
+                // une corruption de données.
                 continue;
             }
         }
@@ -16188,7 +16190,29 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         w: tableW - (20 + 50 + 26 + 16 + 24) * MM
     }];
     const headerH = 9 * MM,
-        rowH = 8 * MM;
+        rowH = 8 * MM,
+        ligneCommentaireH = 3.6 * MM,
+        MAX_LIGNES_COMMENTAIRE = 5; // Découpe un texte en plusieurs lignes tenant dans une largeur donnée
+    // (retour à la ligne mot par mot) — utilisé pour la colonne
+    // "Commentaire", afin qu'un commentaire un peu long ne soit plus jamais
+    // tronqué au milieu d'un mot comme auparavant.
+    const wrapText = (text, maxWidth, size, bold = false) => {
+        const mots = String(text || "").split(/\s+/).filter(Boolean);
+        if (mots.length === 0) return [""];
+        const lignes = [];
+        let ligneActuelle = "";
+        mots.forEach(mot => {
+            const essai = ligneActuelle ? `${ligneActuelle} ${mot}` : mot;
+            if (measureTextWidth(essai, size, bold) <= maxWidth) {
+                ligneActuelle = essai;
+            } else {
+                if (ligneActuelle) lignes.push(ligneActuelle);
+                ligneActuelle = measureTextWidth(mot, size, bold) <= maxWidth ? mot : truncateFit(mot, maxWidth, size, bold);
+            }
+        });
+        if (ligneActuelle) lignes.push(ligneActuelle);
+        return lignes.length > 0 ? lignes : [""];
+    };
     const drawTableHeader = () => {
         doc.rect(tableX, y - headerH, tableW, headerH, [0, 0, 0]);
         let cx = tableX;
@@ -16226,8 +16250,19 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         });
         y -= 7 * MM;
     }
-    seancesTriees.forEach((s, i) => {
-        if (y < 45 * MM) {
+    seancesTriees.forEach((s, i) => { // Hauteur de la ligne calculée à l'avance selon le nombre de lignes
+        // nécessaires pour afficher le commentaire EN ENTIER (dans la limite
+        // raisonnable de 5 lignes, au-delà de laquelle il est tronqué avec des
+        // points de suspension pour ne pas déséquilibrer toute la mise en
+        // page).
+        let commentaireLignes = wrapText(s.commentaire || "", cols[5].w - 3 * MM, 8);
+        if (commentaireLignes.length > MAX_LIGNES_COMMENTAIRE) {
+            commentaireLignes = commentaireLignes.slice(0, MAX_LIGNES_COMMENTAIRE);
+            const derniere = commentaireLignes[MAX_LIGNES_COMMENTAIRE - 1];
+            commentaireLignes[MAX_LIGNES_COMMENTAIRE - 1] = truncateFit(`${derniere}…`, cols[5].w - 3 * MM, 8);
+        }
+        const rowHDyn = Math.max(rowH, commentaireLignes.length * ligneCommentaireH + 3 * MM);
+        if (y - rowHDyn < 40 * MM) {
             dessinerGrilleTableauFiche(tableTopY);
             doc.newPage();
             doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
@@ -16241,39 +16276,42 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         // clairement mise en évidence — fond teinté, durée et statut en
         // couleur — pour qu'elle ne soit jamais confondue avec une séance
         // réellement comptabilisée dans le total payé.
-        if (!estValidee) doc.rect(tableX, y - rowH, tableW, rowH, [1, 0.96, 0.93]);
-        else if (s.verrouillee) doc.rect(tableX, y - rowH, tableW, rowH, [0.91, 0.97, 0.98]);
-        else if (i % 2 === 1) doc.rect(tableX, y - rowH, tableW, rowH, [0.96, 0.96, 0.97]);
+        if (!estValidee) doc.rect(tableX, y - rowHDyn, tableW, rowHDyn, [1, 0.96, 0.93]);
+        else if (s.verrouillee) doc.rect(tableX, y - rowHDyn, tableW, rowHDyn, [0.91, 0.97, 0.98]);
+        else if (i % 2 === 1) doc.rect(tableX, y - rowHDyn, tableW, rowHDyn, [0.96, 0.96, 0.97]);
         const vals = [formatDateFR(s.date) || "—", s.module || "—", `${s.heureDebut||""}-${s.heureFin||""}`];
         let cx = tableX;
         vals.forEach((v, ci) => {
             const maxW = cols[ci].w - 3 * MM;
             const texte = truncateFit(v, maxW, 8);
-            if (ci === 1) doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, texte, {
+            if (ci === 1) doc.text(cx + 1.5 * MM, y - rowHDyn / 2 - 1.3, texte, {
                 size: 8
             });
-            else doc.textCentered(cx + cols[ci].w / 2, y - rowH / 2 - 1.3, texte, {
+            else doc.textCentered(cx + cols[ci].w / 2, y - rowHDyn / 2 - 1.3, texte, {
                 size: 8
             });
             cx += cols[ci].w;
         });
-        doc.textCentered(cx + cols[3].w / 2, y - rowH / 2 - 1.3, `${fmt2(s.nbHeures)}h`, {
+        doc.textCentered(cx + cols[3].w / 2, y - rowHDyn / 2 - 1.3, `${fmt2(s.nbHeures)}h`, {
             size: 8,
             bold: !estValidee,
             color: estValidee ? [0, 0, 0] : couleurStatut
         });
         cx += cols[3].w;
-        doc.textCentered(cx + cols[4].w / 2, y - rowH / 2 - 1.3, truncateFit(labelStatut, cols[4].w - 2 * MM, 7.5, true), {
+        doc.textCentered(cx + cols[4].w / 2, y - rowHDyn / 2 - 1.3, truncateFit(labelStatut, cols[4].w - 2 * MM, 7.5, true), {
             size: 7.5,
             bold: true,
             color: couleurStatut
         });
         cx += cols[4].w;
-        const commentaireTexte = truncateFit(s.commentaire || "", cols[5].w - 3 * MM, 8);
-        doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, commentaireTexte, {
-            size: 8
+        const commentaireBlocH = commentaireLignes.length * ligneCommentaireH;
+        const commentaireDebutY = y - (rowHDyn - commentaireBlocH) / 2 - ligneCommentaireH + 1.3;
+        commentaireLignes.forEach((ligne, li) => {
+            doc.text(cx + 1.5 * MM, commentaireDebutY - li * ligneCommentaireH, ligne, {
+                size: 8
+            });
         });
-        y -= rowH;
+        y -= rowHDyn;
         rowBottoms.push(y);
     });
     dessinerGrilleTableauFiche(tableTopY);
@@ -18876,7 +18914,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.249.0";
+const APP_VERSION = "v3.249.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
