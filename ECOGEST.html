@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.250.0 — 22 Août 2026
+//  ECOGEST_App.jsx — version v3.253.0 — 22 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4971,6 +4971,9 @@ function Presences({
     const [filtreSemestre25, setFiltreSemestre25] = useState("");
     const [ficheAnnee, setFicheAnnee] = useState("");
     const [presencesSection, setPresencesSection] = useState("saisie");
+    const [filtreDateGeolocState, setFiltreDateGeolocState] = useState("");
+    const [filtreFiliereGeolocState, setFiltreFiliereGeolocState] = useState("");
+    const [filtreTypeGeolocState, setFiltreTypeGeolocState] = useState("");
     const [mesAbsencesSection, setMesAbsencesSection] = useState("seances");
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesPresences = role === "etudiant" ? (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId) : role === "professeur" ? (data.presences || []).filter(p => p.enseignantCin === monProfesseur?.cin) : data.presences || [];
@@ -5364,6 +5367,11 @@ function Presences({
         icon: "🚨",
         label: "Étudiants ayant atteint 25% d'absence",
         sub: "par module"
+    }, {
+        key: "geoloc",
+        icon: "📍",
+        label: "Présence confirmée par géolocalisation",
+        sub: "professeurs et étudiants, en temps réel"
     }].map((item, idx, arr) => {
         const actif = presencesSection === item.key;
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -6432,6 +6440,115 @@ function Presences({
             cols: cols25,
             rows: lignes25,
             emptyMsg: "Aucun étudiant concerné",
+            compact: true
+        })));
+    })(), voirArbrePresences && presencesSection === "geoloc" && (() => {
+        const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceProf" || s.type === "PresenceEtudiant");
+        const filieresOptionsGeoloc = getFilieres(data);
+        const dateAujourdhui = today();
+        const filtreDateGeoloc = filtreDateGeolocState || dateAujourdhui;
+        const confirmationsFiltrees = confirmations.filter(s => !filtreDateGeoloc || s.dateSeance === filtreDateGeoloc).filter(s => !filtreFiliereGeolocState || s.filiere === filtreFiliereGeolocState).filter(s => !filtreTypeGeolocState || s.type === filtreTypeGeolocState).sort((a, b) => (b.dateSeance || "").localeCompare(a.dateSeance || "") || (a.scanneLe || "").localeCompare(b.scanneLe || ""));
+        const nbProfs = confirmationsFiltrees.filter(s => s.type === "PresenceProf").length;
+        const nbEtudiants = confirmationsFiltrees.filter(s => s.type === "PresenceEtudiant").length;
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(Card, {
+            style: {
+                padding: 16,
+                marginBottom: 16
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: C.navy,
+                marginBottom: 10
+            }
+        }, "📍 Confirmations de présence par géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+            style: {
+                fontSize: 11.5,
+                color: C.muted,
+                margin: "0 0 14px",
+                lineHeight: 1.6
+            }
+        }, "Liste des confirmations envoyées automatiquement par les professeurs et étudiants depuis leur propre appareil, au moment où ils ont cours d'après l'Emploi du temps — validées par leur position GPS (voir Paramétrage → Géolocalisation). Ce suivi est indépendant de la saisie manuelle des absences ci-dessus."), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: 10
+            }
+        }, /*#__PURE__*/ React.createElement(Input, {
+            label: "Date",
+            type: "date",
+            value: filtreDateGeoloc,
+            onChange: e => setFiltreDateGeolocState(e.target.value)
+        }), /*#__PURE__*/ React.createElement(Sel, {
+            label: "Filière",
+            value: filtreFiliereGeolocState,
+            onChange: e => setFiltreFiliereGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous les groupes --"), filieresOptionsGeoloc.map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: f,
+            value: f
+        }, f))), /*#__PURE__*/ React.createElement(Sel, {
+            label: "Type",
+            value: filtreTypeGeolocState,
+            onChange: e => setFiltreTypeGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous --"), /*#__PURE__*/ React.createElement("option", {
+            value: "PresenceProf"
+        }, "Professeurs"), /*#__PURE__*/ React.createElement("option", {
+            value: "PresenceEtudiant"
+        }, "Étudiants"))), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                gap: 16,
+                marginTop: 14,
+                fontSize: 12.5
+            }
+        }, /*#__PURE__*/ React.createElement("span", null, "👨‍🏫 ", /*#__PURE__*/ React.createElement("strong", null, nbProfs), " confirmation(s) professeur"), /*#__PURE__*/ React.createElement("span", null, "🎓 ", /*#__PURE__*/ React.createElement("strong", null, nbEtudiants), " confirmation(s) étudiant"))), confirmationsFiltrees.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 32,
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 13
+            }
+        }, "Aucune confirmation de présence trouvée pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                overflow: "hidden"
+            }
+        }, /*#__PURE__*/ React.createElement(DataTable, {
+            cols: [{
+                key: "dateSeance",
+                label: "Date",
+                render: v => formatDateFR(v)
+            }, {
+                key: "type",
+                label: "Type",
+                render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
+                    color: v === "PresenceProf" ? C.navy : C.teal
+                }, v === "PresenceProf" ? "👨‍🏫 Professeur" : "🎓 Étudiant")
+            }, {
+                key: "_nom",
+                label: "Nom",
+                render: (_, row) => row.type === "PresenceProf" ? row.professeurNom : row.etudiantNom
+            }, {
+                key: "filiere",
+                label: "Groupe",
+                render: v => filiereCode(v, data.filieres) || v
+            }, {
+                key: "module",
+                label: "Module"
+            }, {
+                key: "seance",
+                label: "Créneau"
+            }, {
+                key: "scanneLe",
+                label: "Confirmé à",
+                render: v => v ? v.split(" ")[1] || v : "—"
+            }],
+            rows: confirmationsFiltrees,
+            emptyMsg: "Aucune confirmation",
             compact: true
         })));
     })(), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
@@ -19099,7 +19216,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.251.0";
+const APP_VERSION = "v3.253.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21075,14 +21192,17 @@ function App() {
     // règles des Hooks React — un Hook déclaré après un retour conditionnel
     // ne serait pas appelé de façon cohérente à chaque rendu.
     const roleTmp = previewRole || roleAuth;
-    const userTmp = previewRole ? previewUser : userAuth; // Force un nouveau rendu toutes les 30s pour réévaluer en continu si un
+    const userTmp = previewRole ? previewUser : userAuth; // Force un nouveau rendu toutes les 10s pour réévaluer en continu si un
     // créneau vient de démarrer/se terminer, ou si la phase de rappel (5 min
     // avant) vient de basculer vers le pointage réel — sans ça, ces
     // transitions ne seraient détectées que si autre chose déclenche un
-    // rendu (navigation, etc.), jamais si l'écran reste inactif.
+    // rendu (navigation, etc.), jamais si l'écran reste inactif. Intervalle
+    // volontairement court (10s, plutôt que 30s) pour que la bannière
+    // disparaisse quasi immédiatement après la fin réelle de la séance,
+    // plutôt qu'avec un délai perceptible.
     const [, forcerRenduCreneau] = useState(0);
     useEffect(() => {
-        const id = setInterval(() => forcerRenduCreneau(t => t + 1), 30e3);
+        const id = setInterval(() => forcerRenduCreneau(t => t + 1), 10e3);
         return () => clearInterval(id);
     }, []);
     const monEtudiantSessionQR = roleTmp === "etudiant" && data.etudiants ? data.etudiants.find(e => e.email && userTmp?.email && e.email.toLowerCase() === userTmp.email.toLowerCase()) : null; // ── Bannière de présence par géolocalisation (professeur + étudiant) ────
@@ -21090,15 +21210,27 @@ function App() {
     // étudiant) détecte, indépendamment et sur son propre appareil, si elle a
     // cours en ce moment d'après l'Emploi du temps, et confirme sa présence
     // en un clic — validé par la position GPS, sans QR à afficher/scanner.
-    const monProfesseurGlobal = roleTmp === "professeur" && data.professeurs ? data.professeurs.find(p => p.email && userTmp?.email && p.email.toLowerCase() === userTmp.email.toLowerCase()) : null;
-    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin, 5, 0) : null;
-    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => e.filiere === monEtudiantSessionQR.filiere, 5, 0) : null;
+    const monProfesseurGlobal = roleTmp === "professeur" && data.professeurs ? data.professeurs.find(p => p.email && userTmp?.email && p.email.toLowerCase() === userTmp.email.toLowerCase()) : null; // L'année universitaire "actuelle" (celle du jour même) sert de garde-fou
+    // supplémentaire pour ne jamais confondre deux créneaux qui partageraient
+    // par coïncidence le même jour/horaire/groupe sur deux années différentes
+    // — même si les dates de début/fin de chaque créneau suffisent déjà en
+    // pratique à les distinguer correctement.
+    const anneeUniversitaireActuelle = moisVersAnneeUniversitaire(today().slice(0, 7), moisDebutAnneeUniversitaire(data.semestresDates));
+    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
+    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => e.filiere === monEtudiantSessionQR.filiere && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
     const creneauPourMoi = roleTmp === "professeur" ? creneauEnCoursProf : creneauEnCoursEtudiantGeoloc;
     const geoRequiseGlobal = !!(data.configuration?.geolocalisationActive && data.configuration?.campusLatitude);
     const [statutGeolocBanniere, setStatutGeolocBanniere] = useState("attente");
     const [distanceCampusBanniere, setDistanceCampusBanniere] = useState(null);
     const [dejaConfirmeCreneau, setDejaConfirmeCreneau] = useState(false);
     const [confirmationEnCours, setConfirmationEnCours] = useState(false);
+    const [modalGeolocFermee, setModalGeolocFermee] = useState(false); // La fenêtre modale de rappel se réaffiche systématiquement pour CHAQUE
+    // nouvelle séance détectée (nouvel id de créneau, ou nouveau jour), même
+    // si l'utilisateur avait fermé celle d'une séance précédente — sans quoi
+    // fermer une fois désactiverait le rappel pour toujours.
+    useEffect(() => {
+        setModalGeolocFermee(false);
+    }, [creneauPourMoi?.id, creneauPourMoi?.dateStr]);
     useEffect(() => {
         if (!creneauPourMoi) {
             setDejaConfirmeCreneau(false);
@@ -22112,10 +22244,9 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
             statutCible = "ValideeIliass";
             count = fiches.filter(f => f.statut === "ValideeIliass" || f.statut === "ReceptionAccusee").length;
             message = `fiche(s) de pointage en attente de l'ordre de virement`;
-        } else if (["k.bouabid@esrmi.ma"].includes(emailActuel)) {
-            // Mme Bouabid n'a plus d'étape à valider dans le circuit, mais
-            // reste tenue informée, à titre de suivi, des fiches récemment
-            // validées par M. Elmzioui.
+        } else if (["k.bouabid@esrmi.ma"].includes(emailActuel)) { // Mme Bouabid n'a plus d'étape à valider dans le circuit,
+            // mais reste tenue informée, à titre de suivi, des fiches
+            // récemment validées par M. Elmzioui.
             statutCible = "ValideeIliass";
             count = fiches.filter(f => f.statut === "ValideeIliass" || f.statut === "ReceptionAccusee").length;
             message = `nouvelle(s) fiche(s) de pointage validée(s) par M. Iliass Elmzioui`;
@@ -22513,7 +22644,107 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
         style: {
             lineHeight: 1.4
         }
-    }, "Séance en cours : ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.module), " — jusqu'à", " ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.seance.split(" - ")[1]))), /*#__PURE__*/ React.createElement("style", null, `@keyframes spin{to{transform:rotate(360deg)}}`));
+    }, "Séance en cours : ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.module), " — jusqu'à", " ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.seance.split(" - ")[1]))), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauPourMoi && creneauPourMoi.phase === "en_cours" && !dejaConfirmeCreneau && geoRequiseGlobal && !modalGeolocFermee && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        style: {
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10,20,40,0.55)",
+            zIndex: 3000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            background: "white",
+            borderRadius: 20,
+            padding: "28px 26px",
+            maxWidth: 420,
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            animation: "geolocModalPop .35s ease-out",
+            border: `3px solid ${statutGeolocBanniere==="dans_le_perimetre"?C.teal:C.orange}`
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            width: 74,
+            height: 74,
+            borderRadius: "50%",
+            margin: "0 auto 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 36,
+            background: `linear-gradient(135deg, ${C.navy} 0%, ${C.teal} 100%)`,
+            animation: "geolocModalPulse 1.4s ease-in-out infinite"
+        }
+    }, "📍"), /*#__PURE__*/ React.createElement("h3", {
+        style: {
+            margin: "0 0 8px",
+            color: C.navy,
+            fontSize: 18
+        }
+    }, "Confirmez votre présence"), /*#__PURE__*/ React.createElement("p", {
+        style: {
+            margin: "0 0 18px",
+            color: "#555",
+            fontSize: 14,
+            lineHeight: 1.5
+        }
+    }, "Vous avez cours de ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.module), " jusqu'à", " ", /*#__PURE__*/ React.createElement("strong", null, creneauPourMoi.seance.split(" - ")[1]), "."), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 13,
+            fontWeight: 600,
+            marginBottom: 18,
+            padding: "9px 14px",
+            borderRadius: 10,
+            background: statutGeolocBanniere === "dans_le_perimetre" ? "#e3f8f2" : statutGeolocBanniere === "verification" ? "#eef2fb" : "#fdeee3",
+            color: statutGeolocBanniere === "dans_le_perimetre" ? "#0d7a5f" : statutGeolocBanniere === "verification" ? C.navy : "#b5590f"
+        }
+    }, statutGeolocBanniere === "verification" && "🔄 Vérification de votre position en cours...", statutGeolocBanniere === "dans_le_perimetre" && "✅ Vous êtes bien sur le campus", statutGeolocBanniere === "hors_perimetre" && `⚠️ Vous semblez être à ${distanceCampusBanniere} m du campus`, statutGeolocBanniere === "refusee" && "⚠️ Localisation refusée — autorisez-la pour confirmer", statutGeolocBanniere === "indisponible" && "⚠️ Géolocalisation indisponible sur cet appareil", statutGeolocBanniere === "attente" && "🔄 Préparation de la vérification..."), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            gap: 10,
+            justifyContent: "center"
+        }
+    }, /*#__PURE__*/ React.createElement("button", {
+        onClick: () => setModalGeolocFermee(true),
+        style: {
+            border: `1px solid ${C.border}`,
+            background: "white",
+            color: "#555",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit"
+        }
+    }, "Plus tard"), /*#__PURE__*/ React.createElement("button", {
+        onClick: confirmerPresenceCreneau,
+        disabled: confirmationEnCours || statutGeolocBanniere !== "dans_le_perimetre",
+        style: {
+            border: "none",
+            background: statutGeolocBanniere === "dans_le_perimetre" ? `linear-gradient(135deg, ${C.navy} 0%, ${C.teal} 100%)` : "#ccc",
+            color: "white",
+            borderRadius: 10,
+            padding: "10px 22px",
+            fontSize: 13.5,
+            fontWeight: 700,
+            cursor: statutGeolocBanniere === "dans_le_perimetre" ? "pointer" : "not-allowed",
+            fontFamily: "inherit"
+        }
+    }, confirmationEnCours ? "..." : "✅ Je suis présent(e)")), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: C.muted,
+            marginTop: 14
+        }
+    }, "Ce rappel reste actif tant que vous n'avez pas confirmé — vous pouvez le refermer et confirmer plus tard depuis la bannière en haut de l'écran."))), /*#__PURE__*/ React.createElement("style", null, `@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes geolocModalPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(13,148,136,0.5)}50%{transform:scale(1.08);box-shadow:0 0 0 14px rgba(13,148,136,0)}}
+@keyframes geolocModalPop{0%{transform:scale(0.85);opacity:0}100%{transform:scale(1);opacity:1}}`));
 }</script>
   <script>
     try{ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));}
