@@ -7860,8 +7860,12 @@ function Pointage({
             // partout où elle apparaît (tableau, PDF) — pas seulement au survol
             // d'un badge — pour qu'un simple coup d'œil suffise à comprendre
             // d'où elle vient et pourquoi.
-            const historique = `↩️ Transférée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} (date d'origine : ${formatDateFR(seance.date)}) — contestation acceptée le ${formatDateFR(dateTransfert)} par ${acteur}${c.motif?` — motif du professeur : « ${c.motif} »`:""}.`;
-            const commentaireComplet = seance.commentaire ? `${seance.commentaire} — ${historique}` : historique;
+            const historique = `↩️ Transférée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} (date d'origine : ${formatDateFR(seance.date)}) — contestation acceptée le ${formatDateFR(dateTransfert)} par ${acteur}${c.motif?` — motif du professeur : « ${c.motif} »`:""}.`; // Une fois la contestation acceptée, le commentaire affiché ne
+            // conserve QUE le texte de transfert — l'ancien commentaire (ex: "Non
+            // réalisée, match du Maroc") n'a plus lieu d'être affiché une fois la
+            // séance validée et déplacée, et sa concaténation with le nouveau
+            // texte rendait la cellule illisible/tronquée.
+            const commentaireComplet = historique;
             setData(d => ({
                 ...d,
                 pointageSeances: d.pointageSeances.map(s => s.id === seance.id ? {
@@ -8148,7 +8152,7 @@ function Pointage({
                     }
                 }, /*#__PURE__*/ React.createElement(Btn, {
                     variant: "light",
-                    onClick: () => genererFichePointage(ficheOuverte, seances, monProfesseur, formatMoisLabel, periodeDuMois)
+                    onClick: () => genererFichePointage(ficheOuverte, seances, monProfesseur, formatMoisLabel, periodeDuMois, data.pointageSeances || [])
                 }, "🖨️ Imprimer (PDF)"), /*#__PURE__*/ React.createElement(Btn, {
                     variant: "light",
                     onClick: handleRafraichirManuel
@@ -8311,8 +8315,8 @@ function Pointage({
                     key: "statut",
                     label: "Statut",
                     render: (v, row) => row.verrouillee ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
-                        color: C.teal
-                    }, "↩️ Transférée (", formatMoisLabel(row.ficheOrigineMois), ")") : badgeStatutSeance(v)
+                        color: C.green
+                    }, "✅ Validée — ↩️ Transférée (", formatMoisLabel(row.ficheOrigineMois), ")") : badgeStatutSeance(v)
                 }]), ...(ficheOuverte.statut === "Brouillon" ? [{
                     key: "_actions",
                     label: "Actions",
@@ -8567,7 +8571,7 @@ function Pointage({
                     }
                 }, /*#__PURE__*/ React.createElement(Btn, {
                     variant: "light",
-                    onClick: () => genererFichePointage(ficheOuverte, seances, (data.professeurs || []).find(p => p.id === ficheOuverte.professeurId), formatMoisLabel, periodeDuMois)
+                    onClick: () => genererFichePointage(ficheOuverte, seances, (data.professeurs || []).find(p => p.id === ficheOuverte.professeurId), formatMoisLabel, periodeDuMois, data.pointageSeances || [])
                 }, "🖨️ Imprimer (PDF)"), /*#__PURE__*/ React.createElement(Btn, {
                     variant: "light",
                     onClick: handleRafraichirManuel
@@ -16170,7 +16174,7 @@ function genererReleveDetaille(etudiant, notesEtudiantSemestre, semestre, anneeU
     downloadPDF(doc.build(), `Releve_Detaille_${etudiant.prenom||""}_${etudiant.nom||""}_${semestre}`.replace(/\s+/g, "_") + ".pdf");
 }
 
-function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, periodeFn) {
+function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, periodeFn, toutesLesSeancesProf = []) {
     const W = 210 * MM,
         H = 297 * MM;
     const marge = 18 * MM;
@@ -16187,7 +16191,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         Validee: ["Validée", [0.06, 0.55, 0.35]],
         Rejetee: ["Rejetée", [0.82, 0.2, 0.18]]
     };
-    const infoStatut = s => s.verrouillee ? [`Transférée (${formatMoisLabelFn?formatMoisLabelFn(s.ficheOrigineMois):s.ficheOrigineMois||""})`, [0.1, 0.45, 0.55]] : STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
+    const infoStatut = s => s.verrouillee ? [`Validée (Transférée ${formatMoisLabelFn?formatMoisLabelFn(s.ficheOrigineMois):s.ficheOrigineMois||""})`, [0.06, 0.55, 0.35]] : STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
     const logoW = 20 * MM,
         logoH = 16.875 * MM;
     const headerBottomY = H - 30 * MM;
@@ -16238,7 +16242,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
     const headerH = 9 * MM,
         rowH = 8 * MM,
         ligneCommentaireH = 3.6 * MM,
-        MAX_LIGNES_COMMENTAIRE = 5; // Découpe un texte en plusieurs lignes tenant dans une largeur donnée
+        MAX_LIGNES_COMMENTAIRE = 10; // Découpe un texte en plusieurs lignes tenant dans une largeur donnée
     // (retour à la ligne mot par mot) — utilisé pour la colonne
     // "Commentaire", afin qu'un commentaire un peu long ne soit plus jamais
     // tronqué au milieu d'un mot comme auparavant.
@@ -16389,6 +16393,35 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
             size: 9,
             color: [0.82, 0.2, 0.18]
         });
+    } // Note professionnelle, sur la fiche D'ORIGINE : signale les séances
+    // initialement prévues ce mois-ci mais désormais comptabilisées sur la
+    // fiche du mois suivant, suite à l'acceptation d'une contestation. Ces
+    // séances n'apparaissent plus dans le tableau ci-dessus (elles sont
+    // rattachées à l'autre fiche) — cette note évite toute impression
+    // d'oubli ou d'erreur à la lecture du document.
+    const seancesTransfereesDepuisCetteFiche = (toutesLesSeancesProf || []).filter(s => s.ficheOrigineMois === fiche.mois && s.ficheId !== fiche.id && s.verrouillee);
+    if (seancesTransfereesDepuisCetteFiche.length > 0) {
+        y -= 10 * MM;
+        if (y < 55 * MM) {
+            doc.newPage();
+            doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
+            y = H - 30 * MM;
+        }
+        const noteH = 8 * MM + seancesTransfereesDepuisCetteFiche.length * 5 * MM;
+        doc.rect(tableX, y - noteH, tableW, noteH, [0.94, 0.97, 0.99]);
+        doc.line(tableX, y, tableX, y - noteH, 1.4, [0.1, 0.45, 0.65]);
+        doc.text(tableX + 4 * MM, y - 5.5 * MM, `Information : ${seancesTransfereesDepuisCetteFiche.length} séance(s) initialement prévue(s) ce mois-ci ${seancesTransfereesDepuisCetteFiche.length>1?"ont":"a"} été transférée(s), après acceptation d'une contestation, sur la fiche du mois suivant :`, {
+            size: 8.5,
+            bold: true,
+            color: NAVY_RGB
+        });
+        seancesTransfereesDepuisCetteFiche.forEach((s, idx) => {
+            doc.text(tableX + 6 * MM, y - 5.5 * MM - (idx + 1) * 5 * MM, `• ${s.module||"—"} du ${formatDateFR(s.date)||"—"} (${fmt2(s.nbHeures)}h)`, {
+                size: 8,
+                color: [0.3, 0.3, 0.3]
+            });
+        });
+        y -= noteH;
     }
     y -= 14 * MM;
     doc.text(tableX, y, "Circuit de validation", {
@@ -16450,7 +16483,38 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
             color: [0.5, 0.5, 0.5]
         });
         y -= e.fait ? 12 * MM : 8 * MM;
+    }); // Zones de signature manuscrite pour les deux validateurs suivants du
+    // circuit — utiles pour un usage papier (contresignature physique en
+    // complément de la validation déjà tracée numériquement ci-dessus).
+    y -= 6 * MM;
+    if (y < 40 * MM) {
+        doc.newPage();
+        doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
+        y = H - 30 * MM;
+    }
+    const largeurSignature = (tableW - 14 * MM) / 2;
+    const yLigneSignature = y - 20 * MM;
+    [{
+        nom: "Iliass Elmzioui",
+        role: "Validation des séances",
+        x: tableX
+    }, {
+        nom: "Fatima Zahra Zniber",
+        role: "Traitement du paiement",
+        x: tableX + largeurSignature + 14 * MM
+    }].forEach(sig => {
+        doc.text(sig.x, y, sig.role, {
+            size: 9,
+            bold: true,
+            color: NAVY_RGB
+        });
+        doc.text(sig.x, y - 5.5 * MM, `${sig.nom} — Signature :`, {
+            size: 8.5,
+            color: [0.4, 0.4, 0.4]
+        });
+        doc.line(sig.x, yLigneSignature, sig.x + largeurSignature, yLigneSignature, 0.6, [0.6, 0.6, 0.6]);
     });
+    y = yLigneSignature - 10 * MM;
     doc.textCentered(W / 2, 8 * MM, "ESRMI — École Supérieure de Rabat en Management et Ingénierie", {
         size: 8,
         color: [0.5, 0.5, 0.5]
@@ -18960,7 +19024,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.249.3";
+const APP_VERSION = "v3.249.4";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
