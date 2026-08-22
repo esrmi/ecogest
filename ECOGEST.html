@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.249.0 — 22 Août 2026
+//  ECOGEST_App.jsx — version v3.250.0 — 22 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -7315,8 +7315,10 @@ function Pointage({
     const estProf = role === "professeur";
     const estValidateur = ["administrateur", "directrice"].includes(role);
     const monEmail = (user?.email || "").toLowerCase();
-    const estIliass = monEmail === EMAIL_VALIDATEUR_SEANCES;
-    const estKawtar = EMAILS_ACCUSE_RECEPTION.includes(monEmail);
+    const estIliass = monEmail === EMAIL_VALIDATEUR_SEANCES; // L'étape "Accusé de réception (Kawtar Bouabid)" a été retirée du circuit
+    // de pointage — le circuit passe désormais directement de la validation
+    // des séances par Iliass Elmzioui au traitement du paiement par Fatima
+    // Zahra Zniber.
     const estFatimaZahra = EMAILS_TRAITEMENT_PAIEMENT.includes(monEmail);
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const [showFicheId, setShowFicheId] = useState(null);
@@ -7860,7 +7862,7 @@ function Pointage({
             // partout où elle apparaît (tableau, PDF) — pas seulement au survol
             // d'un badge — pour qu'un simple coup d'œil suffise à comprendre
             // d'où elle vient et pourquoi.
-            const historique = `↩️ Transférée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} (date d'origine : ${formatDateFR(seance.date)}) — contestation acceptée le ${formatDateFR(dateTransfert)} par ${acteur}${c.motif?` — motif du professeur : « ${c.motif} »`:""}.`; // Une fois la contestation acceptée, le commentaire affiché ne
+            const historique = `Transférée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} (date d'origine : ${formatDateFR(seance.date)}) — contestation acceptée le ${formatDateFR(dateTransfert)} par ${acteur}.`; // Une fois la contestation acceptée, le commentaire affiché ne
             // conserve QUE le texte de transfert — l'ancien commentaire (ex: "Non
             // réalisée, match du Maroc") n'a plus lieu d'être affiché une fois la
             // séance validée et déplacée, et sa concaténation with le nouveau
@@ -7980,29 +7982,8 @@ function Pointage({
             DateValidation: today(),
             ValideePar: user?.nom || user?.email || ""
         }, user.token, fiche._spId);
-        notifierPersonnalise(`ECOGEST — Fiche de pointage validée (${fiche.professeurNom})`, "Fiche de pointage validée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Iliass Elmzioui")}</strong> a validé les séances de cette fiche. Elle est transmise à Mme Bouabid pour accusé de réception.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_ACCUSE_RECEPTION);
-        toast("Fiche validée — transmise à Mme Bouabid ✓");
-    }; // Étape 2 (Mme Kawtar Bouabid uniquement) : accusé de réception de la
-    // fiche, transmission à Mme Zniber pour traitement du paiement.
-    const handleAccuserReception = fiche => {
-        if (!window.confirm("Accuser réception de cette fiche et la transmettre à Mme Fatima Zahra Zniber pour traitement du paiement ?")) return;
-        const maj = {
-            ...fiche,
-            statut: "ReceptionAccusee",
-            dateAccuseReception: today(),
-            accuseReceptionPar: user?.nom || user?.email || ""
-        };
-        setData(d => ({
-            ...d,
-            pointageFiches: d.pointageFiches.map(f => f.id === fiche.id ? maj : f)
-        }));
-        if (user?.token && fiche._spId) saveToSP("ECOGEST_PointageFiches", {
-            Statut: "ReceptionAccusee",
-            DateAccuseReception: today(),
-            AccuseReceptionPar: user?.nom || user?.email || ""
-        }, user.token, fiche._spId);
-        notifierPersonnalise(`ECOGEST — Réception accusée (${fiche.professeurNom})`, "Réception accusée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Kawtar Bouabid")}</strong> a accusé réception de cette fiche. Elle est transmise à Mme Zniber pour traitement du paiement.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_TRAITEMENT_PAIEMENT);
-        toast("Réception accusée — transmise à Mme Zniber ✓");
+        notifierPersonnalise(`ECOGEST — Fiche de pointage validée (${fiche.professeurNom})`, "Fiche de pointage validée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Iliass Elmzioui")}</strong> a validé les séances de cette fiche. Elle est transmise à Mme Zniber pour traitement du paiement.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_TRAITEMENT_PAIEMENT);
+        toast("Fiche validée — transmise à Mme Zniber ✓");
     }; // Étape 3 (Mme Fatima Zahra Zniber uniquement) : confirmation du
     // traitement du paiement, la fiche est marquée entièrement terminée.
     const handleConfirmerTraitement = fiche => {
@@ -8029,7 +8010,7 @@ function Pointage({
     const MAP_STATUTS_FICHE = {
         Brouillon: [C.muted, "📝 Brouillon"],
         Soumise: [C.orange, "⏳ À valider (Iliass Elmzioui)"],
-        ValideeIliass: [C.teal, "📤 À réceptionner (Kawtar Bouabid)"],
+        ValideeIliass: [C.purple, "💰 À traiter (Fatima Zahra Zniber)"],
         ReceptionAccusee: [C.purple, "💰 À traiter (Fatima Zahra Zniber)"],
         Terminee: [C.green, "✅ Terminée"]
     };
@@ -8067,12 +8048,6 @@ function Pointage({
             fait: !!fiche.dateValidation,
             qui: fiche.valideePar,
             quand: fiche.dateValidation
-        }, {
-            key: "ReceptionAccusee",
-            label: "Accusé de réception (Kawtar Bouabid)",
-            fait: !!fiche.dateAccuseReception,
-            qui: fiche.accuseReceptionPar,
-            quand: fiche.dateAccuseReception
         }, {
             key: "Terminee",
             label: "Traitement du paiement (Fatima Zahra Zniber)",
@@ -8316,7 +8291,7 @@ function Pointage({
                     label: "Statut",
                     render: (v, row) => row.verrouillee ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
                         color: C.green
-                    }, "✅ Validée — ↩️ Transférée (", formatMoisLabel(row.ficheOrigineMois), ")") : badgeStatutSeance(v)
+                    }, "✅ Validée") : badgeStatutSeance(v)
                 }]), ...(ficheOuverte.statut === "Brouillon" ? [{
                     key: "_actions",
                     label: "Actions",
@@ -8554,7 +8529,12 @@ function Pointage({
         }, "Créer la fiche"))));
     }
     if (estValidateur) {
-        const fichesFiltrees = (data.pointageFiches || []).filter(f => filtreValidateur === "Toutes" || f.statut === filtreValidateur).filter(f => filtreAnneePointage === "Toutes" || f.anneeUniversitaire === filtreAnneePointage).sort((a, b) => b.mois.localeCompare(a.mois));
+        const fichesFiltrees = (data.pointageFiches || []).filter(f => filtreValidateur === "Toutes" || f.statut === filtreValidateur || // Rétrocompatibilité : d'anciennes fiches encore au statut
+            // "ReceptionAccusee" (étape désormais supprimée du circuit)
+            // doivent continuer à apparaître dans le même filtre "À traiter"
+            // que les fiches "ValideeIliass", pour ne jamais rester
+            // invisibles/bloquées suite à ce changement de circuit.
+            filtreValidateur === "ValideeIliass" && f.statut === "ReceptionAccusee").filter(f => filtreAnneePointage === "Toutes" || f.anneeUniversitaire === filtreAnneePointage).sort((a, b) => b.mois.localeCompare(a.mois));
         const ficheOuverte = showFicheId ? (data.pointageFiches || []).find(f => f.id === showFicheId) : null;
         if (ficheOuverte) {
             const seances = seancesDeFiche(ficheOuverte.id).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -8609,21 +8589,14 @@ function Pointage({
                 }
             }, "⚠️ Cette fiche ne contient aucune séance — rien à valider"), ficheOuverte.statut === "Soumise" && seances.length > 0 && nbEnAttente === 0 && estIliass && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
                 onClick: () => handleValiderFiche(ficheOuverte)
-            }, "→ Marquer les séances validées — transmettre à Mme Bouabid"), ficheOuverte.statut === "Soumise" && !estIliass && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+            }, "→ Marquer les séances validées — transmettre à Mme Zniber"), ficheOuverte.statut === "Soumise" && !estIliass && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     fontSize: 12,
                     color: C.muted
                 }
-            }, "En attente de validation par M. Iliass Elmzioui"), ficheOuverte.statut === "ValideeIliass" && estKawtar && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
-                onClick: () => handleAccuserReception(ficheOuverte)
-            }, "📥 Accuser réception de la fiche"), ficheOuverte.statut === "ValideeIliass" && !estKawtar && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-                style: {
-                    fontSize: 12,
-                    color: C.muted
-                }
-            }, "En attente d'accusé de réception par Mme Kawtar Bouabid"), ficheOuverte.statut === "ReceptionAccusee" && estFatimaZahra && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
+            }, "En attente de validation par M. Iliass Elmzioui"), (ficheOuverte.statut === "ValideeIliass" || ficheOuverte.statut === "ReceptionAccusee") && estFatimaZahra && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
                 onClick: () => handleConfirmerTraitement(ficheOuverte)
-            }, "💰 Confirmer le traitement du paiement et terminer"), ficheOuverte.statut === "ReceptionAccusee" && !estFatimaZahra && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+            }, "💰 Confirmer le traitement du paiement et terminer"), (ficheOuverte.statut === "ValideeIliass" || ficheOuverte.statut === "ReceptionAccusee") && !estFatimaZahra && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     fontSize: 12,
                     color: C.muted
@@ -8727,7 +8700,7 @@ function Pointage({
         }
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
             title: "🕛 Pointage des enseignants vacataires",
-            sub: "Circuit : Soumission (professeur) → Validation (Iliass Elmzioui) → Accusé de réception (Kawtar Bouabid) → Traitement du paiement (Fatima Zahra Zniber)"
+            sub: "Circuit : Soumission (professeur) → Validation des séances (Iliass Elmzioui) → Traitement du paiement (Fatima Zahra Zniber)"
         }), contestationsEnAttentePourIliass.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
             style: {
                 padding: 18,
@@ -8896,8 +8869,7 @@ function Pointage({
             }
         }, [
             ["Soumise", "⏳ À valider — Iliass Elmzioui"],
-            ["ValideeIliass", "📤 À réceptionner — Kawtar Bouabid"],
-            ["ReceptionAccusee", "💰 À traiter — Fatima Zahra Zniber"],
+            ["ValideeIliass", "💰 À traiter — Fatima Zahra Zniber"],
             ["Terminee", "✅ Terminées"],
             ["Brouillon", "📝 Brouillons"],
             ["Toutes", "Toutes"]
@@ -16191,7 +16163,7 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         Validee: ["Validée", [0.06, 0.55, 0.35]],
         Rejetee: ["Rejetée", [0.82, 0.2, 0.18]]
     };
-    const infoStatut = s => s.verrouillee ? [`Validée (Transférée ${formatMoisLabelFn?formatMoisLabelFn(s.ficheOrigineMois):s.ficheOrigineMois||""})`, [0.06, 0.55, 0.35]] : STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
+    const infoStatut = s => s.verrouillee ? ["Validée", [0.06, 0.55, 0.35]] : STATUT_LABELS[s.statut] || ["En attente", [0.85, 0.55, 0.1]];
     const logoW = 20 * MM,
         logoH = 16.875 * MM;
     const headerBottomY = H - 30 * MM;
@@ -16407,19 +16379,27 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
             doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
             y = H - 30 * MM;
         }
-        const noteH = 8 * MM + seancesTransfereesDepuisCetteFiche.length * 5 * MM;
+        const largeurTexteNote = tableW - 8 * MM;
+        const introLignes = wrapText(`Information : ${seancesTransfereesDepuisCetteFiche.length} séance(s) initialement prévue(s) ce mois-ci ${seancesTransfereesDepuisCetteFiche.length>1?"ont":"a"} été transférée(s), après acceptation d'une contestation, sur la fiche du mois suivant :`, largeurTexteNote, 8.5, true);
+        const noteH = 6 * MM + introLignes.length * ligneCommentaireH + seancesTransfereesDepuisCetteFiche.length * ligneCommentaireH + 2 * MM;
         doc.rect(tableX, y - noteH, tableW, noteH, [0.94, 0.97, 0.99]);
         doc.line(tableX, y, tableX, y - noteH, 1.4, [0.1, 0.45, 0.65]);
-        doc.text(tableX + 4 * MM, y - 5.5 * MM, `Information : ${seancesTransfereesDepuisCetteFiche.length} séance(s) initialement prévue(s) ce mois-ci ${seancesTransfereesDepuisCetteFiche.length>1?"ont":"a"} été transférée(s), après acceptation d'une contestation, sur la fiche du mois suivant :`, {
-            size: 8.5,
-            bold: true,
-            color: NAVY_RGB
+        let yNote = y - 5.5 * MM;
+        introLignes.forEach(ligne => {
+            doc.text(tableX + 4 * MM, yNote, ligne, {
+                size: 8.5,
+                bold: true,
+                color: NAVY_RGB
+            });
+            yNote -= ligneCommentaireH;
         });
-        seancesTransfereesDepuisCetteFiche.forEach((s, idx) => {
-            doc.text(tableX + 6 * MM, y - 5.5 * MM - (idx + 1) * 5 * MM, `• ${s.module||"—"} du ${formatDateFR(s.date)||"—"} (${fmt2(s.nbHeures)}h)`, {
+        yNote -= 1 * MM;
+        seancesTransfereesDepuisCetteFiche.forEach(s => {
+            doc.text(tableX + 6 * MM, yNote, `• ${s.module||"—"} du ${formatDateFR(s.date)||"—"} (${fmt2(s.nbHeures)}h)`, {
                 size: 8,
                 color: [0.3, 0.3, 0.3]
             });
+            yNote -= ligneCommentaireH;
         });
         y -= noteH;
     }
@@ -16440,11 +16420,6 @@ function genererFichePointage(fiche, seances, professeur, formatMoisLabelFn, per
         fait: !!fiche.dateValidation,
         qui: fiche.valideePar,
         quand: fiche.dateValidation
-    }, {
-        label: "Accusé de réception (Kawtar Bouabid)",
-        fait: !!fiche.dateAccuseReception,
-        qui: fiche.accuseReceptionPar,
-        quand: fiche.dateAccuseReception
     }, {
         label: "Traitement du paiement (Fatima Zahra Zniber)",
         fait: !!fiche.dateTraitement,
@@ -19024,7 +18999,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.249.4";
+const APP_VERSION = "v3.250.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22029,13 +22004,13 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
             statutCible = "Soumise";
             count = fiches.filter(f => f.statut === statutCible).length;
             message = `fiche(s) de pointage en attente de validation des séances pédagogiques`;
-        } else if (["k.bouabid@esrmi.ma"].includes(emailActuel)) {
+        } else if (["fz.zniber@esrmi.ma"].includes(emailActuel)) { // Couvre aussi l'ancien statut "ReceptionAccusee" (étape
+            // désormais supprimée du circuit), pour ne jamais perdre de
+            // vue une fiche déjà passée par cette étape avant le
+            // changement — le filtre "ValideeIliass" les inclut déjà
+            // toutes deux (voir plus haut).
             statutCible = "ValideeIliass";
-            count = fiches.filter(f => f.statut === statutCible).length;
-            message = `fiche(s) de pointage validée(s) en attente d'accusé de réception et d'impression`;
-        } else if (["fz.zniber@esrmi.ma"].includes(emailActuel)) {
-            statutCible = "ReceptionAccusee";
-            count = fiches.filter(f => f.statut === statutCible).length;
+            count = fiches.filter(f => f.statut === "ValideeIliass" || f.statut === "ReceptionAccusee").length;
             message = `fiche(s) de pointage en attente de l'ordre de virement`;
         } else {
             return null;
