@@ -7769,6 +7769,15 @@ function Pointage({
         if (!user?.token) {
             toast("⚠️ Non connecté à SharePoint");
             return;
+        } // Le transfert crée potentiellement une nouvelle fiche et doit relier
+        // fiablement la séance à son VRAI identifiant SharePoint (voir plus
+        // bas) — une opération non garantie de façon fiable en mode hors
+        // ligne/file d'attente, où cet identifiant réel n'est pas encore
+        // connu. On demande donc explicitement d'être en ligne pour cette
+        // action précise.
+        if (!isBrowserOnline()) {
+            toast("⚠️ Le transfert d'une séance nécessite d'être en mode Connecté — repassez en mode Connecté puis réessayez");
+            return;
         }
         if (!window.confirm(`Accepter cette contestation et transférer cette séance (${c.module}, ${formatDateFR(c.date)}) sur la fiche du mois suivant du professeur ? Elle ne sera alors plus comptabilisée dans la fiche du mois en cours.`)) return;
         const seance = (data.pointageSeances || []).find(s => s.id === c.seanceId);
@@ -7795,7 +7804,7 @@ function Pointage({
             let ficheCible = (data.pointageFiches || []).find(f => f.professeurId === ficheOrigine.professeurId && f.mois === moisSuivant);
             if (!ficheCible) {
                 const nouvelIdFiche = Date.now() + Math.random();
-                ficheCible = {
+                const ficheLocale = {
                     id: nouvelIdFiche,
                     _spId: null,
                     professeurId: ficheOrigine.professeurId,
@@ -7814,7 +7823,7 @@ function Pointage({
                 };
                 setData(d => ({
                     ...d,
-                    pointageFiches: [...(d.pointageFiches || []), ficheCible]
+                    pointageFiches: [...(d.pointageFiches || []), ficheLocale]
                 }));
                 const resultFiche = await saveToSP("ECOGEST_PointageFiches", {
                     Title: `${ficheOrigine.professeurNom} - ${moisSuivant}`,
@@ -7825,21 +7834,34 @@ function Pointage({
                     DateCreation: today(),
                     AnneeUniversitaire: moisVersAnneeUniversitaire(moisSuivant, moisDebutAnneeUniversitaire(data.semestresDates))
                 }, user.token, null);
-                if (resultFiche) {
-                    ficheCible = {
-                        ...ficheCible,
-                        _spId: resultFiche.id
-                    };
-                    setData(d => ({
-                        ...d,
-                        pointageFiches: d.pointageFiches.map(f => f.id === nouvelIdFiche ? {
-                            ...f,
-                            _spId: resultFiche.id
-                        } : f)
-                    }));
-                }
+                if (!resultFiche) {
+                    toast("⚠️ Échec de la création de la fiche du mois suivant — transfert annulé");
+                    return;
+                } // CRUCIAL : on aligne l'identifiant LOCAL de la fiche (id) sur son
+                // véritable identifiant SharePoint (_spId), et pas seulement ce
+                // dernier — sans quoi la séance transférée référencerait un
+                // identifiant purement temporaire, introuvable après un
+                // rechargement des données (c'était exactement la cause du bug
+                // signalé : la séance semblait "disparaître" de la fiche du mois
+                // suivant).
+                const idReel = resultFiche.id;
+                ficheCible = {
+                    ...ficheLocale,
+                    id: idReel,
+                    _spId: idReel
+                };
+                setData(d => ({
+                    ...d,
+                    pointageFiches: d.pointageFiches.map(f => f.id === nouvelIdFiche ? ficheCible : f)
+                }));
             }
             const dateTransfert = today();
+            const acteur = user?.nom || user?.email || ""; // Historique complet et lisible directement sur la séance, visible
+            // partout où elle apparaît (tableau, PDF) — pas seulement au survol
+            // d'un badge — pour qu'un simple coup d'œil suffise à comprendre
+            // d'où elle vient et pourquoi.
+            const historique = `↩️ Transférée depuis la fiche de ${formatMoisLabel(ficheOrigine.mois)} (date d'origine : ${formatDateFR(seance.date)}) — contestation acceptée le ${formatDateFR(dateTransfert)} par ${acteur}${c.motif?` — motif du professeur : « ${c.motif} »`:""}.`;
+            const commentaireComplet = seance.commentaire ? `${seance.commentaire} — ${historique}` : historique;
             setData(d => ({
                 ...d,
                 pointageSeances: d.pointageSeances.map(s => s.id === seance.id ? {
@@ -7850,7 +7872,8 @@ function Pointage({
                     verrouillee: true,
                     ficheOrigineMois: ficheOrigine.mois,
                     dateTransfert,
-                    valideePar: user?.nom || user?.email || "",
+                    commentaire: commentaireComplet,
+                    valideePar: acteur,
                     dateValidation: dateTransfert
                 } : s)
             }));
@@ -7861,7 +7884,8 @@ function Pointage({
                 Verrouillee: "true",
                 FicheOrigineMois: ficheOrigine.mois,
                 DateTransfert: dateTransfert,
-                ValideePar: user?.nom || user?.email || "",
+                Commentaire: commentaireComplet,
+                ValideePar: acteur,
                 DateValidation: dateTransfert
             }, user.token, seance._spId);
         }
@@ -8241,9 +8265,15 @@ function Pointage({
                 }, {
                     key: "commentaire",
                     label: "Commentaire",
-                    render: v => v ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    render: (v, row) => v ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                         style: {
-                            fontSize: 11.5
+                            fontSize: 11.5,
+                            display: "inline-block",
+                            maxWidth: 320,
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                            fontStyle: row.verrouillee ? "italic" : "normal",
+                            color: row.verrouillee ? C.teal : "inherit"
                         }
                     }, v) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                         style: {
@@ -18914,7 +18944,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.249.1";
+const APP_VERSION = "v3.249.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
