@@ -20364,7 +20364,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.262.1";
+const APP_VERSION = "v3.262.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21453,6 +21453,87 @@ function getAppareilLabel() {
     else if (/Firefox\//i.test(ua)) navig = "Firefox";
     return `${type} · ${navig}`;
 }
+// Table de correspondance des codes techniques bruts (tels que renvoyés
+// par l'API Client Hints, ex: "21061119DG") vers un nom commercial lisible
+// — ne peut pas être exhaustive (des milliers de modèles existent), mais
+// couvre les modèles les plus courants de Xiaomi/Redmi, Samsung, OPPO et
+// Vivo. Tout code non reconnu s'affiche tel quel (repli sûr).
+const MODELES_APPAREILS_CONNUS = {
+    "21061119DG": "Redmi Note 10 Pro",
+    "21061119AG": "Redmi Note 10 Pro",
+    M2101K7BNY: "Redmi Note 10 Pro",
+    M2101K7BG: "Redmi Note 10 Pro",
+    "2201116SG": "Redmi Note 11",
+    "2201116SI": "Redmi Note 11",
+    "22011119UY": "Redmi Note 11 Pro",
+    "2201117TY": "Redmi Note 11 Pro+",
+    "23021RAAEG": "Redmi Note 12",
+    "23028RA60L": "Redmi Note 12 Pro",
+    M2007J20CG: "Redmi Note 9",
+    M2010J19CG: "Redmi Note 9 Pro",
+    M2003J15SC: "Redmi Note 9S",
+    "22101316G": "Xiaomi 12T",
+    "2210132G": "Xiaomi 12T Pro",
+    "23127PN0CG": "Xiaomi 13T",
+    M2102J20SG: "POCO X3 Pro",
+    M2007J3SY: "POCO X3",
+    "22041216G": "POCO X4 Pro",
+    M2101K6G: "POCO F3",
+    "SM-G991B": "Samsung Galaxy S21",
+    "SM-G996B": "Samsung Galaxy S21+",
+    "SM-G998B": "Samsung Galaxy S21 Ultra",
+    "SM-S901B": "Samsung Galaxy S22",
+    "SM-S906B": "Samsung Galaxy S22+",
+    "SM-S908B": "Samsung Galaxy S22 Ultra",
+    "SM-S911B": "Samsung Galaxy S23",
+    "SM-S916B": "Samsung Galaxy S23+",
+    "SM-S918B": "Samsung Galaxy S23 Ultra",
+    "SM-A536B": "Samsung Galaxy A53",
+    "SM-A546B": "Samsung Galaxy A54",
+    "SM-A336B": "Samsung Galaxy A33",
+    "SM-A346B": "Samsung Galaxy A34",
+    "SM-A125F": "Samsung Galaxy A12",
+    "SM-A135F": "Samsung Galaxy A13",
+    "SM-A145F": "Samsung Galaxy A14",
+    "SM-A155F": "Samsung Galaxy A15",
+    "SM-A235F": "Samsung Galaxy A23",
+    "SM-A245F": "Samsung Galaxy A24",
+    "SM-N981B": "Samsung Galaxy Note 20",
+    CPH2159: "OPPO A54",
+    CPH2247: "OPPO A54s",
+    CPH2371: "OPPO A57",
+    CPH2477: "OPPO A78",
+    CPH2565: "OPPO A79",
+    CPH2219: "OPPO Reno6",
+    CPH2437: "OPPO Reno8",
+    CPH2359: "OPPO Find X5",
+    CPH2305: "OPPO Find X5 Pro",
+    V2029: "Vivo Y20",
+    V2111: "Vivo Y21",
+    V2255: "Vivo Y22",
+    V2246: "Vivo Y33s",
+    V2158: "Vivo V21",
+    V2145: "Vivo X60",
+    PD2123: "Vivo Y53s"
+};
+// Repli par motif : les codes Samsung suivent un schéma "SM-[lettre de
+// série][numéro]" assez régulier — même si le modèle exact n'est pas dans
+// la table ci-dessus, on peut au moins identifier la série (Galaxy S, A,
+// Note...) pour rester plus lisible qu'un code brut. OPPO (préfixe "CPH")
+// et Vivo (préfixe "V" ou "PD" + chiffres) sont au moins identifiables
+// comme tels, même sans modèle précis.
+function traduireModeleAppareil(code) {
+    if (!code) return code;
+    if (MODELES_APPAREILS_CONNUS[code]) return MODELES_APPAREILS_CONNUS[code];
+    const mSamsung = code.match(/^SM-([A-Z])\d/);
+    if (mSamsung) {
+        const series = { S: "Galaxy S", A: "Galaxy A", N: "Galaxy Note", F: "Galaxy Z Flip", T: "Galaxy Tab" };
+        return `Samsung ${series[mSamsung[1]] || ""} (${code})`.replace("  ", " ");
+    }
+    if (/^CPH\d/.test(code)) return `OPPO (${code})`;
+    if (/^(V\d{4}|PD\d+)/.test(code)) return `Vivo (${code})`;
+    return code;
+}
 // Depuis 2023, Chrome et les navigateurs basés dessus (Edge, Opera...)
 // renvoient volontairement un modèle d'appareil générique et réduit (ex:
 // la simple lettre "K") dans le User-Agent classique, pour des raisons de
@@ -21472,7 +21553,7 @@ async function getAppareilLabelPrecis() {
                 if (/Edg\//i.test(ua)) navig = "Edge";
                 else if (/OPR\//i.test(ua)) navig = "Opera";
                 else if (/Chrome\//i.test(ua)) navig = "Chrome";
-                return `${infos.model} · ${navig}`;
+                return `${traduireModeleAppareil(infos.model)} · ${navig}`;
             }
         }
     } catch (e) {
