@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.265.1 — 23 Août 2026
+//  ECOGEST_App.jsx — version v3.266.0 — 23 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -20385,7 +20385,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.265.1";
+const APP_VERSION = "v3.266.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22544,6 +22544,16 @@ function App() {
     // absents et ajoutés à la liste des absences classiques. Dès qu'un
     // étudiant confirme sa présence (fenêtre d'invitation), son absence
     // classique correspondante est immédiatement supprimée.
+    //
+    // RATTRAPAGE IMPORTANT : ce contrôle ne se limite pas au jour même — il
+    // ré-examine systématiquement les 14 derniers jours à chaque exécution.
+    // Sans cela, si AUCUN administrateur n'ouvre l'application avant le jour
+    // suivant (ou plus tard), les séances de la veille ne seraient plus
+    // jamais réexaminées une fois "aujourd'hui" passé à un autre jour de la
+    // semaine — leurs absences resteraient alors définitivement non créées.
+    // Avec ce rattrapage, dès qu'un administrateur se reconnecte, même après
+    // plusieurs jours d'absence de connexion, les séances passées et non
+    // confirmées sont retrouvées et leurs absences créées rétroactivement.
     const creationAbsenceEnCoursRef = useRef(new Set());
     const [tickAbsencesAuto, setTickAbsencesAuto] = useState(0);
     useEffect(() => {
@@ -22552,88 +22562,99 @@ function App() {
     }, []);
     useEffect(() => {
         if (!["administrateur", "directrice"].includes(roleTmp) || !userTmp?.token) return;
-        const dateStr = today();
-        const jourFr = jourFrancaisActuel();
+        const NOMS_JOURS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
         const maintenant = /* @__PURE__ */ new Date();
         const minutesActuelles = maintenant.getHours() * 60 + maintenant.getMinutes();
-        const filieresGeoloc = data.configuration?.filieresAvecGeolocAbsences || []; // Séances du jour, d'un groupe administré par géolocalisation, dont
-        // l'heure de DÉBUT est déjà atteinte (peu importe si elles sont
-        // terminées ou non — dès le démarrage, l'absence par défaut
-        // s'applique).
-        const seancesDemarrees = (data.emploiDuTemps || []).filter(e => {
-            if (!filieresGeoloc.includes(e.filiere)) return false;
-            if (e.jour !== jourFr) return false;
-            if (!creneauEstActifPourDate(e, dateStr)) return false;
-            const horaire = parseSeanceHoraire(e.seance);
-            return horaire && minutesActuelles >= horaire.debutMin;
-        });
-        seancesDemarrees.forEach(seance => {
-            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, seance.anneeUniversitaire) === seance.filiere && (e.promotion === seance.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === seance.anneeUniversitaire)));
-            const confirmesIds = new Set((data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.dateSeance === dateStr && s.seance === seance.seance && s.module === seance.module && s.filiere === seance.filiere).map(s => String(s.etudiantId)));
-            const moduleInfo = (data.cours || []).find(c => c.intitule === seance.module && (c.filieresListe || [c.filiere]).includes(seance.filiere));
-            effectifAttendu.forEach(etudiant => {
-                const cle = `${etudiant.id}__${seance.module}__${dateStr}__${seance.seance}`;
-                const absenceExistante = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === dateStr && p.module === seance.module && p.seance === seance.seance);
-                if (creationAbsenceEnCoursRef.current.has(cle)) return;
-                if (confirmesIds.has(String(etudiant.id))) { // A confirmé sa présence entre-temps : on retire son absence
-                    // automatique si elle avait déjà été créée.
-                    if (absenceExistante) {
-                        creationAbsenceEnCoursRef.current.add(cle);
+        const filieresGeoloc = data.configuration?.filieresAvecGeolocAbsences || [];
+        const NB_JOURS_RATTRAPAGE = 14; // Pour chaque jour des 14 derniers jours (aujourd'hui inclus), on
+        // détermine la date exacte et le jour de la semaine correspondant, et
+        // on applique la même détection que pour "aujourd'hui" — pour un jour
+        // déjà entièrement écoulé (pas aujourd'hui), TOUTE séance ayant
+        // démarré ce jour-là est concernée (23h59 sert de limite haute, sans
+        // condition d'heure précise puisque la journée est de toute façon
+        // terminée).
+        for (let offsetJours = 0; offsetJours <= NB_JOURS_RATTRAPAGE; offsetJours++) {
+            const dateVerif = new Date(maintenant);
+            dateVerif.setDate(dateVerif.getDate() - offsetJours);
+            const dateStr = `${dateVerif.getFullYear()}-${String(dateVerif.getMonth()+1).padStart(2,"0")}-${String(dateVerif.getDate()).padStart(2,"0")}`;
+            const jourFr = NOMS_JOURS[dateVerif.getDay()];
+            const estAujourdhui = offsetJours === 0;
+            const minutesLimite = estAujourdhui ? minutesActuelles : 24 * 60;
+            const seancesDemarrees = (data.emploiDuTemps || []).filter(e => {
+                if (!filieresGeoloc.includes(e.filiere)) return false;
+                if (e.jour !== jourFr) return false;
+                if (!creneauEstActifPourDate(e, dateStr)) return false;
+                const horaire = parseSeanceHoraire(e.seance);
+                return horaire && minutesLimite >= horaire.debutMin;
+            });
+            seancesDemarrees.forEach(seance => {
+                const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, seance.anneeUniversitaire) === seance.filiere && (e.promotion === seance.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === seance.anneeUniversitaire)));
+                const confirmesIds = new Set((data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.dateSeance === dateStr && s.seance === seance.seance && s.module === seance.module && s.filiere === seance.filiere).map(s => String(s.etudiantId)));
+                const moduleInfo = (data.cours || []).find(c => c.intitule === seance.module && (c.filieresListe || [c.filiere]).includes(seance.filiere));
+                effectifAttendu.forEach(etudiant => {
+                    const cle = `${etudiant.id}__${seance.module}__${dateStr}__${seance.seance}`;
+                    const absenceExistante = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === dateStr && p.module === seance.module && p.seance === seance.seance);
+                    if (creationAbsenceEnCoursRef.current.has(cle)) return;
+                    if (confirmesIds.has(String(etudiant.id))) { // A confirmé sa présence (à l'époque ou entre-temps) : on
+                        // retire son absence automatique si elle avait déjà été créée.
+                        if (absenceExistante) {
+                            creationAbsenceEnCoursRef.current.add(cle);
+                            setData(d => ({
+                                ...d,
+                                presences: (d.presences || []).filter(p => p.id !== absenceExistante.id)
+                            }));
+                            const suppression = absenceExistante._spId ? deleteFromSP("ECOGEST_Presences", absenceExistante._spId, userTmp.token) : Promise.resolve();
+                            suppression.finally(() => creationAbsenceEnCoursRef.current.delete(cle));
+                        }
+                        return;
+                    } // N'a pas confirmé (à l'époque, ni depuis) : absence automatique
+                    // si elle n'existe pas déjà.
+                    if (absenceExistante) return;
+                    creationAbsenceEnCoursRef.current.add(cle);
+                    (async () => {
+                        const spF = {
+                            Title: `${etudiant.nom} ${etudiant.prenom} - ${dateStr}`,
+                            EtudiantId: String(etudiant.id),
+                            NomEtudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                            NumInscription: etudiant.numInscription || "",
+                            Module: seance.module || "",
+                            DatePresence: dateStr,
+                            Heure: seance.seance || "",
+                            Statut: "Absent",
+                            Filiere: seance.filiere || "",
+                            Seance: seance.seance || "",
+                            Semestre: seance.semestre || "",
+                            AnneeUniversitaire: seance.anneeUniversitaire || "",
+                            Enseignant: moduleInfo?.professeur || "",
+                            EnseignantCIN: moduleInfo?.professeurCin || ""
+                        };
+                        const result = await saveToSP("ECOGEST_Presences", spF, userTmp.token);
+                        creationAbsenceEnCoursRef.current.delete(cle);
+                        if (!result) return;
                         setData(d => ({
                             ...d,
-                            presences: (d.presences || []).filter(p => p.id !== absenceExistante.id)
+                            presences: [...(d.presences || []), {
+                                id: Date.now() + Math.random(),
+                                _spId: result.id,
+                                etudiantId: etudiant.id,
+                                etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                                numInscription: etudiant.numInscription,
+                                module: seance.module,
+                                date: dateStr,
+                                heure: seance.seance,
+                                seance: seance.seance,
+                                statut: "Absent",
+                                filiere: seance.filiere,
+                                semestre: seance.semestre,
+                                anneeUniversitaire: seance.anneeUniversitaire,
+                                enseignant: moduleInfo?.professeur || "",
+                                enseignantCin: moduleInfo?.professeurCin || ""
+                            }]
                         }));
-                        const suppression = absenceExistante._spId ? deleteFromSP("ECOGEST_Presences", absenceExistante._spId, userTmp.token) : Promise.resolve();
-                        suppression.finally(() => creationAbsenceEnCoursRef.current.delete(cle));
-                    }
-                    return;
-                } // N'a pas (encore) confirmé : absence automatique si elle n'existe
-                // pas déjà.
-                if (absenceExistante) return;
-                creationAbsenceEnCoursRef.current.add(cle);
-                (async () => {
-                    const spF = {
-                        Title: `${etudiant.nom} ${etudiant.prenom} - ${dateStr}`,
-                        EtudiantId: String(etudiant.id),
-                        NomEtudiant: `${etudiant.prenom} ${etudiant.nom}`,
-                        NumInscription: etudiant.numInscription || "",
-                        Module: seance.module || "",
-                        DatePresence: dateStr,
-                        Heure: seance.seance || "",
-                        Statut: "Absent",
-                        Filiere: seance.filiere || "",
-                        Seance: seance.seance || "",
-                        Semestre: seance.semestre || "",
-                        AnneeUniversitaire: seance.anneeUniversitaire || "",
-                        Enseignant: moduleInfo?.professeur || "",
-                        EnseignantCIN: moduleInfo?.professeurCin || ""
-                    };
-                    const result = await saveToSP("ECOGEST_Presences", spF, userTmp.token);
-                    creationAbsenceEnCoursRef.current.delete(cle);
-                    if (!result) return;
-                    setData(d => ({
-                        ...d,
-                        presences: [...(d.presences || []), {
-                            id: Date.now() + Math.random(),
-                            _spId: result.id,
-                            etudiantId: etudiant.id,
-                            etudiant: `${etudiant.prenom} ${etudiant.nom}`,
-                            numInscription: etudiant.numInscription,
-                            module: seance.module,
-                            date: dateStr,
-                            heure: seance.seance,
-                            seance: seance.seance,
-                            statut: "Absent",
-                            filiere: seance.filiere,
-                            semestre: seance.semestre,
-                            anneeUniversitaire: seance.anneeUniversitaire,
-                            enseignant: moduleInfo?.professeur || "",
-                            enseignantCin: moduleInfo?.professeurCin || ""
-                        }]
-                    }));
-                })();
+                    })();
+                });
             });
-        }); // eslint-disable-next-line react-hooks/exhaustive-deps
+        } // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tickAbsencesAuto, data.emploiDuTemps, data.sessionsQR, data.etudiants, data.presences, data.configuration?.filieresAvecGeolocAbsences, roleTmp, userTmp?.token]);
     const monEtudiantSessionQR = roleTmp === "etudiant" && data.etudiants ? data.etudiants.find(e => e.email && userTmp?.email && e.email.toLowerCase() === userTmp.email.toLowerCase()) : null; // ── Bannière de présence par géolocalisation (professeur + étudiant) ────
     // Système plus simple que le Pointage QR : chaque personne (professeur ou
