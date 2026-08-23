@@ -6492,7 +6492,93 @@ function Presences({
             bandeParId[s.id] = bande;
         });
         const nbProfs = confirmationsFiltrees.filter(s => s.type === "PresenceProf").length;
-        const nbEtudiants = confirmationsFiltrees.filter(s => s.type === "PresenceEtudiant").length;
+        const nbEtudiants = confirmationsFiltrees.filter(s => s.type === "PresenceEtudiant").length; // Pour chaque séance INSTANCE distincte (groupe+module+date+
+        // créneau) où au moins une confirmation existe, on compare la
+        // liste des étudiants ayant confirmé leur présence par
+        // géolocalisation à l'effectif attendu du groupe pour cette
+        // année précise — tout étudiant attendu mais n'ayant PAS
+        // confirmé est traité comme une absence, avec la même
+        // possibilité de justification que la saisie manuelle
+        // classique.
+        const seancesInstancesGeoloc = {};
+        confirmationsFiltrees.filter(s => s.type === "PresenceEtudiant" || s.type === "PresenceProf").forEach(s => {
+            const cle = `${s.anneeUniversitaire}|||${s.semestre}|||${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
+            if (!seancesInstancesGeoloc[cle]) {
+                seancesInstancesGeoloc[cle] = {
+                    anneeUniversitaire: s.anneeUniversitaire,
+                    semestre: s.semestre,
+                    filiere: s.filiere,
+                    module: s.module,
+                    dateSeance: s.dateSeance,
+                    seance: s.seance,
+                    confirmesIds: new Set()
+                };
+            }
+            if (s.type === "PresenceEtudiant") seancesInstancesGeoloc[cle].confirmesIds.add(String(s.etudiantId));
+        });
+        const groupesAvecAbsentsGeoloc = Object.values(seancesInstancesGeoloc).filter(g => g.anneeUniversitaire && g.filiere).map(g => {
+            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, g.anneeUniversitaire) === g.filiere && (e.promotion === g.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === g.anneeUniversitaire)));
+            const absents = effectifAttendu.filter(e => !g.confirmesIds.has(String(e.id)));
+            return {
+                ...g,
+                absents
+            };
+        }).filter(g => g.absents.length > 0).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "") || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }) || (a.seance || "").localeCompare(b.seance || "") || (a.module || "").localeCompare(b.module || "", "fr", {
+            sensitivity: "base"
+        }) || (b.dateSeance || "").localeCompare(a.dateSeance || ""));
+        const ouvrirJustifDepuisGeoloc = async (etudiant, groupeSeance) => {
+            const existant = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === groupeSeance.dateSeance && p.module === groupeSeance.module && p.seance === groupeSeance.seance);
+            if (existant) {
+                openJustif(existant);
+                return;
+            }
+            if (!user?.token) {
+                toast("⚠️ Non connecté à SharePoint — impossible de créer l'absence");
+                return;
+            }
+            const spF = {
+                Title: `${etudiant.nom} ${etudiant.prenom} - ${groupeSeance.dateSeance}`,
+                EtudiantId: String(etudiant.id),
+                NomEtudiant: `${etudiant.nom} ${etudiant.prenom}`,
+                NumInscription: etudiant.numInscription || "",
+                Module: groupeSeance.module || "",
+                DatePresence: groupeSeance.dateSeance || "",
+                Heure: groupeSeance.seance || "",
+                Statut: "Absent",
+                Filiere: groupeSeance.filiere || "",
+                Seance: groupeSeance.seance || "",
+                Semestre: groupeSeance.semestre || "",
+                AnneeUniversitaire: groupeSeance.anneeUniversitaire || ""
+            };
+            const result = await saveToSP("ECOGEST_Presences", spF, user.token);
+            if (!result) {
+                toast("⚠️ Échec de la création de l'absence dans SharePoint");
+                return;
+            }
+            const nouvelleAbsence = {
+                id: Date.now() + Math.random(),
+                _spId: result.id,
+                etudiantId: etudiant.id,
+                etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                numInscription: etudiant.numInscription,
+                module: groupeSeance.module,
+                date: groupeSeance.dateSeance,
+                heure: groupeSeance.seance,
+                seance: groupeSeance.seance,
+                statut: "Absent",
+                filiere: groupeSeance.filiere,
+                semestre: groupeSeance.semestre,
+                anneeUniversitaire: groupeSeance.anneeUniversitaire
+            };
+            setData(d => ({
+                ...d,
+                presences: [...(d.presences || []), nouvelleAbsence]
+            }));
+            openJustif(nouvelleAbsence);
+        };
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(Card, {
             style: {
                 padding: 16,
@@ -6656,7 +6742,72 @@ function Presences({
                 background: bandeParId[row.id] === 0 ? C.navyLight : "#e0f4f2",
                 borderTop: premiereLigneGroupeId[row.id] ? `2px solid ${C.navy}` : void 0
             })
-        })));
+        })), groupesAvecAbsentsGeoloc.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 16,
+                marginTop: 16,
+                border: `1px solid ${C.red}`
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: C.red,
+                marginBottom: 4
+            }
+        }, "⚠️ Étudiants n'ayant pas confirmé leur présence (absences potentielles)"), /*#__PURE__*/ React.createElement("p", {
+            style: {
+                fontSize: 11.5,
+                color: C.muted,
+                margin: "0 0 14px",
+                lineHeight: 1.6
+            }
+        }, "Pour chaque séance où au moins une confirmation a eu lieu, étudiants attendus dans le groupe mais n'ayant pas confirmé leur présence par géolocalisation. Une justification peut être ajoutée exactement comme pour une absence saisie manuellement — l'absence est automatiquement créée dans \"Gestion des absences\" au moment de la justification."), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                flexDirection: "column",
+                gap: 12
+            }
+        }, groupesAvecAbsentsGeoloc.map((g, gi) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            key: gi,
+            style: {
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                padding: 12
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: C.navy,
+                marginBottom: 8
+            }
+        }, g.anneeUniversitaire, " · ", g.semestre, " · ", g.seance, " · ", g.module, " —", " ", filiereCode(g.filiere, data.filieres) || g.filiere, " — ", formatDateFR(g.dateSeance)), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8
+            }
+        }, g.absents.map(et => {
+            const dejaJustifie = (data.presences || []).find(p => String(p.etudiantId) === String(et.id) && p.date === g.dateSeance && p.module === g.module && p.seance === g.seance && p.statut === "Justifié");
+            return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                key: et.id,
+                style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: `1px solid ${dejaJustifie?C.green:C.border}`,
+                    borderRadius: 20,
+                    padding: "5px 6px 5px 12px",
+                    fontSize: 12,
+                    background: dejaJustifie ? "#e3f8f2" : "white"
+                }
+            }, /*#__PURE__*/ React.createElement("span", null, et.prenom, " ", et.nom), /*#__PURE__*/ React.createElement(Btn, {
+                small: true,
+                variant: dejaJustifie ? "light" : "danger",
+                onClick: () => ouvrirJustifDepuisGeoloc(et, g)
+            }, dejaJustifie ? "✓ Justifiée" : "Justifier"));
+        })))))));
     })(), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: "Prendre / modifier les présences → SharePoint",
         onClose: () => setShowModal(false),
@@ -19322,7 +19473,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.254.1";
+const APP_VERSION = "v3.255.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
