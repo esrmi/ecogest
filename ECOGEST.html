@@ -9859,8 +9859,9 @@ function EmploiDuTemps({
     };
     const [form, setForm] = useState(emptyForm);
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId);
+    const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const filieresOptions = getFilieres(data);
-    const [filterFiliere, setFilterFiliere] = useState(role === "etudiant" ? monEtudiant?.filiere || "" : filieresOptions[0] || "");
+    const [filterFiliere, setFilterFiliere] = useState(role === "etudiant" ? monEtudiant?.filiere || "" : role === "professeur" ? "" : filieresOptions[0] || "");
     const [filterAnnee, setFilterAnnee] = useState(role === "etudiant" ? monEtudiant?.promotion || "2026-2027" : "2026-2027");
     const semestresDisponibles = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean), ...(data.emploiDuTemps || []).map(e => e.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
         numeric: true,
@@ -9885,8 +9886,20 @@ function EmploiDuTemps({
     // chaque groupe (Groupes → Créneaux horaires), avec repli sur l'ancien
     // système Jour/Soir pour les groupes non encore configurés. Les séances
     // peuvent être planifiées sur les 7 jours de la semaine.
-    const seancesAffichees = getSeancesGroupe(data, filterFiliere);
-    const joursAffiches = joursCoursAutorises(data, filterFiliere);
+    // Idem pour les lignes d'horaires affichées : pour un professeur, on
+    // reprend l'ensemble des créneaux horaires RÉELLEMENT utilisés par SES
+    // PROPRES séances (tous groupes confondus) plutôt que ceux d'un seul
+    // groupe — sans quoi un horaire personnalisé propre à l'un de ses
+    // groupes (non standard) resterait invisible, faute de ligne pour
+    // l'accueillir dans la grille.
+    const seancesAffichees = role === "professeur" ? (() => {
+        const utilisees = [... /* @__PURE__ */ new Set((data.emploiDuTemps || []).filter(e => e.professeurCin === monProfesseur?.cin && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee).map(e => e.seance).filter(Boolean))];
+        return utilisees.length > 0 ? utilisees : SEANCES_HORAIRE;
+    })() : getSeancesGroupe(data, filterFiliere); // Pour un professeur (pas de filière unique sélectionnée, planning
+    // personnel tous groupes confondus), le weekend doit être affiché dès
+    // lors qu'AU MOINS UN de ses propres groupes l'autorise — sinon les
+    // séances qu'il donne le samedi/dimanche resteraient invisibles.
+    const joursAffiches = role === "professeur" ? (data.emploiDuTemps || []).some(e => e.professeurCin === monProfesseur?.cin && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee && (data?.configuration?.filieresAvecWeekend || []).includes(e.filiere)) ? JOURS_SEMAINE : JOURS_SEMAINE.slice(0, 5) : joursCoursAutorises(data, filterFiliere);
     const dateDuJour = jour => addJoursISO(semaineSelectionnee, JOURS_SEMAINE.indexOf(jour));
     const modulesOptions = (data.cours || []).filter(c => (!form.filiere || (c.filieresListe || [c.filiere]).includes(form.filiere)) && (!form.semestre || c.semestre === form.semestre) && (!form.anneeUniversitaire || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(form.anneeUniversitaire)));
     const moduleChoisi = (data.cours || []).find(c => c.intitule === form.module);
@@ -10071,7 +10084,7 @@ function EmploiDuTemps({
         }, user.token, item._spId);
         toast(`Occurrence du ${formatDateFR(dateExclue)} annulée ✓ (série conservée)`);
     };
-    const grille = (data.emploiDuTemps || []).filter(e => e.filiere === filterFiliere && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee);
+    const grille = (data.emploiDuTemps || []).filter(e => role === "professeur" ? e.professeurCin === monProfesseur?.cin && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee : e.filiere === filterFiliere && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee);
     const appliqueASemaine = (slot, jour) => {
         const d = dateDuJour(jour);
         if (slot.typeRecurrence === "Unique") return slot.dateDebut === d;
@@ -10192,8 +10205,8 @@ function EmploiDuTemps({
         };
     };
     return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
-        title: role === "etudiant" ? "Mon emploi du temps" : "Emploi du temps",
-        sub: role === "etudiant" ? monEtudiant?.filiere || "" : `Liste SharePoint "${SP.lists.emploiDuTemps}" — ${(data.emploiDuTemps||[]).length} créneaux`,
+        title: role === "etudiant" ? "Mon emploi du temps" : role === "professeur" ? "Mon emploi du temps" : "Emploi du temps",
+        sub: role === "etudiant" ? monEtudiant?.filiere || "" : role === "professeur" ? `Uniquement vos propres séances, tous groupes confondus${monProfesseur?` — ${monProfesseur.prenom} ${monProfesseur.nom}`:""}` : `Liste SharePoint "${SP.lists.emploiDuTemps}" — ${(data.emploiDuTemps||[]).length} créneaux`,
         action: canEdit && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: () => openAdd()
         }, "+ Ajouter un créneau")
@@ -10209,7 +10222,7 @@ function EmploiDuTemps({
         label: null,
         value: filterAnnee,
         onChange: e => setFilterAnnee(e.target.value)
-    }), role !== "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("select", {
+    }), role !== "etudiant" && role !== "professeur" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("select", {
         value: filterFiliere,
         onChange: e => setFilterFiliere(e.target.value),
         style: {
@@ -10469,15 +10482,20 @@ function EmploiDuTemps({
                 minHeight: "3.75em"
             }
         }, cell.module), /*#__PURE__*/ React.createElement("div", {
-            style: {
-                fontSize: 9.5,
-                color: "rgba(255,255,255,0.75)",
-                marginTop: 2,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
-            }
-        }, cell.professeur ? role === "etudiant" ? masquerCinProf(cell.professeur) : cell.professeur : "\u00A0"), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    fontSize: 9.5,
+                    color: "rgba(255,255,255,0.75)",
+                    marginTop: 2,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis"
+                }
+            }, role === "professeur" ? // Le professeur voit ici son propre planning tous
+            // groupes confondus dans la même grille — le nom du
+            // groupe (plutôt que son propre nom, redondant) lui
+            // permet de distinguer ses différentes classes d'un
+            // coup d'œil.
+            filiereCode(cell.filiere, data.filieres) || cell.filiere || "\u00A0" : cell.professeur ? role === "etudiant" ? masquerCinProf(cell.professeur) : cell.professeur : "\u00A0"), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "inline-block",
                 fontSize: 8.5,
@@ -19473,7 +19491,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.255.0";
+const APP_VERSION = "v3.256.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21475,13 +21493,24 @@ function App() {
     // pratique à les distinguer correctement.
     const anneeUniversitaireActuelle = moisVersAnneeUniversitaire(today().slice(0, 7), moisDebutAnneeUniversitaire(data.semestresDates));
     const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
-    // CORRECTIF IMPORTANT : le créneau doit appartenir à l'année
-    // universitaire PROPRE À CET ÉTUDIANT (sa promotion), et non à "l'année
-    // calendaire du jour" — sans quoi un même nom de groupe (ex: "B1-SI")
-    // réutilisé sur plusieurs promotions successives ferait apparaître,
-    // pour un étudiant, le cours d'une AUTRE promotion partageant
-    // simplement le même nom de groupe au même horaire.
-    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => e.filiere === monEtudiantSessionQR.filiere && (!e.anneeUniversitaire || e.anneeUniversitaire === monEtudiantSessionQR.promotion), 5, 0) : null;
+    // CORRECTIF (v2) : un étudiant PROMU entre-temps (ex: passé de
+    // B1-SI/2026-2027 à B2-SI/2027-2028) doit continuer à recevoir la
+    // bannière pour les cours de son ANCIEN groupe tant que l'année du
+    // créneau correspond à une année où il a réellement fait partie de ce
+    // groupe — la comparaison ne doit donc JAMAIS se baser uniquement sur
+    // sa filière ACTUELLE ni sur sa seule promotion actuelle, mais sur sa
+    // filière HISTORIQUE pour l'année précise du créneau, après avoir
+    // vérifié qu'il a bien un lien réel avec cette année (promotion
+    // actuelle OU une étape de son parcours, dans un sens comme dans
+    // l'autre) — même principe d'éligibilité déjà utilisé partout ailleurs
+    // dans l'application (page Étudiants, saisie classique des
+    // absences...).
+    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => {
+        if (!e.anneeUniversitaire) return e.filiere === monEtudiantSessionQR.filiere;
+        const eligible = monEtudiantSessionQR.promotion === e.anneeUniversitaire || (monEtudiantSessionQR.parcours || []).some(p => p.anneeUniversitaire === e.anneeUniversitaire || p.nouvelleAnneeUniversitaire === e.anneeUniversitaire);
+        if (!eligible) return false;
+        return filiereEtudiantPourAnnee(monEtudiantSessionQR, e.anneeUniversitaire) === e.filiere;
+    }, 5, 0) : null;
     const creneauPourMoi = roleTmp === "professeur" ? creneauEnCoursProf : creneauEnCoursEtudiantGeoloc;
     const geoRequiseGlobal = !!(data.configuration?.geolocalisationActive && data.configuration?.campusLatitude);
     const [statutGeolocBanniere, setStatutGeolocBanniere] = useState("attente");
