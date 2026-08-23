@@ -4892,13 +4892,23 @@ function calculerTauxAbsenceGeoloc(data, {
     etudiantId,
     professeurCin,
     filiere
-}) {
-    const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.anneeUniversitaire === anneeUniversitaire && (!semestre || s.semestre === semestre) && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
+}) { // CORRECTIF IMPORTANT : une séance doit être détectée comme ayant eu
+    // lieu dès qu'AU MOINS UNE confirmation existe — celle d'un étudiant OU
+    // celle du professeur. Se baser uniquement sur les confirmations
+    // étudiantes (comme précédemment) faisait totalement disparaître du
+    // calcul toute séance où AUCUN étudiant n'a confirmé sa présence (tous
+    // absents) — un cas pourtant réel et important à détecter, puisque
+    // c'est justement celui qui doit remonter un taux d'absence de 100%,
+    // pas une absence pure et simple du module dans la liste.
+    const toutesConfirmationsSeance = (data.sessionsQR || []).filter(s => (s.type === "PresenceEtudiant" || s.type === "PresenceProf") && s.anneeUniversitaire === anneeUniversitaire && (!semestre || s.semestre === semestre) && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
     // groupe précis — identifiée par la combinaison filiere+module+date+
     // créneau. On y rattache la liste des étudiants ayant confirmé, ainsi
     // que l'horaire lui-même (nécessaire pour en déduire la durée réelle).
+    // Seules les confirmations D'ÉTUDIANTS alimentent confirmesIds (la
+    // confirmation du professeur sert uniquement à prouver que la séance a
+    // bien eu lieu, pas à compter comme la présence d'un étudiant).
     const instances = {};
-    confirmations.forEach(s => {
+    toutesConfirmationsSeance.forEach(s => {
         const cle = `${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
         if (!instances[cle]) {
             instances[cle] = {
@@ -4908,7 +4918,7 @@ function calculerTauxAbsenceGeoloc(data, {
                 confirmesIds: new Set()
             };
         }
-        instances[cle].confirmesIds.add(String(s.etudiantId));
+        if (s.type === "PresenceEtudiant") instances[cle].confirmesIds.add(String(s.etudiantId));
     }); // Ne conserve que les modules du/des professeur(s) concerné(s), si
     // demandé (vue professeur) — un module peut être enseigné par plusieurs
     // professeurs selon les groupes, d'où le filtrage par instance et non
@@ -20364,7 +20374,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.263.1";
+const APP_VERSION = "v3.263.2";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
