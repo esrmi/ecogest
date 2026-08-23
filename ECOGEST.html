@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.263.0 — 23 Août 2026
+//  ECOGEST_App.jsx — version v3.265.0 — 23 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4892,14 +4892,12 @@ function calculerTauxAbsenceGeoloc(data, {
     etudiantId,
     professeurCin,
     filiere
-}) { // CORRECTIF IMPORTANT : une séance doit être détectée comme ayant eu
-    // lieu dès qu'AU MOINS UNE confirmation existe — celle d'un étudiant OU
-    // celle du professeur. Se baser uniquement sur les confirmations
-    // étudiantes (comme précédemment) faisait totalement disparaître du
-    // calcul toute séance où AUCUN étudiant n'a confirmé sa présence (tous
-    // absents) — un cas pourtant réel et important à détecter, puisque
-    // c'est justement celui qui doit remonter un taux d'absence de 100%,
-    // pas une absence pure et simple du module dans la liste.
+}) { // Une séance doit être détectée comme ayant eu lieu à partir de TOUTES
+    // les confirmations (étudiant ET professeur), mais n'est retenue pour le
+    // calcul QUE si le PROFESSEUR l'a lui-même confirmée — sans cette
+    // confirmation, impossible d'être sûr que le cours a réellement eu
+    // lieu, et aucun étudiant ne doit donc être considéré absent pour cette
+    // séance (voir le filtre juste après la construction des instances).
     const toutesConfirmationsSeance = (data.sessionsQR || []).filter(s => (s.type === "PresenceEtudiant" || s.type === "PresenceProf") && s.anneeUniversitaire === anneeUniversitaire && (!semestre || s.semestre === semestre) && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
     // groupe précis — identifiée par la combinaison filiere+module+date+
     // créneau. On y rattache la liste des étudiants ayant confirmé, ainsi
@@ -4907,19 +4905,26 @@ function calculerTauxAbsenceGeoloc(data, {
     // Seules les confirmations D'ÉTUDIANTS alimentent confirmesIds (la
     // confirmation du professeur sert uniquement à prouver que la séance a
     // bien eu lieu, pas à compter comme la présence d'un étudiant).
-    const instances = {};
+    const instancesBrutes = {};
     toutesConfirmationsSeance.forEach(s => {
         const cle = `${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
-        if (!instances[cle]) {
-            instances[cle] = {
+        if (!instancesBrutes[cle]) {
+            instancesBrutes[cle] = {
                 filiere: s.filiere,
                 module: s.module,
                 seance: s.seance,
-                confirmesIds: new Set()
+                confirmesIds: new Set(),
+                profConfirme: false
             };
         }
-        if (s.type === "PresenceEtudiant") instances[cle].confirmesIds.add(String(s.etudiantId));
-    }); // Ne conserve que les modules du/des professeur(s) concerné(s), si
+        if (s.type === "PresenceEtudiant") instancesBrutes[cle].confirmesIds.add(String(s.etudiantId));
+        if (s.type === "PresenceProf") instancesBrutes[cle].profConfirme = true;
+    }); // Exclusion des séances où le professeur n'a PAS confirmé — même si des
+    // étudiants ont eux-mêmes confirmé, on ne peut pas établir avec
+    // certitude que le cours a bien eu lieu sans la confirmation du
+    // professeur, donc aucune absence (ni aucune présence) n'est comptée
+    // pour cette séance.
+    const instances = Object.fromEntries(Object.entries(instancesBrutes).filter(([, inst]) => inst.profConfirme)); // Ne conserve que les modules du/des professeur(s) concerné(s), si
     // demandé (vue professeur) — un module peut être enseigné par plusieurs
     // professeurs selon les groupes, d'où le filtrage par instance et non
     // par nom de module seul.
@@ -5203,96 +5208,107 @@ function Presences({
             justifiePar: p.justifiePar || "",
             dateJustification: p.dateJustification || today()
         });
-    }; // Détection, sur l'ENSEMBLE des données (indépendamment des filtres
-    // affichés à l'écran), de toute séance suivie par géolocalisation où un
-    // étudiant attendu n'a pas confirmé sa présence — sert à la création
-    // AUTOMATIQUE de l'absence correspondante ci-dessous, sans attendre
-    // qu'un administrateur ouvre le panneau et clique "Justifier".
-    const absentsGeolocATraiter = useMemo(() => {
-        const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" || s.type === "PresenceProf");
-        const instances = {};
-        confirmations.forEach(s => {
-            const cle = `${s.anneeUniversitaire}|||${s.semestre}|||${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
-            if (!instances[cle]) {
-                instances[cle] = {
-                    anneeUniversitaire: s.anneeUniversitaire,
-                    semestre: s.semestre,
-                    filiere: s.filiere,
-                    module: s.module,
-                    dateSeance: s.dateSeance,
-                    seance: s.seance,
-                    confirmesIds: new Set()
-                };
-            }
-            if (s.type === "PresenceEtudiant") instances[cle].confirmesIds.add(String(s.etudiantId));
-        });
-        const resultats = [];
-        Object.values(instances).forEach(g => {
-            if (!g.anneeUniversitaire || !g.filiere) return;
-            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, g.anneeUniversitaire) === g.filiere && (e.promotion === g.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === g.anneeUniversitaire)));
-            effectifAttendu.filter(e => !g.confirmesIds.has(String(e.id))).forEach(e => resultats.push({
-                etudiant: e,
-                groupeSeance: g
-            }));
-        });
-        return resultats;
-    }, [data.sessionsQR, data.etudiants]); // Création automatique de l'absence classique correspondante — ne
-    // s'exécute que côté administrateur/directrice (autorité légitime pour
-    // enregistrer une absence), une seule fois par combinaison
-    // étudiant+séance (le repli en cas d'échec réseau la retentera au
-    // prochain rendu, sans jamais créer de doublon grâce à la vérification
-    // d'existence).
+    }; // NOUVEAU MÉCANISME (remplace l'ancien basé sur la confirmation du
+    // professeur) : dès qu'une séance d'un groupe administré par
+    // géolocalisation ATTEINT SON HEURE DE DÉBUT (d'après l'Emploi du
+    // temps), TOUS les étudiants attendus sont automatiquement considérés
+    // absents et ajoutés à la liste des absences classiques. Dès qu'un
+    // étudiant confirme sa présence (fenêtre d'invitation), son absence
+    // classique correspondante est immédiatement supprimée — il est alors
+    // considéré présent. Le professeur n'a plus aucun rôle dans cette
+    // détection : seule l'heure de la séance et les confirmations
+    // étudiantes comptent.
     const creationAbsenceEnCoursRef = useRef(new Set());
+    const [tickAbsencesAuto, setTickAbsencesAuto] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTickAbsencesAuto(t => t + 1), 20e3);
+        return () => clearInterval(id);
+    }, []);
     useEffect(() => {
         if (!["administrateur", "directrice"].includes(role) || !user?.token) return;
-        absentsGeolocATraiter.forEach(({
-            etudiant,
-            groupeSeance
-        }) => {
-            const cle = `${etudiant.id}__${groupeSeance.module}__${groupeSeance.dateSeance}__${groupeSeance.seance}`;
-            if (creationAbsenceEnCoursRef.current.has(cle)) return;
-            const existant = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === groupeSeance.dateSeance && p.module === groupeSeance.module && p.seance === groupeSeance.seance);
-            if (existant) return;
-            creationAbsenceEnCoursRef.current.add(cle);
-            (async () => {
-                const spF = {
-                    Title: `${etudiant.nom} ${etudiant.prenom} - ${groupeSeance.dateSeance}`,
-                    EtudiantId: String(etudiant.id),
-                    NomEtudiant: `${etudiant.nom} ${etudiant.prenom}`,
-                    NumInscription: etudiant.numInscription || "",
-                    Module: groupeSeance.module || "",
-                    DatePresence: groupeSeance.dateSeance || "",
-                    Heure: groupeSeance.seance || "",
-                    Statut: "Absent",
-                    Filiere: groupeSeance.filiere || "",
-                    Seance: groupeSeance.seance || "",
-                    Semestre: groupeSeance.semestre || "",
-                    AnneeUniversitaire: groupeSeance.anneeUniversitaire || ""
-                };
-                const result = await saveToSP("ECOGEST_Presences", spF, user.token);
-                creationAbsenceEnCoursRef.current.delete(cle);
-                if (!result) return;
-                setData(d => ({
-                    ...d,
-                    presences: [...(d.presences || []), {
-                        id: Date.now() + Math.random(),
-                        _spId: result.id,
-                        etudiantId: etudiant.id,
-                        etudiant: `${etudiant.prenom} ${etudiant.nom}`,
-                        numInscription: etudiant.numInscription,
-                        module: groupeSeance.module,
-                        date: groupeSeance.dateSeance,
-                        heure: groupeSeance.seance,
-                        seance: groupeSeance.seance,
-                        statut: "Absent",
-                        filiere: groupeSeance.filiere,
-                        semestre: groupeSeance.semestre,
-                        anneeUniversitaire: groupeSeance.anneeUniversitaire
-                    }]
-                }));
-            })();
+        const dateStr = today();
+        const jourFr = jourFrancaisActuel();
+        const maintenant = /* @__PURE__ */ new Date();
+        const minutesActuelles = maintenant.getHours() * 60 + maintenant.getMinutes();
+        const filieresGeoloc = data.configuration?.filieresAvecGeolocAbsences || []; // Séances du jour, d'un groupe administré par géolocalisation, dont
+        // l'heure de DÉBUT est déjà atteinte (peu importe si elles sont
+        // terminées ou non — dès le démarrage, l'absence par défaut
+        // s'applique).
+        const seancesDemarrees = (data.emploiDuTemps || []).filter(e => {
+            if (!filieresGeoloc.includes(e.filiere)) return false;
+            if (e.jour !== jourFr) return false;
+            if (!creneauEstActifPourDate(e, dateStr)) return false;
+            const horaire = parseSeanceHoraire(e.seance);
+            return horaire && minutesActuelles >= horaire.debutMin;
+        });
+        seancesDemarrees.forEach(seance => {
+            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, seance.anneeUniversitaire) === seance.filiere && (e.promotion === seance.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === seance.anneeUniversitaire)));
+            const confirmesIds = new Set((data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.dateSeance === dateStr && s.seance === seance.seance && s.module === seance.module && s.filiere === seance.filiere).map(s => String(s.etudiantId)));
+            const moduleInfo = (data.cours || []).find(c => c.intitule === seance.module && (c.filieresListe || [c.filiere]).includes(seance.filiere));
+            effectifAttendu.forEach(etudiant => {
+                const cle = `${etudiant.id}__${seance.module}__${dateStr}__${seance.seance}`;
+                const absenceExistante = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === dateStr && p.module === seance.module && p.seance === seance.seance);
+                if (creationAbsenceEnCoursRef.current.has(cle)) return;
+                if (confirmesIds.has(String(etudiant.id))) { // A confirmé sa présence entre-temps : on retire son absence
+                    // automatique si elle avait déjà été créée.
+                    if (absenceExistante) {
+                        creationAbsenceEnCoursRef.current.add(cle);
+                        setData(d => ({
+                            ...d,
+                            presences: (d.presences || []).filter(p => p.id !== absenceExistante.id)
+                        }));
+                        const suppression = absenceExistante._spId ? deleteFromSP("ECOGEST_Presences", absenceExistante._spId, user.token) : Promise.resolve();
+                        suppression.finally(() => creationAbsenceEnCoursRef.current.delete(cle));
+                    }
+                    return;
+                } // N'a pas (encore) confirmé : absence automatique si elle n'existe
+                // pas déjà.
+                if (absenceExistante) return;
+                creationAbsenceEnCoursRef.current.add(cle);
+                (async () => {
+                    const spF = {
+                        Title: `${etudiant.nom} ${etudiant.prenom} - ${dateStr}`,
+                        EtudiantId: String(etudiant.id),
+                        NomEtudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                        NumInscription: etudiant.numInscription || "",
+                        Module: seance.module || "",
+                        DatePresence: dateStr,
+                        Heure: seance.seance || "",
+                        Statut: "Absent",
+                        Filiere: seance.filiere || "",
+                        Seance: seance.seance || "",
+                        Semestre: seance.semestre || "",
+                        AnneeUniversitaire: seance.anneeUniversitaire || "",
+                        Enseignant: moduleInfo?.professeur || "",
+                        EnseignantCIN: moduleInfo?.professeurCin || ""
+                    };
+                    const result = await saveToSP("ECOGEST_Presences", spF, user.token);
+                    creationAbsenceEnCoursRef.current.delete(cle);
+                    if (!result) return;
+                    setData(d => ({
+                        ...d,
+                        presences: [...(d.presences || []), {
+                            id: Date.now() + Math.random(),
+                            _spId: result.id,
+                            etudiantId: etudiant.id,
+                            etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                            numInscription: etudiant.numInscription,
+                            module: seance.module,
+                            date: dateStr,
+                            heure: seance.seance,
+                            seance: seance.seance,
+                            statut: "Absent",
+                            filiere: seance.filiere,
+                            semestre: seance.semestre,
+                            anneeUniversitaire: seance.anneeUniversitaire,
+                            enseignant: moduleInfo?.professeur || "",
+                            enseignantCin: moduleInfo?.professeurCin || ""
+                        }]
+                    }));
+                })();
+            });
         }); // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [absentsGeolocATraiter, role, user?.token]);
+    }, [tickAbsencesAuto, data.emploiDuTemps, data.sessionsQR, data.etudiants, data.presences, data.configuration?.filieresAvecGeolocAbsences, role, user?.token]);
     const handleSaveJustif = () => {
         if (!showJustif) return;
         const updated = {
@@ -5677,11 +5693,6 @@ function Presences({
             gap: 2
         }
     }, [{
-        key: "taux",
-        icon: "📊",
-        label: "Détail du taux d'absence par module",
-        sub: "répartition par semestre"
-    }, {
         key: "synthese",
         icon: "📚",
         label: "Synthèse par module",
@@ -7167,24 +7178,30 @@ function Presences({
                     module: s.module,
                     dateSeance: s.dateSeance,
                     seance: s.seance,
-                    confirmesIds: new Set()
+                    confirmesIds: new Set(),
+                    profConfirme: false
                 };
             }
             if (s.type === "PresenceEtudiant") seancesInstancesGeoloc[cle].confirmesIds.add(String(s.etudiantId));
+            if (s.type === "PresenceProf") seancesInstancesGeoloc[cle].profConfirme = true;
         });
-        const groupesAvecAbsentsGeoloc = Object.values(seancesInstancesGeoloc).filter(g => g.anneeUniversitaire && g.filiere).map(g => {
-            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, g.anneeUniversitaire) === g.filiere && (e.promotion === g.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === g.anneeUniversitaire)));
-            const absents = effectifAttendu.filter(e => !g.confirmesIds.has(String(e.id)));
-            return {
-                ...g,
-                absents
-            };
-        }).filter(g => g.absents.length > 0).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "") || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
-            numeric: true,
-            sensitivity: "base"
-        }) || (a.seance || "").localeCompare(b.seance || "") || (a.module || "").localeCompare(b.module || "", "fr", {
-            sensitivity: "base"
-        }) || (b.dateSeance || "").localeCompare(a.dateSeance || ""));
+        const groupesAvecAbsentsGeoloc = Object.values(seancesInstancesGeoloc) // Un étudiant n'est considéré absent QUE si le professeur de
+            // cette séance a lui-même confirmé sa présence (preuve que le
+            // cours a bien eu lieu) — sans cette confirmation, impossible
+            // de certifier que la séance s'est réellement tenue.
+            .filter(g => g.anneeUniversitaire && g.filiere && g.profConfirme).map(g => {
+                const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, g.anneeUniversitaire) === g.filiere && (e.promotion === g.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === g.anneeUniversitaire)));
+                const absents = effectifAttendu.filter(e => !g.confirmesIds.has(String(e.id)));
+                return {
+                    ...g,
+                    absents
+                };
+            }).filter(g => g.absents.length > 0).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "") || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
+                numeric: true,
+                sensitivity: "base"
+            }) || (a.seance || "").localeCompare(b.seance || "") || (a.module || "").localeCompare(b.module || "", "fr", {
+                sensitivity: "base"
+            }) || (b.dateSeance || "").localeCompare(a.dateSeance || ""));
         const ouvrirJustifDepuisGeoloc = async (etudiant, groupeSeance) => {
             const existant = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === groupeSeance.dateSeance && p.module === groupeSeance.module && p.seance === groupeSeance.seance);
             if (existant) {
@@ -20463,7 +20480,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.264.0";
+const APP_VERSION = "v3.265.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22553,6 +22570,7 @@ async function loadAllFromSP(token) {
         }))
     };
 }
+
 function App() {
     const [roleAuth, setRole] = useState(null);
     const [userAuth, setUser] = useState(null);
