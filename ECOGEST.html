@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.261.0 — 23 Août 2026
+//  ECOGEST_App.jsx — version v3.263.0 — 23 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4893,7 +4893,7 @@ function calculerTauxAbsenceGeoloc(data, {
     professeurCin,
     filiere
 }) {
-    const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.anneeUniversitaire === anneeUniversitaire && s.semestre === semestre && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
+    const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.anneeUniversitaire === anneeUniversitaire && (!semestre || s.semestre === semestre) && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
     // groupe précis — identifiée par la combinaison filiere+module+date+
     // créneau. On y rattache la liste des étudiants ayant confirmé, ainsi
     // que l'horaire lui-même (nécessaire pour en déduire la durée réelle).
@@ -20364,7 +20364,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.262.2";
+const APP_VERSION = "v3.263.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21452,13 +21452,12 @@ function getAppareilLabel() {
     else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) navig = "Safari";
     else if (/Firefox\//i.test(ua)) navig = "Firefox";
     return `${type} · ${navig}`;
-}
-// Table de correspondance des codes techniques bruts (tels que renvoyés
+} // Table de correspondance des codes techniques bruts (tels que renvoyés
 // par l'API Client Hints, ex: "21061119DG") vers un nom commercial lisible
 // — ne peut pas être exhaustive (des milliers de modèles existent), mais
 // couvre les modèles les plus courants de Xiaomi/Redmi, Samsung, OPPO et
 // Vivo. Tout code non reconnu s'affiche tel quel (repli sûr).
-const MODELES_APPAREILS_CONNUS = {
+const MODELES_APPAREILS_CONNUS = { // Xiaomi / Redmi / POCO
     "21061119DG": "Redmi Note 10 Pro",
     "21061119AG": "Redmi Note 10 Pro",
     M2101K7BNY: "Redmi Note 10 Pro",
@@ -21478,7 +21477,8 @@ const MODELES_APPAREILS_CONNUS = {
     M2102J20SG: "POCO X3 Pro",
     M2007J3SY: "POCO X3",
     "22041216G": "POCO X4 Pro",
-    M2101K6G: "POCO F3",
+    M2101K6G: "POCO F3", // Samsung (codes SM-xxxx explicites — un repli par motif couvre les
+    // autres séries non listées ici, voir plus bas)
     "SM-G991B": "Samsung Galaxy S21",
     "SM-G996B": "Samsung Galaxy S21+",
     "SM-G998B": "Samsung Galaxy S21 Ultra",
@@ -21498,7 +21498,7 @@ const MODELES_APPAREILS_CONNUS = {
     "SM-A155F": "Samsung Galaxy A15",
     "SM-A235F": "Samsung Galaxy A23",
     "SM-A245F": "Samsung Galaxy A24",
-    "SM-N981B": "Samsung Galaxy Note 20",
+    "SM-N981B": "Samsung Galaxy Note 20", // OPPO
     CPH2159: "OPPO A54",
     CPH2247: "OPPO A54s",
     CPH2371: "OPPO A57",
@@ -21507,7 +21507,7 @@ const MODELES_APPAREILS_CONNUS = {
     CPH2219: "OPPO Reno6",
     CPH2437: "OPPO Reno8",
     CPH2359: "OPPO Find X5",
-    CPH2305: "OPPO Find X5 Pro",
+    CPH2305: "OPPO Find X5 Pro", // Vivo
     V2029: "Vivo Y20",
     V2111: "Vivo Y21",
     V2255: "Vivo Y22",
@@ -21515,8 +21515,7 @@ const MODELES_APPAREILS_CONNUS = {
     V2158: "Vivo V21",
     V2145: "Vivo X60",
     PD2123: "Vivo Y53s"
-};
-// Repli par motif : les codes Samsung suivent un schéma "SM-[lettre de
+}; // Repli par motif : les codes Samsung suivent un schéma "SM-[lettre de
 // série][numéro]" assez régulier — même si le modèle exact n'est pas dans
 // la table ci-dessus, on peut au moins identifier la série (Galaxy S, A,
 // Note...) pour rester plus lisible qu'un code brut. OPPO (préfixe "CPH")
@@ -21527,14 +21526,19 @@ function traduireModeleAppareil(code) {
     if (MODELES_APPAREILS_CONNUS[code]) return MODELES_APPAREILS_CONNUS[code];
     const mSamsung = code.match(/^SM-([A-Z])\d/);
     if (mSamsung) {
-        const series = { S: "Galaxy S", A: "Galaxy A", N: "Galaxy Note", F: "Galaxy Z Flip", T: "Galaxy Tab" };
-        return `Samsung ${series[mSamsung[1]] || ""} (${code})`.replace("  ", " ");
+        const series = {
+            S: "Galaxy S",
+            A: "Galaxy A",
+            N: "Galaxy Note",
+            F: "Galaxy Z Flip",
+            T: "Galaxy Tab"
+        };
+        return `Samsung ${series[mSamsung[1]]||""} (${code})`.replace("  ", " ");
     }
     if (/^CPH\d/.test(code)) return `OPPO (${code})`;
     if (/^(V\d{4}|PD\d+)/.test(code)) return `Vivo (${code})`;
     return code;
-}
-// Depuis 2023, Chrome et les navigateurs basés dessus (Edge, Opera...)
+} // Depuis 2023, Chrome et les navigateurs basés dessus (Edge, Opera...)
 // renvoient volontairement un modèle d'appareil générique et réduit (ex:
 // la simple lettre "K") dans le User-Agent classique, pour des raisons de
 // confidentialité ("User-Agent Reduction") — le vrai modèle (ex: "Redmi
@@ -22450,7 +22454,6 @@ async function loadAllFromSP(token) {
         }))
     };
 }
-
 function App() {
     const [roleAuth, setRole] = useState(null);
     const [userAuth, setUser] = useState(null);
@@ -22548,30 +22551,46 @@ function App() {
     const geoRequiseGlobal = !!(data.configuration?.geolocalisationActive && data.configuration?.campusLatitude);
     const [statutGeolocBanniere, setStatutGeolocBanniere] = useState("attente");
     const [distanceCampusBanniere, setDistanceCampusBanniere] = useState(null);
-    const [dejaConfirmeCreneau, setDejaConfirmeCreneau] = useState(false);
     const [confirmationEnCours, setConfirmationEnCours] = useState(false);
-    const [modalGeolocFermee, setModalGeolocFermee] = useState(false); // La fenêtre modale de rappel se réaffiche systématiquement pour CHAQUE
+    const [modalGeolocFermee, setModalGeolocFermee] = useState(false); // CORRECTIF IMPORTANT : "déjà confirmé" est calculé directement à CHAQUE
+    // RENDU (valeur dérivée), plutôt que mémorisé dans un état mis à jour
+    // par un useEffect dont le tableau de dépendances ne réagissait pas aux
+    // arrivées de data.sessionsQR. Cela évitait toute erreur "logique" de
+    // dépendances manquantes, mais créait un vrai bug utilisateur : juste
+    // après une reconnexion, l'effet s'exécutait UNE FOIS avec
+    // data.sessionsQR encore vide (données pas encore arrivées de
+    // SharePoint), concluait à tort qu'aucune confirmation n'existait, puis
+    // ne se redéclenchait JAMAIS quand les données arrivaient enfin — la
+    // fenêtre de confirmation réapparaissait donc à tort, même après une
+    // confirmation déjà enregistrée. En calculant cette valeur directement
+    // à chaque rendu (au lieu de la mémoriser), elle reflète TOUJOURS
+    // fidèlement l'état réel le plus à jour de data.sessionsQR.
+    const dejaConfirmeCreneau = (() => {
+        if (!creneauPourMoi) return false;
+        const identifiantMoi = roleTmp === "professeur" ? String(monProfesseurGlobal?.id || "") : String(monEtudiantSessionQR?.id || "");
+        const typeAttendu = roleTmp === "professeur" ? "PresenceProf" : "PresenceEtudiant";
+        return (data.sessionsQR || []).some(s => s.type === typeAttendu && s.dateSeance === creneauPourMoi.dateStr && s.seance === creneauPourMoi.seance && s.module === creneauPourMoi.module && (roleTmp === "professeur" ? s.professeurId : s.etudiantId) === identifiantMoi);
+    })(); // La fenêtre modale de rappel se réaffiche systématiquement pour CHAQUE
     // nouvelle séance détectée (nouvel id de créneau, ou nouveau jour), même
     // si l'utilisateur avait fermé celle d'une séance précédente — sans quoi
     // fermer une fois désactiverait le rappel pour toujours.
     useEffect(() => {
         setModalGeolocFermee(false);
-    }, [creneauPourMoi?.id, creneauPourMoi?.dateStr]);
+    }, [creneauPourMoi?.id, creneauPourMoi?.dateStr]); // Vérification GPS — se déclenche uniquement lorsque le pointage réel est
+    // ouvert ("en_cours") ET qu'aucune confirmation n'existe déjà (valeur
+    // dérivée ci-dessus, toujours à jour). Ne dépend PAS de data.sessionsQR
+    // directement (seulement de dejaConfirmeCreneau, qui EN découle) — pour
+    // ne jamais redemander inutilement la localisation à chaque
+    // rafraîchissement des données si une confirmation existe déjà.
     useEffect(() => {
         if (!creneauPourMoi) {
-            setDejaConfirmeCreneau(false);
             setStatutGeolocBanniere("attente");
             return;
-        } // Vérifie si une confirmation existe déjà pour ce créneau précis
-        // aujourd'hui (évite de proposer de reconfirmer après un rechargement).
-        const identifiantMoi = roleTmp === "professeur" ? String(monProfesseurGlobal?.id || "") : String(monEtudiantSessionQR?.id || "");
-        const typeAttendu = roleTmp === "professeur" ? "PresenceProf" : "PresenceEtudiant";
-        const dejaLa = (data.sessionsQR || []).some(s => s.type === typeAttendu && s.dateSeance === creneauPourMoi.dateStr && s.seance === creneauPourMoi.seance && s.module === creneauPourMoi.module && (roleTmp === "professeur" ? s.professeurId : s.etudiantId) === identifiantMoi);
-        setDejaConfirmeCreneau(dejaLa); // Pendant les 5 minutes de rappel ("avant"), on ne déclenche pas encore
+        } // Pendant les 5 minutes de rappel ("avant"), on ne déclenche pas encore
         // la vérification de localisation — c'est purement informatif. Le
         // pointage réel (et donc la vérification GPS) ne démarre qu'une fois
         // l'heure effective du créneau atteinte ("en_cours").
-        if (dejaLa || !geoRequiseGlobal || creneauPourMoi.phase !== "en_cours") return;
+        if (dejaConfirmeCreneau || !geoRequiseGlobal || creneauPourMoi.phase !== "en_cours") return;
         if (!navigator.geolocation) {
             setStatutGeolocBanniere("indisponible");
             return;
@@ -22598,7 +22617,7 @@ function App() {
             enableHighAccuracy: true,
             timeout: 15e3
         }); // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [creneauPourMoi?.id, creneauPourMoi?.dateStr, creneauPourMoi?.phase, geoRequiseGlobal]);
+    }, [creneauPourMoi?.id, creneauPourMoi?.dateStr, creneauPourMoi?.phase, geoRequiseGlobal, dejaConfirmeCreneau]);
     const confirmerPresenceCreneau = async () => {
         if (!creneauPourMoi || !userTmp?.token) return;
         if (geoRequiseGlobal && statutGeolocBanniere !== "dans_le_perimetre") {
@@ -22618,8 +22637,7 @@ function App() {
                 return;
             }
         }
-        setConfirmationEnCours(true);
-        // Tente d'obtenir le VRAI modèle de l'appareil via l'API "User-Agent
+        setConfirmationEnCours(true); // Tente d'obtenir le VRAI modèle de l'appareil via l'API "User-Agent
         // Client Hints" (disponible sur Chrome/Edge/Opera) — avec repli
         // automatique sur l'analyse classique du User-Agent si indisponible.
         const appareilLabelPrecis = await getAppareilLabelPrecis();
@@ -22654,16 +22672,35 @@ function App() {
         if (!result) {
             toast("⚠️ Échec de l'enregistrement — réessayez");
             return;
-        }
+        } // CORRECTIF : l'entrée ajoutée localement doit avoir EXACTEMENT la même
+        // forme (noms de champs en minuscules) que celle produite par le
+        // chargement normal depuis SharePoint — sans quoi la valeur dérivée
+        // dejaConfirmeCreneau (basée sur ces mêmes noms) ne la reconnaîtrait
+        // pas, et la bannière resterait affichée à tort jusqu'au prochain
+        // rechargement complet des données.
         setData(d => ({
             ...d,
             sessionsQR: [...(d.sessionsQR || []), {
-                ...fields,
                 _spId: result.id,
-                id: result.id
+                id: result.id,
+                type: fields.TypeElement,
+                professeurId: fields.ProfesseurId,
+                professeurNom: fields.ProfesseurNom,
+                etudiantId: fields.EtudiantId,
+                etudiantNom: fields.EtudiantNom,
+                numInscription: fields.NumInscription,
+                filiere: fields.Filiere,
+                semestre: fields.Semestre,
+                anneeUniversitaire: fields.AnneeUniversitaire,
+                module: fields.Module,
+                dateSeance: fields.DateSeance,
+                seance: fields.Seance,
+                statut: fields.Statut,
+                scanneLe: fields.ScanneLe,
+                appareilLabel: fields.AppareilLabel,
+                appareilId: fields.AppareilId
             }]
         }));
-        setDejaConfirmeCreneau(true);
         toast("✅ Présence confirmée !");
     };
     const cacheLoadedRef = useRef(false);
