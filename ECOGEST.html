@@ -5203,7 +5203,96 @@ function Presences({
             justifiePar: p.justifiePar || "",
             dateJustification: p.dateJustification || today()
         });
-    };
+    }; // Détection, sur l'ENSEMBLE des données (indépendamment des filtres
+    // affichés à l'écran), de toute séance suivie par géolocalisation où un
+    // étudiant attendu n'a pas confirmé sa présence — sert à la création
+    // AUTOMATIQUE de l'absence correspondante ci-dessous, sans attendre
+    // qu'un administrateur ouvre le panneau et clique "Justifier".
+    const absentsGeolocATraiter = useMemo(() => {
+        const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" || s.type === "PresenceProf");
+        const instances = {};
+        confirmations.forEach(s => {
+            const cle = `${s.anneeUniversitaire}|||${s.semestre}|||${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
+            if (!instances[cle]) {
+                instances[cle] = {
+                    anneeUniversitaire: s.anneeUniversitaire,
+                    semestre: s.semestre,
+                    filiere: s.filiere,
+                    module: s.module,
+                    dateSeance: s.dateSeance,
+                    seance: s.seance,
+                    confirmesIds: new Set()
+                };
+            }
+            if (s.type === "PresenceEtudiant") instances[cle].confirmesIds.add(String(s.etudiantId));
+        });
+        const resultats = [];
+        Object.values(instances).forEach(g => {
+            if (!g.anneeUniversitaire || !g.filiere) return;
+            const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, g.anneeUniversitaire) === g.filiere && (e.promotion === g.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === g.anneeUniversitaire)));
+            effectifAttendu.filter(e => !g.confirmesIds.has(String(e.id))).forEach(e => resultats.push({
+                etudiant: e,
+                groupeSeance: g
+            }));
+        });
+        return resultats;
+    }, [data.sessionsQR, data.etudiants]); // Création automatique de l'absence classique correspondante — ne
+    // s'exécute que côté administrateur/directrice (autorité légitime pour
+    // enregistrer une absence), une seule fois par combinaison
+    // étudiant+séance (le repli en cas d'échec réseau la retentera au
+    // prochain rendu, sans jamais créer de doublon grâce à la vérification
+    // d'existence).
+    const creationAbsenceEnCoursRef = useRef(new Set());
+    useEffect(() => {
+        if (!["administrateur", "directrice"].includes(role) || !user?.token) return;
+        absentsGeolocATraiter.forEach(({
+            etudiant,
+            groupeSeance
+        }) => {
+            const cle = `${etudiant.id}__${groupeSeance.module}__${groupeSeance.dateSeance}__${groupeSeance.seance}`;
+            if (creationAbsenceEnCoursRef.current.has(cle)) return;
+            const existant = (data.presences || []).find(p => String(p.etudiantId) === String(etudiant.id) && p.date === groupeSeance.dateSeance && p.module === groupeSeance.module && p.seance === groupeSeance.seance);
+            if (existant) return;
+            creationAbsenceEnCoursRef.current.add(cle);
+            (async () => {
+                const spF = {
+                    Title: `${etudiant.nom} ${etudiant.prenom} - ${groupeSeance.dateSeance}`,
+                    EtudiantId: String(etudiant.id),
+                    NomEtudiant: `${etudiant.nom} ${etudiant.prenom}`,
+                    NumInscription: etudiant.numInscription || "",
+                    Module: groupeSeance.module || "",
+                    DatePresence: groupeSeance.dateSeance || "",
+                    Heure: groupeSeance.seance || "",
+                    Statut: "Absent",
+                    Filiere: groupeSeance.filiere || "",
+                    Seance: groupeSeance.seance || "",
+                    Semestre: groupeSeance.semestre || "",
+                    AnneeUniversitaire: groupeSeance.anneeUniversitaire || ""
+                };
+                const result = await saveToSP("ECOGEST_Presences", spF, user.token);
+                creationAbsenceEnCoursRef.current.delete(cle);
+                if (!result) return;
+                setData(d => ({
+                    ...d,
+                    presences: [...(d.presences || []), {
+                        id: Date.now() + Math.random(),
+                        _spId: result.id,
+                        etudiantId: etudiant.id,
+                        etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+                        numInscription: etudiant.numInscription,
+                        module: groupeSeance.module,
+                        date: groupeSeance.dateSeance,
+                        heure: groupeSeance.seance,
+                        seance: groupeSeance.seance,
+                        statut: "Absent",
+                        filiere: groupeSeance.filiere,
+                        semestre: groupeSeance.semestre,
+                        anneeUniversitaire: groupeSeance.anneeUniversitaire
+                    }]
+                }));
+            })();
+        }); // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [absentsGeolocATraiter, role, user?.token]);
     const handleSaveJustif = () => {
         if (!showJustif) return;
         const updated = {
@@ -20374,7 +20463,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.263.2";
+const APP_VERSION = "v3.264.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
