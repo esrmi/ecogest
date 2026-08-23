@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.253.0 — 22 Août 2026
+//  ECOGEST_App.jsx — version v3.260.0 — 23 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4772,12 +4772,11 @@ function creneauEstActifPourDate(slot, dateStr) {
     return true;
 }
 
-function parseSeanceHoraire(seance) {
-    // Accepte indifféremment le séparateur heures/minutes "h" (format
-    // standard partout ailleurs, ex: "09h00 - 10h30") OU ":" (ex: une
-    // valeur historique mal formatée, du type "00:00 - 06:00") — pour que
-    // la détection du créneau en cours ne soit jamais mise en échec par
-    // une donnée existante non conforme au format habituel.
+function parseSeanceHoraire(seance) { // Accepte indifféremment le séparateur heures/minutes "h" (format
+    // standard partout ailleurs, ex: "09h00 - 10h30") OU ":" (ex: une valeur
+    // historique mal formatée, du type "00:00 - 06:00") — pour que la
+    // détection du créneau en cours ne soit jamais mise en échec par une
+    // donnée existante non conforme au format habituel.
     const m = String(seance || "").match(/(\d{1,2})[h:](\d{2})\s*-\s*(\d{1,2})[h:](\d{2})/);
     if (!m) return null;
     return {
@@ -4832,6 +4831,69 @@ function dureeSeanceHeures(seance) {
     const h = parseSeanceHoraire(seance);
     if (h) return (h.finMin - h.debutMin) / 60;
     return SEANCE_DUREE[seance] || 1.5;
+} // Calcule le taux d'absence par module à partir des confirmations de
+// présence par GÉOLOCALISATION (data.sessionsQR), pour une année
+// universitaire et un semestre donnés — entièrement indépendant du volet
+// classique (data.presences), à ne jamais mélanger avec lui.
+// - Si etudiantId est fourni : calcule le taux PROPRE à cet étudiant
+//   (nombre de séances où il ne s'est pas confirmé présent / nombre de
+//   séances où il était attendu), module par module.
+// - Sinon (vue professeur ou direction) : calcule un taux AGRÉGÉ sur
+//   l'ensemble de l'effectif attendu de chaque séance (filtrable en plus
+//   par professeurCin et/ou filiere).
+function calculerTauxAbsenceGeoloc(data, {
+    anneeUniversitaire,
+    semestre,
+    etudiantId,
+    professeurCin,
+    filiere
+}) {
+    const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.anneeUniversitaire === anneeUniversitaire && s.semestre === semestre && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
+    // groupe précis — identifiée par la combinaison filiere+module+date+
+    // créneau. On y rattache la liste des étudiants ayant confirmé.
+    const instances = {};
+    confirmations.forEach(s => {
+        const cle = `${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
+        if (!instances[cle]) {
+            instances[cle] = {
+                filiere: s.filiere,
+                module: s.module,
+                confirmesIds: new Set()
+            };
+        }
+        instances[cle].confirmesIds.add(String(s.etudiantId));
+    }); // Ne conserve que les modules du/des professeur(s) concerné(s), si
+    // demandé (vue professeur) — un module peut être enseigné par plusieurs
+    // professeurs selon les groupes, d'où le filtrage par instance et non
+    // par nom de module seul.
+    const instancesFiltrees = Object.values(instances).filter(inst => {
+        if (!professeurCin) return true;
+        return (data.cours || []).some(c => c.intitule === inst.module && (c.filieresListe || [c.filiere]).includes(inst.filiere) && c.professeurCin === professeurCin);
+    });
+    const parModule = {};
+    instancesFiltrees.forEach(inst => {
+        const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, anneeUniversitaire) === inst.filiere && (e.promotion === anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === anneeUniversitaire)));
+        if (!parModule[inst.module]) parModule[inst.module] = {
+            seancesAttendues: 0,
+            absences: 0
+        };
+        if (etudiantId) { // Vue étudiant : ne compte que si CET étudiant précis fait partie de
+            // l'effectif attendu de cette séance.
+            if (effectifAttendu.some(e => String(e.id) === String(etudiantId))) {
+                parModule[inst.module].seancesAttendues += 1;
+                if (!inst.confirmesIds.has(String(etudiantId))) parModule[inst.module].absences += 1;
+            }
+        } else {
+            parModule[inst.module].seancesAttendues += effectifAttendu.length;
+            parModule[inst.module].absences += effectifAttendu.filter(e => !inst.confirmesIds.has(String(e.id))).length;
+        }
+    });
+    return Object.entries(parModule).map(([module, v]) => ({
+        module,
+        seancesAttendues: v.seancesAttendues,
+        absences: v.absences,
+        taux: v.seancesAttendues > 0 ? Math.round(v.absences / v.seancesAttendues * 10000) / 100 : 0
+    })).filter(m => m.seancesAttendues > 0).sort((a, b) => b.taux - a.taux);
 }
 
 function PieChart({
@@ -4840,16 +4902,18 @@ function PieChart({
 }) {
     const total = data.reduce((s, d) => s + d.value, 0);
     const radius = size / 2;
-    const cx = radius,
-        cy = radius;
+    const LABEL_ZONE = 132;
+    const LIGNE_HAUTEUR = 34;
+    const cx = LABEL_ZONE + radius,
+        cy = radius + 10;
     if (total <= 0) {
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("svg", {
             width: size,
             height: size,
             viewBox: `0 0 ${size} ${size}`
         }, /*#__PURE__*/ React.createElement("circle", {
-            cx: cx,
-            cy: cy,
+            cx: radius,
+            cy: radius,
             r: radius - 2,
             fill: C.light,
             stroke: C.border
@@ -4898,33 +4962,84 @@ function PieChart({
             stroke: "white",
             strokeWidth: "2"
         });
-    });
-    const labels = infos.filter(d => d.pct >= 4 && !d.noLabel).map((d, i) => {
-        const labelRadius = (radius - 2) * 0.66;
-        const lx = cx + labelRadius * Math.cos(toRad(d.midAngle));
-        const ly = cy + labelRadius * Math.sin(toRad(d.midAngle));
+    }); // Étiquettes réparties en deux colonnes (gauche/droite du cercle) selon
+    // l'angle de chaque portion, triées de haut en bas, avec un espacement
+    // vertical minimal forcé pour ne jamais se chevaucher — même lorsque
+    // plusieurs portions ont un pourcentage proche et un angle voisin.
+    const aEtiqueter = infos.filter(d => d.pct >= 1.5 && !d.noLabel);
+    const repartir = liste => {
+        const trie = [...liste].sort((a, b) => Math.sin(toRad(a.midAngle)) - Math.sin(toRad(b.midAngle)));
+        const yNaturels = trie.map(d => cy + (radius - 2) * 0.92 * Math.sin(toRad(d.midAngle)));
+        const yAjustes = [...yNaturels];
+        for (let i = 1; i < yAjustes.length; i++) {
+            if (yAjustes[i] - yAjustes[i - 1] < LIGNE_HAUTEUR) yAjustes[i] = yAjustes[i - 1] + LIGNE_HAUTEUR;
+        }
+        const debordement = yAjustes[yAjustes.length - 1] - (size + 4);
+        if (debordement > 0)
+            for (let i = 0; i < yAjustes.length; i++) yAjustes[i] -= debordement;
+        return trie.map((d, i) => ({
+            ...d,
+            yEtiquette: yAjustes[i]
+        }));
+    };
+    const gauche = repartir(aEtiqueter.filter(d => Math.cos(toRad(d.midAngle)) < 0));
+    const droite = repartir(aEtiqueter.filter(d => Math.cos(toRad(d.midAngle)) >= 0));
+    const troncature = (txt, max = 24) => txt && txt.length > max ? `${txt.slice(0,max-1)}…` : txt || "";
+    const etiquettes = [...gauche, ...droite].map((d, i) => {
+        const cote = Math.cos(toRad(d.midAngle)) < 0 ? -1 : 1;
+        const xDepart = cx + (radius - 2) * Math.cos(toRad(d.midAngle));
+        const yDepart = cy + (radius - 2) * Math.sin(toRad(d.midAngle));
+        const xCoude = cx + (radius + 16) * Math.cos(toRad(d.midAngle));
+        const yCoude = cy + (radius + 16) * Math.sin(toRad(d.midAngle));
+        const xFin = cote === -1 ? cx - radius - LABEL_ZONE + 14 : cx + radius + LABEL_ZONE - 14;
         const valeurAffichee = d.taux !== void 0 && d.taux !== null ? d.taux.toFixed(2) : Math.round(d.pct);
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("text", {
-            key: `l${i}`,
-            x: lx,
-            y: ly,
-            textAnchor: "middle",
-            dominantBaseline: "middle",
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("g", {
+            key: `et${i}`
+        }, /*#__PURE__*/ React.createElement("path", {
+            d: `M ${xDepart} ${yDepart} L ${xCoude} ${yCoude} L ${xFin} ${d.yEtiquette}`,
+            fill: "none",
+            stroke: d.color,
+            strokeWidth: "1.4",
+            strokeDasharray: "3.5 3",
+            strokeLinecap: "round",
+            opacity: "0.85"
+        }), /*#__PURE__*/ React.createElement("circle", {
+            cx: xDepart,
+            cy: yDepart,
+            r: "2.6",
+            fill: d.color
+        }), /*#__PURE__*/ React.createElement("circle", {
+            cx: xFin,
+            cy: d.yEtiquette,
+            r: "2.6",
+            fill: d.color
+        }), /*#__PURE__*/ React.createElement("text", {
+            x: xFin + (cote === -1 ? -7 : 7),
+            y: d.yEtiquette - 4,
+            textAnchor: cote === -1 ? "end" : "start",
             style: {
-                fontSize: 12.5,
-                fontWeight: 800,
-                fill: "#ffffff",
-                paintOrder: "stroke",
-                stroke: "rgba(0,0,0,0.45)",
-                strokeWidth: 3
+                fontSize: 11,
+                fontWeight: 700,
+                fill: "#2a3346"
             }
-        }, valeurAffichee, "%");
+        }, troncature(d.label)), /*#__PURE__*/ React.createElement("text", {
+            x: xFin + (cote === -1 ? -7 : 7),
+            y: d.yEtiquette + 10,
+            textAnchor: cote === -1 ? "end" : "start",
+            style: {
+                fontSize: 12,
+                fontWeight: 800,
+                fill: d.color
+            }
+        }, valeurAffichee, "%"));
     });
+    const largeurTotale = size + LABEL_ZONE * 2;
+    const hauteurTotale = size + 20;
     return /*#__PURE__*/ /* @__PURE__ */ React.createElement("svg", {
-        width: size,
-        height: size,
-        viewBox: `0 0 ${size} ${size}`
-    }, slices, labels);
+        width: largeurTotale,
+        height: hauteurTotale,
+        viewBox: `0 0 ${largeurTotale} ${hauteurTotale}`
+    }, slices, etiquettes);
 }
 
 function Presences({
@@ -4984,6 +5099,10 @@ function Presences({
     const [filtreModuleGeolocState, setFiltreModuleGeolocState] = useState("");
     const [rechercheGeolocState, setRechercheGeolocState] = useState("");
     const [mesAbsencesSection, setMesAbsencesSection] = useState("seances");
+    const [anneeTauxGeoloc, setAnneeTauxGeoloc] = useState("2026-2027");
+    const [semestreTauxGeoloc, setSemestreTauxGeoloc] = useState("");
+    const [professeurCinTauxGeoloc, setProfesseurCinTauxGeoloc] = useState("");
+    const [filiereTauxGeoloc, setFiliereTauxGeoloc] = useState("");
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesPresences = role === "etudiant" ? (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId) : role === "professeur" ? (data.presences || []).filter(p => p.enseignantCin === monProfesseur?.cin) : data.presences || [];
     const monEtudiant = (data.etudiants || []).find(e => user?.numInscription && e.numInscription === user.numInscription || user?.etudiantId && e.etudiantId === user.etudiantId); // Toutes les absences de l'utilisateur courant, après application des
@@ -5258,7 +5377,132 @@ function Presences({
         action: canEdit ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
             onClick: openAdd
         }, "+ Enregistrer des absences") : null
-    }), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+    }), role === "professeur" && (() => {
+        const GEOLOC_PALETTE = [C.teal, C.navy, C.orange, C.purple, "#0d9488", C.red, "#c99a2e", "#6b7280"];
+        const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])];
+        const analyse = calculerTauxAbsenceGeoloc(data, {
+            anneeUniversitaire: anneeTauxGeoloc,
+            semestre: semestreTauxGeoloc,
+            professeurCin: monProfesseur?.cin
+        }).map((m, i) => ({
+            ...m,
+            color: GEOLOC_PALETTE[i % GEOLOC_PALETTE.length]
+        }));
+        const pieData = analyse.map(a => ({
+            label: a.module,
+            value: a.absences,
+            color: a.color,
+            taux: a.taux
+        }));
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 20,
+                marginBottom: 20
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: C.teal,
+                marginBottom: 4
+            }
+        }, "📍 Taux d'absence par module (mes cours) — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+            style: {
+                fontSize: 11.5,
+                color: C.muted,
+                margin: "0 0 16px",
+                lineHeight: 1.6
+            }
+        }, "Calculé à partir des confirmations de présence par géolocalisation de vos étudiants, sur vos propres modules uniquement — totalement indépendant de la saisie manuelle des absences ci-dessous."), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                gap: 10,
+                marginBottom: 20,
+                flexWrap: "wrap"
+            }
+        }, /*#__PURE__*/ React.createElement(SelAnnee, {
+            compact: true,
+            label: null,
+            value: anneeTauxGeoloc,
+            onChange: e => setAnneeTauxGeoloc(e.target.value)
+        }), /*#__PURE__*/ React.createElement("select", {
+            value: semestreTauxGeoloc,
+            onChange: e => setSemestreTauxGeoloc(e.target.value),
+            style: {
+                padding: "9px 12px",
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: "inherit",
+                background: C.white
+            }
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous les semestres --"), semestresOptions.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: s,
+            value: s
+        }, s)))), analyse.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            style: {
+                padding: 20,
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 13
+            }
+        }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            style: {
+                display: "flex",
+                gap: 24,
+                flexWrap: "wrap",
+                alignItems: "flex-start"
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                flexShrink: 0,
+                overflowX: "auto",
+                maxWidth: "100%"
+            }
+        }, /*#__PURE__*/ React.createElement(PieChart, {
+            data: pieData,
+            size: 170
+        })), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                flex: "1 1 300px",
+                minWidth: 260
+            }
+        }, analyse.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            key: a.module,
+            style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+                borderBottom: `1px solid ${C.border}`,
+                fontSize: 12.5
+            }
+        }, /*#__PURE__*/ React.createElement("span", {
+            style: {
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: a.color,
+                flexShrink: 0
+            }
+        }), /*#__PURE__*/ React.createElement("span", {
+            style: {
+                flex: 1
+            }
+        }, a.module), /*#__PURE__*/ React.createElement("span", {
+            style: {
+                color: C.muted
+            }
+        }, a.absences, "/", a.seancesAttendues), /*#__PURE__*/ React.createElement("strong", {
+            style: {
+                color: a.taux >= 25 ? C.red : C.navy,
+                minWidth: 46,
+                textAlign: "right"
+            }
+        }, a.taux.toFixed(2), "%"))))));
+    })(), role === "etudiant" && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
         style: {
             padding: 10,
             marginBottom: 20
@@ -5284,6 +5528,11 @@ function Presences({
         icon: "🗓️",
         label: "Détail des séances absentées",
         sub: "liste complète, filtrable"
+    }, {
+        key: "tauxGeoloc",
+        icon: "📍",
+        label: "Taux d'absence par module (géolocalisation)",
+        sub: "distinct de la saisie manuelle ci-dessus"
     }].map((item, idx, arr) => {
         const actif = mesAbsencesSection === item.key;
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -5658,8 +5907,8 @@ function Presences({
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                 key: sem,
                 style: {
-                    flex: "1 1 340px",
-                    minWidth: 300
+                    flex: "1 1 460px",
+                    minWidth: 440
                 }
             }, /*#__PURE__*/ React.createElement("div", {
                 style: {
@@ -5675,7 +5924,8 @@ function Presences({
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    gap: 16
+                    gap: 16,
+                    overflowX: "auto"
                 }
             }, /*#__PURE__*/ React.createElement(PieChart, {
                 data: pieData,
@@ -5726,6 +5976,125 @@ function Presences({
                 }
             }, a.taux.toFixed(2), "%"))))));
         })));
+    })(), role === "etudiant" && mesAbsencesSection === "tauxGeoloc" && (() => {
+        const GEOLOC_PALETTE = [C.teal, C.navy, C.orange, C.purple, "#0d9488", C.red, "#c99a2e", "#6b7280"];
+        const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])];
+        const analyse = calculerTauxAbsenceGeoloc(data, {
+            anneeUniversitaire: anneeTauxGeoloc,
+            semestre: semestreTauxGeoloc,
+            etudiantId: monEtudiant?.id
+        }).map((m, i) => ({
+            ...m,
+            color: GEOLOC_PALETTE[i % GEOLOC_PALETTE.length]
+        }));
+        const pieData = analyse.map(a => ({
+            label: a.module,
+            value: a.absences,
+            color: a.color,
+            taux: a.taux
+        }));
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 20
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: C.teal,
+                marginBottom: 4
+            }
+        }, "📍 Taux d'absence par module — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+            style: {
+                fontSize: 11.5,
+                color: C.muted,
+                margin: "0 0 16px",
+                lineHeight: 1.6
+            }
+        }, "Calculé à partir de vos confirmations de présence par géolocalisation (voir bannière en cours de séance) — totalement indépendant de la saisie manuelle des absences ci-dessus."), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                display: "flex",
+                gap: 10,
+                marginBottom: 20,
+                flexWrap: "wrap"
+            }
+        }, /*#__PURE__*/ React.createElement(SelAnnee, {
+            compact: true,
+            label: null,
+            value: anneeTauxGeoloc,
+            onChange: e => setAnneeTauxGeoloc(e.target.value)
+        }), /*#__PURE__*/ React.createElement("select", {
+            value: semestreTauxGeoloc,
+            onChange: e => setSemestreTauxGeoloc(e.target.value),
+            style: {
+                padding: "9px 12px",
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: "inherit",
+                background: C.white
+            }
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous les semestres --"), semestresOptions.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: s,
+            value: s
+        }, s)))), analyse.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            style: {
+                padding: 20,
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 13
+            }
+        }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            style: {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+                overflowX: "auto"
+            }
+        }, /*#__PURE__*/ React.createElement(PieChart, {
+            data: pieData,
+            size: 170
+        }), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                width: "100%",
+                maxWidth: 420
+            }
+        }, analyse.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            key: a.module,
+            style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+                borderBottom: `1px solid ${C.border}`,
+                fontSize: 12.5
+            }
+        }, /*#__PURE__*/ React.createElement("span", {
+            style: {
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: a.color,
+                flexShrink: 0
+            }
+        }), /*#__PURE__*/ React.createElement("span", {
+            style: {
+                flex: 1
+            }
+        }, a.module), /*#__PURE__*/ React.createElement("span", {
+            style: {
+                color: C.muted
+            }
+        }, a.absences, "/", a.seancesAttendues, " séance(s)"), /*#__PURE__*/ React.createElement("strong", {
+            style: {
+                color: a.taux >= 25 ? C.red : C.navy,
+                minWidth: 46,
+                textAlign: "right"
+            }
+        }, a.taux.toFixed(2), "%"))))));
     })(), role === "etudiant" && mesAbsencesSection === "synthese" && (() => { // La page entière (graphique, tableau de synthèse, liste détaillée)
         // est désormais pilotée par UNE seule année universitaire — celle
         // choisie dans le filtre ci-dessous. On retrouve donc le groupe
@@ -6359,16 +6728,154 @@ function Presences({
             style: {
                 marginTop: 28
             }
-        }, /*#__PURE__*/ React.createElement("h4", {
-            style: {
-                margin: "0 0 12px",
-                color: C.navy,
-                fontSize: 14.5
-            }
-        }, "🚨 Étudiants ayant atteint 25% d'absence par module"), /*#__PURE__*/ React.createElement(Card, {
+        }, (() => {
+            const modeActif = data.configuration?.modeGestionAbsences || "LesDeux";
+            const afficherClassique = modeActif === "Classique" || modeActif === "LesDeux";
+            const afficherGeoloc = modeActif === "Geolocalisation" || modeActif === "LesDeux"; // Calcul du seuil des 25% version GÉOLOCALISATION : entièrement
+            // indépendant du calcul classique ci-dessus (parCle25 /
+            // presencesBase25, basé sur data.presences) — celui-ci se base
+            // uniquement sur data.sessionsQR (confirmations GPS), étudiant
+            // par étudiant, module par module.
+            const lignes25Geoloc = afficherGeoloc ? (() => {
+                const etudiantsBase = (data.etudiants || []).filter(e => !filtreGroupe25 || e.filiere === filtreGroupe25 || (e.parcours || []).some(p => p.filiere === filtreGroupe25 || p.nouvelleFiliere === filtreGroupe25));
+                const anneesAIterer = filtreAnnee25 ? [filtreAnnee25] : ANNEES_UNIVERSITAIRES;
+                const semestresAIterer = filtreSemestre25 ? [filtreSemestre25] : SEMESTRES_MODULE_SEED;
+                const resultats = [];
+                etudiantsBase.forEach(e => {
+                    anneesAIterer.forEach(annee => {
+                        semestresAIterer.forEach(sem => {
+                            calculerTauxAbsenceGeoloc(data, {
+                                anneeUniversitaire: annee,
+                                semestre: sem,
+                                etudiantId: e.id,
+                                professeurCin: role === "professeur" ? monProfesseur?.cin : void 0
+                            }).filter(m => m.taux >= 25).forEach(m => {
+                                resultats.push({
+                                    key: `${e.id}__${m.module}__${annee}__${sem}`,
+                                    etudiant: `${e.prenom} ${e.nom}`,
+                                    numInscription: e.numInscription,
+                                    filiere: filiereEtudiantPourAnnee(e, annee),
+                                    semestre: sem,
+                                    anneeUniversitaire: annee,
+                                    module: m.module,
+                                    absences: m.absences,
+                                    seancesAttendues: m.seancesAttendues,
+                                    taux: m.taux
+                                });
+                            });
+                        });
+                    });
+                });
+                return resultats.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+                    numeric: true,
+                    sensitivity: "base"
+                }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
+                    numeric: true,
+                    sensitivity: "base"
+                }) || b.taux - a.taux || a.etudiant.localeCompare(b.etudiant, "fr", {
+                    sensitivity: "base"
+                }));
+            })() : [];
+            const cols25Geoloc = [{
+                key: "etudiant",
+                label: "Étudiant"
+            }, {
+                key: "numInscription",
+                label: "N° inscription"
+            }, {
+                key: "_filiereCode25g",
+                label: "Filière",
+                render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
+                    code: filiereCode(row.filiere, data.filieres) || row.filiere || ""
+                })
+            }, {
+                key: "semestre",
+                label: "Semestre"
+            }, {
+                key: "anneeUniversitaire",
+                label: "Année universitaire"
+            }, {
+                key: "module",
+                label: "Module"
+            }, {
+                key: "absences",
+                label: "Séances manquées",
+                render: (v, row) => `${v}/${row.seancesAttendues}`
+            }, {
+                key: "taux",
+                label: "Taux d'absence",
+                render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    style: {
+                        fontWeight: 800,
+                        color: C.red
+                    }
+                }, v.toFixed(2), "%")
+            }];
+            return /*#__PURE__*/ /* @__PURE__ */ React.createElement(React.Fragment, null, /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    display: "inline-block",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: C.navy,
+                    background: C.navyLight,
+                    borderRadius: 20,
+                    padding: "5px 14px",
+                    marginBottom: 18
+                }
+            }, modeActif === "Classique" && "📝 Mode officiel actif : Saisie classique uniquement", modeActif === "Geolocalisation" && "📍 Mode officiel actif : Géolocalisation uniquement", modeActif === "LesDeux" && "⚖️ Mode officiel actif : Les deux méthodes, en parallèle", " — ", "modifiable dans Paramétrage → Mode de gestion des absences"), afficherClassique && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                style: {
+                    marginBottom: afficherGeoloc ? 32 : 0
+                }
+            }, /*#__PURE__*/ React.createElement("h4", {
+                style: {
+                    margin: "0 0 12px",
+                    color: C.navy,
+                    fontSize: 14.5
+                }
+            }, "📝 Étudiants ayant atteint 25% d'absence par module — saisie classique"), lignes25.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    padding: 32,
+                    textAlign: "center",
+                    color: C.muted,
+                    fontSize: 13
+                }
+            }, "Aucun étudiant n'a atteint 25% d'absence (saisie classique) pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    overflow: "hidden"
+                }
+            }, /*#__PURE__*/ React.createElement(DataTable, {
+                cols: cols25,
+                rows: lignes25,
+                emptyMsg: "Aucun étudiant concerné",
+                compact: true
+            }))), afficherGeoloc && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement("h4", {
+                style: {
+                    margin: "0 0 12px",
+                    color: C.teal,
+                    fontSize: 14.5
+                }
+            }, "📍 Étudiants ayant atteint 25% d'absence par module — géolocalisation"), lignes25Geoloc.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    padding: 32,
+                    textAlign: "center",
+                    color: C.muted,
+                    fontSize: 13
+                }
+            }, "Aucun étudiant n'a atteint 25% d'absence (géolocalisation) pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    overflow: "hidden"
+                }
+            }, /*#__PURE__*/ React.createElement(DataTable, {
+                cols: cols25Geoloc,
+                rows: lignes25Geoloc,
+                emptyMsg: "Aucun étudiant concerné",
+                compact: true
+            }))));
+        })(), /*#__PURE__*/ React.createElement(Card, {
             style: {
                 padding: 16,
-                marginBottom: 16
+                marginBottom: 16,
+                marginTop: 20
             }
         }, /*#__PURE__*/ React.createElement("div", {
             style: {
@@ -6434,23 +6941,7 @@ function Presences({
         }, "-- Tous les semestres --"), semestresOptions25.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
             key: s,
             value: s
-        }, s))))), lignes25.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-            style: {
-                padding: 32,
-                textAlign: "center",
-                color: C.muted,
-                fontSize: 13
-            }
-        }, "Aucun étudiant n'a atteint 25% d'absence pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-            style: {
-                overflow: "hidden"
-            }
-        }, /*#__PURE__*/ React.createElement(DataTable, {
-            cols: cols25,
-            rows: lignes25,
-            emptyMsg: "Aucun étudiant concerné",
-            compact: true
-        })));
+        }, s))))));
     })(), voirArbrePresences && presencesSection === "geoloc" && (() => {
         const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceProf" || s.type === "PresenceEtudiant");
         const filieresOptionsGeoloc = getFilieres(data);
@@ -6598,7 +7089,7 @@ function Presences({
                 margin: "0 0 14px",
                 lineHeight: 1.6
             }
-        }, "Liste des confirmations envoyées automatiquement par les professeurs et étudiants depuis leur propre appareil, au moment où ils ont cours d'après l'Emploi du temps — validées par leur position GPS (voir Paramétrage → Géolocalisation). Ce suivi est indépendant de la saisie manuelle des absences ci-dessus. Trié par année universitaire, puis semestre, puis séance, puis module."), /*#__PURE__*/ React.createElement("div", {
+        }, "Liste des confirmations envoyées automatiquement par les professeurs et étudiants depuis leur propre appareil, au moment où ils ont cours d'après l'Emploi du temps — validées par leur position GPS (voir Paramétrage → Géolocalisation). Ce suivi est indépendant de la saisie manuelle des absences ci-dessus. Trié par année universitaire, puis semestre, puis séance, puis module. La colonne \"Appareil\" indique le type d'appareil/navigateur utilisé (un numéro de série matériel n'est jamais accessible depuis un navigateur, quel que soit le site) ; survolez une valeur pour voir l'identifiant unique de cet appareil."), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
@@ -6731,6 +7222,17 @@ function Presences({
                 label: "Groupe",
                 render: v => filiereCode(v, data.filieres) || v
             }, {
+                key: "appareilLabel",
+                label: "Appareil",
+                render: (v, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                    title: row.appareilId ? `Identifiant de l'appareil : ${row.appareilId}` : "Identifiant de l'appareil non disponible (confirmation antérieure à cette fonctionnalité)",
+                    style: {
+                        fontSize: 11.5,
+                        cursor: "help",
+                        borderBottom: `1px dotted ${C.muted}`
+                    }
+                }, v || "—")
+            }, {
                 key: "scanneLe",
                 label: "Confirmé à",
                 render: v => v ? v.split(" ")[1] || v : "—"
@@ -6742,7 +7244,114 @@ function Presences({
                 background: bandeParId[row.id] === 0 ? C.navyLight : "#e0f4f2",
                 borderTop: premiereLigneGroupeId[row.id] ? `2px solid ${C.navy}` : void 0
             })
-        })), groupesAvecAbsentsGeoloc.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+        })), (() => {
+            const GEOLOC_PALETTE = [C.teal, C.navy, C.orange, C.purple, "#0d9488", C.red, "#c99a2e", "#6b7280"];
+            if (!filtreAnneeGeolocState || !filtreSemestreGeolocState) {
+                return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                    style: {
+                        padding: 20,
+                        marginTop: 16,
+                        textAlign: "center",
+                        color: C.muted,
+                        fontSize: 12.5
+                    }
+                }, "📊 Sélectionnez une année universitaire et un semestre précis (dans les filtres ci-dessus) pour afficher le taux d'absence par module — d'après la géolocalisation.");
+            }
+            const analyse = calculerTauxAbsenceGeoloc(data, {
+                anneeUniversitaire: filtreAnneeGeolocState,
+                semestre: filtreSemestreGeolocState,
+                filiere: filtreFiliereGeolocState || void 0
+            }).map((m, i) => ({
+                ...m,
+                color: GEOLOC_PALETTE[i % GEOLOC_PALETTE.length]
+            }));
+            const pieData = analyse.map(a => ({
+                label: a.module,
+                value: a.absences,
+                color: a.color,
+                taux: a.taux
+            }));
+            return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+                style: {
+                    padding: 20,
+                    marginTop: 16
+                }
+            }, /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: C.teal,
+                    marginBottom: 4
+                }
+            }, "📍 Taux d'absence par module — ", filtreAnneeGeolocState, " — ", filtreSemestreGeolocState, " — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+                style: {
+                    fontSize: 11.5,
+                    color: C.muted,
+                    margin: "0 0 16px",
+                    lineHeight: 1.6
+                }
+            }, "Calculé à partir des confirmations de présence par géolocalisation des étudiants — totalement indépendant de la saisie manuelle des absences (\"Gestion des absences\" classique)."), analyse.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                style: {
+                    padding: 20,
+                    textAlign: "center",
+                    color: C.muted,
+                    fontSize: 13
+                }
+            }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                style: {
+                    display: "flex",
+                    gap: 24,
+                    flexWrap: "wrap",
+                    alignItems: "flex-start"
+                }
+            }, /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    flexShrink: 0,
+                    overflowX: "auto",
+                    maxWidth: "100%"
+                }
+            }, /*#__PURE__*/ React.createElement(PieChart, {
+                data: pieData,
+                size: 180
+            })), /*#__PURE__*/ React.createElement("div", {
+                style: {
+                    flex: "1 1 320px",
+                    minWidth: 280
+                }
+            }, analyse.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+                key: a.module,
+                style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "7px 0",
+                    borderBottom: `1px solid ${C.border}`,
+                    fontSize: 12.5
+                }
+            }, /*#__PURE__*/ React.createElement("span", {
+                style: {
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: a.color,
+                    flexShrink: 0
+                }
+            }), /*#__PURE__*/ React.createElement("span", {
+                style: {
+                    flex: 1
+                }
+            }, a.module), /*#__PURE__*/ React.createElement("span", {
+                style: {
+                    color: C.muted
+                }
+            }, a.absences, "/", a.seancesAttendues), /*#__PURE__*/ React.createElement("strong", {
+                style: {
+                    color: a.taux >= 25 ? C.red : C.navy,
+                    minWidth: 46,
+                    textAlign: "right"
+                }
+            }, a.taux.toFixed(2), "%"))))));
+        })(), groupesAvecAbsentsGeoloc.length > 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
             style: {
                 padding: 16,
                 marginTop: 16,
@@ -11732,6 +12341,38 @@ function Parametrage({
             appliquerModeConnexionForcee(mode);
             toast(mode === "HorsLigne" ? "🔌 Mode Hors ligne activé — l'application n'utilisera plus que les données déjà en cache local" : "🌐 Mode Connecté activé — synchronisation avec SharePoint reprise");
         });
+    }; // Mode de gestion des absences : détermine quelle méthode fait foi pour
+    // les conséquences officielles (seuil des 25%, justifications requises)
+    // — "Classique" (saisie manuelle), "Geolocalisation", ou "LesDeux" (les
+    // deux tableaux sont montrés côte à côte, sans jamais être fusionnés).
+    // Les deux volets de présentation restent de toute façon toujours
+    // visibles et strictement séparés dans l'application, quel que soit ce
+    // choix — celui-ci ne fait que déterminer lequel sert de référence
+    // officielle.
+    const handleSetModeGestionAbsences = mode => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+            return;
+        }
+        const spId = data.configuration?._spId;
+        saveToSP("ECOGEST_Parametres", {
+            Title: "Configuration ECOGEST",
+            ModeGestionAbsences: mode
+        }, user.token, spId).then(result => {
+            if (!result) {
+                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'ModeGestionAbsences' existe bien dans la liste SharePoint ECOGEST_Parametres");
+                return;
+            }
+            setData(d => ({
+                ...d,
+                configuration: {
+                    ...d.configuration,
+                    modeGestionAbsences: mode,
+                    _spId: result._offline ? d.configuration?._spId : result.id || d.configuration?._spId
+                }
+            }));
+            toast("Mode de gestion des absences mis à jour ✓");
+        });
     };
     const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
     const [horairesEdit, setHorairesEdit] = useState([]);
@@ -11756,6 +12397,38 @@ function Parametrage({
         }, user.token, spId).then(result => {
             if (!result) {
                 toast("⚠️ Échec de l'enregistrement");
+                return;
+            }
+            if (!spId) setData(d => ({
+                ...d,
+                configuration: {
+                    ...d.configuration,
+                    _spId: result.id
+                }
+            }));
+        });
+    };
+    const handleToggleFiliereGeolocAbsences = filiere => {
+        if (!user?.token) {
+            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+            return;
+        }
+        const actuelles = data.configuration?.filieresAvecGeolocAbsences || [];
+        const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
+        const spId = data.configuration?._spId;
+        setData(d => ({
+            ...d,
+            configuration: {
+                ...d.configuration,
+                filieresAvecGeolocAbsences: nouvelles
+            }
+        }));
+        saveToSP("ECOGEST_Parametres", {
+            Title: "Configuration ECOGEST",
+            FilieresAvecGeolocAbsences: nouvelles.join(" | ")
+        }, user.token, spId).then(result => {
+            if (!result) {
+                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'FilieresAvecGeolocAbsences' existe bien dans la liste SharePoint ECOGEST_Parametres");
                 return;
             }
             if (!spId) setData(d => ({
@@ -12175,6 +12848,81 @@ function Parametrage({
     }, "⚠️ Mode Hors ligne actif pour tous les utilisateurs de l'application, sur tous les appareils — pensez à repasser en mode Connecté dès que la situation le permet, pour que les modifications en attente soient synchronisées avec SharePoint.")), /*#__PURE__*/ React.createElement(Card, {
         style: {
             padding: 24,
+            maxWidth: 620,
+            marginBottom: 20
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            fontWeight: 700,
+            color: C.orange,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 10
+        }
+    }, "🎓 Mode de gestion des absences"), /*#__PURE__*/ React.createElement("p", {
+        style: {
+            fontSize: 13,
+            color: "#555",
+            marginBottom: 16,
+            lineHeight: 1.6
+        }
+    }, "Détermine quelle méthode fait foi pour les conséquences officielles (seuil des 25% d'absence, obligation de justification). Les deux volets de présentation des résultats (saisie classique et géolocalisation) restent dans tous les cas toujours visibles séparément, dans les sessions Admin, professeur, étudiant et direction — ce réglage ne fait que désigner lequel des deux est la référence officielle de l'établissement."), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 8
+        }
+    }, [{
+        valeur: "Classique",
+        icon: "📝",
+        titre: "Saisie classique",
+        desc: "La saisie manuelle des absences (formulaire de présence) fait foi pour le seuil des 25% et les justifications."
+    }, {
+        valeur: "Geolocalisation",
+        icon: "📍",
+        titre: "Géolocalisation",
+        desc: "Les confirmations de présence par géolocalisation font foi pour le seuil des 25% et les justifications."
+    }, {
+        valeur: "LesDeux",
+        icon: "⚖️",
+        titre: "Les deux en parallèle (par défaut)",
+        desc: "Aucune méthode n'est désignée comme référence unique — les deux tableaux du seuil des 25% sont affichés côte à côte, clairement séparés."
+    }].map(opt => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
+        key: opt.valeur,
+        style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            border: `1px solid ${(data.configuration?.modeGestionAbsences||"LesDeux")===opt.valeur?C.navy:C.border}`,
+            borderRadius: 8,
+            cursor: "pointer",
+            fontSize: 13,
+            background: (data.configuration?.modeGestionAbsences || "LesDeux") === opt.valeur ? C.navyLight : "transparent"
+        }
+    }, /*#__PURE__*/ React.createElement("input", {
+        type: "radio",
+        name: "modeGestionAbsences",
+        checked: (data.configuration?.modeGestionAbsences || "LesDeux") === opt.valeur,
+        onChange: () => handleSetModeGestionAbsences(opt.valeur),
+        style: {
+            width: 16,
+            height: 16,
+            cursor: "pointer"
+        }
+    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontWeight: 700
+        }
+    }, opt.icon, " ", opt.titre), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11.5,
+            color: C.muted
+        }
+    }, opt.desc)))))), /*#__PURE__*/ React.createElement(Card, {
+        style: {
+            padding: 24,
             maxWidth: 480,
             marginBottom: 20
         }
@@ -12279,6 +13027,65 @@ function Parametrage({
             color: C.muted
         }
     }, (data.configuration?.filieresAvecWeekend || []).includes(f) ? "Lundi → dimanche" : "Lundi → vendredi"))))), /*#__PURE__*/ React.createElement(Card, {
+        style: {
+            padding: 24,
+            maxWidth: 620,
+            marginTop: 20
+        }
+    }, /*#__PURE__*/ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            fontWeight: 700,
+            color: C.teal,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 10
+        }
+    }, "📍 Groupes administrés par géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+        style: {
+            fontSize: 13,
+            color: "#555",
+            marginBottom: 16,
+            lineHeight: 1.6
+        }
+    }, "Cochez les groupes dont les absences sont administrées par confirmation de présence GPS plutôt que par la saisie manuelle classique. Pour un groupe coché, la bannière/fenêtre de confirmation de présence s'affichera aux étudiants et au professeur concernés pendant leurs séances. Pour un groupe non coché, cette bannière ne s'affiche jamais — leurs absences restent administrées uniquement par la saisie classique."), /*#__PURE__*/ React.createElement("div", {
+        style: {
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            maxHeight: 220,
+            overflowY: "auto"
+        }
+    }, getFilieres(data).map((f, i, arr) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
+        key: f,
+        style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            padding: "9px 14px",
+            borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
+            cursor: "pointer",
+            fontSize: 13
+        }
+    }, /*#__PURE__*/ React.createElement("input", {
+        type: "checkbox",
+        checked: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f),
+        onChange: () => handleToggleFiliereGeolocAbsences(f),
+        style: {
+            width: 16,
+            height: 16,
+            cursor: "pointer"
+        }
+    }), f, /*#__PURE__*/ React.createElement("span", {
+        style: {
+            marginLeft: "auto",
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? C.teal : C.muted,
+            background: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "#e3f8f2" : C.light,
+            borderRadius: 12,
+            padding: "3px 10px"
+        }
+    }, (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "📍 Géolocalisation" : "📝 Classique"))))), /*#__PURE__*/ React.createElement(Card, {
         style: {
             padding: 24,
             maxWidth: 620,
@@ -19491,7 +20298,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.256.0";
+const APP_VERSION = "v3.260.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -20537,7 +21344,49 @@ async function saveToSPOnline(list, fields, token, spId) {
 // "optimiste" (avec un identifiant temporaire pour une création), pour que
 // tout le code appelant continue de fonctionner sans savoir qu'il est hors ligne.
 const OFFLINE_QUEUE_KEY = "ecogest_offline_queue_v1";
-const OFFLINE_DATA_CACHE_KEY = "ecogest_data_cache_v1"; // Bascule manuelle "Mode de connexion" (Paramétrage → Connecté / Hors
+const OFFLINE_DATA_CACHE_KEY = "ecogest_data_cache_v1";
+const APPAREIL_ID_KEY = "ecogest_appareil_id_v1"; // Un vrai numéro de série matériel (IMEI d'un téléphone, numéro de série
+// d'un ordinateur) n'est JAMAIS accessible depuis un navigateur web, sur
+// aucun site — c'est une restriction de sécurité/vie privée imposée par
+// tous les navigateurs. La meilleure traçabilité possible depuis le web
+// consiste donc en : (1) un résumé lisible du type d'appareil/navigateur
+// utilisé, et (2) un identifiant propre à CET appareil, généré une seule
+// fois puis conservé localement — il reste identique à chaque nouvelle
+// confirmation depuis le même téléphone/ordinateur, ce qui permet de
+// repérer par exemple un même appareil confirmant pour plusieurs
+// personnes différentes.
+function getAppareilId() {
+    try {
+        let id = localStorage.getItem(APPAREIL_ID_KEY);
+        if (!id) {
+            id = `appareil-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
+            localStorage.setItem(APPAREIL_ID_KEY, id);
+        }
+        return id;
+    } catch (e) {
+        return "";
+    }
+}
+
+function getAppareilLabel() {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    let type = "Appareil inconnu";
+    if (/iPhone/i.test(ua)) type = "iPhone";
+    else if (/iPad/i.test(ua)) type = "iPad";
+    else if (/Android/i.test(ua)) {
+        const m = ua.match(/Android[^;)]*;\s*([^)]+)\)/);
+        type = m ? m[1].split("Build")[0].trim() : "Android";
+    } else if (/Windows/i.test(ua)) type = "Windows";
+    else if (/Macintosh/i.test(ua)) type = "Mac";
+    else if (/Linux/i.test(ua)) type = "Linux";
+    let navig = "Navigateur inconnu";
+    if (/Edg\//i.test(ua)) navig = "Edge";
+    else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) navig = "Opera";
+    else if (/Chrome\//i.test(ua)) navig = "Chrome";
+    else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) navig = "Safari";
+    else if (/Firefox\//i.test(ua)) navig = "Firefox";
+    return `${type} · ${navig}`;
+} // Bascule manuelle "Mode de connexion" (Paramétrage → Connecté / Hors
 // ligne) : quand elle vaut "HorsLigne", TOUT le code qui interroge
 // isBrowserOnline() (déjà utilisé partout pour décider entre un appel
 // SharePoint réel ou la file d'attente/le cache local) se comporte comme
@@ -20740,7 +21589,7 @@ const SP_LISTS_SCHEMA = {
     // professeur au démarrage d'une séance, avec un Token qui tourne toutes
     // les ~90s) soit un "Scan" (créé par un étudiant qui confirme sa présence
     // via le QR affiché, relié à la session par SessionId).
-    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "AnneeUniversitaire", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Demandes de modification/suppression d'évaluations soumises par un
+    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "AnneeUniversitaire", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe", "AppareilLabel", "AppareilId"], // Demandes de modification/suppression d'évaluations soumises par un
     // professeur — restent "En attente" jusqu'à validation ou refus par un
     // administrateur/directrice ; la modification/suppression réelle des
     // notes n'est appliquée qu'au moment de la validation.
@@ -20749,7 +21598,7 @@ const SP_LISTS_SCHEMA = {
     // Iliass Elmzioui ; l'acceptation revalide directement la séance
     // concernée.
     ECOGEST_ContestationsPointage: ["FicheId", "SeanceId", "ProfesseurCIN", "ProfesseurNom", "Motif", "Module", "Date", "StatutSeanceAvant", "Statut", "DateContestation", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
-    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT", "ModeConnexion"],
+    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT", "ModeConnexion", "ModeGestionAbsences", "FilieresAvecGeolocAbsences"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
     ECOGEST_Calendrier: ["TypeEvenement", "DateDebut", "DateFin", "Description", "Filiere"]
@@ -21352,7 +22201,9 @@ async function loadAllFromSP(token) {
             etudiantId: g(s, "EtudiantId"),
             etudiantNom: g(s, "EtudiantNom"),
             numInscription: g(s, "NumInscription"),
-            scanneLe: g(s, "ScanneLe")
+            scanneLe: g(s, "ScanneLe"),
+            appareilLabel: g(s, "AppareilLabel"),
+            appareilId: g(s, "AppareilId")
         })),
         demandesEvaluations: demandesEvaluationsSP.map(r => ({
             _spId: r._spId,
@@ -21409,7 +22260,9 @@ async function loadAllFromSP(token) {
             geolocalisationActive: g(parametresSP[0] || {}, "GeolocalisationActive") === "true" || g(parametresSP[0] || {}, "GeolocalisationActive") === true,
             decalageGMT: g(parametresSP[0] || {}, "DecalageGMT") || "1",
             filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean),
-            modeConnexion: g(parametresSP[0] || {}, "ModeConnexion") === "HorsLigne" ? "HorsLigne" : "Connecte"
+            modeConnexion: g(parametresSP[0] || {}, "ModeConnexion") === "HorsLigne" ? "HorsLigne" : "Connecte",
+            modeGestionAbsences: ["Classique", "Geolocalisation", "LesDeux"].includes(g(parametresSP[0] || {}, "ModeGestionAbsences")) ? g(parametresSP[0] || {}, "ModeGestionAbsences") : "LesDeux",
+            filieresAvecGeolocAbsences: (g(parametresSP[0] || {}, "FilieresAvecGeolocAbsences") || "").split("|").map(s => s.trim()).filter(Boolean)
         },
         calendrier: calendrier.map(c => ({
             _spId: c._spId,
@@ -21492,23 +22345,29 @@ function App() {
     // — même si les dates de début/fin de chaque créneau suffisent déjà en
     // pratique à les distinguer correctement.
     const anneeUniversitaireActuelle = moisVersAnneeUniversitaire(today().slice(0, 7), moisDebutAnneeUniversitaire(data.semestresDates));
-    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
-    // CORRECTIF (v2) : un étudiant PROMU entre-temps (ex: passé de
-    // B1-SI/2026-2027 à B2-SI/2027-2028) doit continuer à recevoir la
-    // bannière pour les cours de son ANCIEN groupe tant que l'année du
-    // créneau correspond à une année où il a réellement fait partie de ce
-    // groupe — la comparaison ne doit donc JAMAIS se baser uniquement sur
-    // sa filière ACTUELLE ni sur sa seule promotion actuelle, mais sur sa
-    // filière HISTORIQUE pour l'année précise du créneau, après avoir
-    // vérifié qu'il a bien un lien réel avec cette année (promotion
-    // actuelle OU une étape de son parcours, dans un sens comme dans
-    // l'autre) — même principe d'éligibilité déjà utilisé partout ailleurs
-    // dans l'application (page Étudiants, saisie classique des
-    // absences...).
+    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle) && // Le réglage "Groupes administrés par géolocalisation"
+        // (Paramétrage) détermine, groupe par groupe, si la bannière de
+        // confirmation de présence doit se déclencher — un professeur ne
+        // reçoit donc cette invitation que pour SES séances données à un
+        // groupe explicitement coché.
+        (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere), 5, 0) : null;
     const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => {
-        if (!e.anneeUniversitaire) return e.filiere === monEtudiantSessionQR.filiere;
+        if (!e.anneeUniversitaire) return e.filiere === monEtudiantSessionQR.filiere && (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere); // CORRECTIF (v2) : un étudiant PROMU entre-temps (ex: passé de
+        // B1-SI/2026-2027 à B2-SI/2027-2028) doit continuer à recevoir la
+        // bannière pour les cours de son ANCIEN groupe tant que l'année
+        // du créneau correspond à une année où il a réellement fait
+        // partie de ce groupe — la comparaison ne doit donc JAMAIS se
+        // baser uniquement sur sa filière ACTUELLE (monEtudiantSessionQR.
+        // filiere) ni sur sa seule promotion actuelle, mais sur sa
+        // filière HISTORIQUE pour l'année précise du créneau, après
+        // avoir vérifié qu'il a bien un lien réel avec cette année
+        // (promotion actuelle OU une étape de son parcours, dans un sens
+        // comme dans l'autre) — même principe d'éligibilité déjà utilisé
+        // partout ailleurs dans l'application (page Étudiants, saisie
+        // classique des absences...).
         const eligible = monEtudiantSessionQR.promotion === e.anneeUniversitaire || (monEtudiantSessionQR.parcours || []).some(p => p.anneeUniversitaire === e.anneeUniversitaire || p.nouvelleAnneeUniversitaire === e.anneeUniversitaire);
         if (!eligible) return false;
+        if (!(data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere)) return false;
         return filiereEtudiantPourAnnee(monEtudiantSessionQR, e.anneeUniversitaire) === e.filiere;
     }, 5, 0) : null;
     const creneauPourMoi = roleTmp === "professeur" ? creneauEnCoursProf : creneauEnCoursEtudiantGeoloc;
@@ -21570,6 +22429,20 @@ function App() {
         if (!creneauPourMoi || !userTmp?.token) return;
         if (geoRequiseGlobal && statutGeolocBanniere !== "dans_le_perimetre") {
             return;
+        } // Anti-fraude : un même appareil (identifiant persistant local) ne
+        // peut pas confirmer la présence de PLUSIEURS étudiants différents sur
+        // la MÊME séance — cas typique d'un étudiant présent qui confirmerait
+        // aussi à la place d'un camarade absent avec son propre téléphone. Un
+        // même appareil reste bien sûr libre de confirmer pour DIFFÉRENTES
+        // séances (jours/créneaux différents), seule la combinaison "même
+        // appareil + même séance + étudiant différent" est bloquée.
+        if (roleTmp === "etudiant" && monEtudiantSessionQR) {
+            const monAppareilId = getAppareilId();
+            const dejaUtiliseParAutrui = (data.sessionsQR || []).find(s => s.type === "PresenceEtudiant" && s.appareilId && s.appareilId === monAppareilId && String(s.etudiantId) !== String(monEtudiantSessionQR.id) && s.anneeUniversitaire === creneauPourMoi.anneeUniversitaire && s.semestre === creneauPourMoi.semestre && s.filiere === creneauPourMoi.filiere && s.module === creneauPourMoi.module && s.dateSeance === creneauPourMoi.dateStr && s.seance === creneauPourMoi.seance);
+            if (dejaUtiliseParAutrui) {
+                toast(`⚠️ Cet appareil a déjà été utilisé par ${dejaUtiliseParAutrui.etudiantNom||"un autre étudiant"} pour confirmer cette même séance — confirmation refusée`);
+                return;
+            }
         }
         setConfirmationEnCours(true);
         const champsCommuns = {
@@ -21580,7 +22453,9 @@ function App() {
             DateSeance: creneauPourMoi.dateStr,
             Seance: creneauPourMoi.seance,
             ScanneLe: maintenantHeureLocale(data.configuration?.decalageGMT),
-            Statut: "Active"
+            Statut: "Active",
+            AppareilLabel: getAppareilLabel(),
+            AppareilId: getAppareilId()
         };
         const fields = roleTmp === "professeur" ? {
             Title: `Présence prof - ${monProfesseurGlobal?.nom||""} - ${creneauPourMoi.dateStr}`,
