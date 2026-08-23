@@ -20364,7 +20364,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.262.0";
+const APP_VERSION = "v3.262.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21452,6 +21452,33 @@ function getAppareilLabel() {
     else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) navig = "Safari";
     else if (/Firefox\//i.test(ua)) navig = "Firefox";
     return `${type} · ${navig}`;
+}
+// Depuis 2023, Chrome et les navigateurs basés dessus (Edge, Opera...)
+// renvoient volontairement un modèle d'appareil générique et réduit (ex:
+// la simple lettre "K") dans le User-Agent classique, pour des raisons de
+// confidentialité ("User-Agent Reduction") — le vrai modèle (ex: "Redmi
+// Note 12", "CPH2223" pour un OPPO) n'y est plus disponible. L'API plus
+// récente "User-Agent Client Hints" (navigator.userAgentData) permet de le
+// récupérer malgré tout, sur les navigateurs qui la prennent en charge —
+// à défaut (Safari, Firefox, anciens navigateurs), on retombe sur
+// l'analyse classique du User-Agent ci-dessus.
+async function getAppareilLabelPrecis() {
+    try {
+        if (typeof navigator !== "undefined" && navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+            const infos = await navigator.userAgentData.getHighEntropyValues(["model", "platform"]);
+            if (infos?.model) {
+                const ua = navigator.userAgent || "";
+                let navig = "Navigateur inconnu";
+                if (/Edg\//i.test(ua)) navig = "Edge";
+                else if (/OPR\//i.test(ua)) navig = "Opera";
+                else if (/Chrome\//i.test(ua)) navig = "Chrome";
+                return `${infos.model} · ${navig}`;
+            }
+        }
+    } catch (e) {
+        console.warn("User-Agent Client Hints indisponible, repli sur l'analyse classique:", e.message);
+    }
+    return getAppareilLabel();
 } // Bascule manuelle "Mode de connexion" (Paramétrage → Connecté / Hors
 // ligne) : quand elle vaut "HorsLigne", TOUT le code qui interroge
 // isBrowserOnline() (déjà utilisé partout pour décider entre un appel
@@ -22511,6 +22538,10 @@ function App() {
             }
         }
         setConfirmationEnCours(true);
+        // Tente d'obtenir le VRAI modèle de l'appareil via l'API "User-Agent
+        // Client Hints" (disponible sur Chrome/Edge/Opera) — avec repli
+        // automatique sur l'analyse classique du User-Agent si indisponible.
+        const appareilLabelPrecis = await getAppareilLabelPrecis();
         const champsCommuns = {
             Filiere: creneauPourMoi.filiere,
             Semestre: creneauPourMoi.semestre,
@@ -22520,7 +22551,7 @@ function App() {
             Seance: creneauPourMoi.seance,
             ScanneLe: maintenantHeureLocale(data.configuration?.decalageGMT),
             Statut: "Active",
-            AppareilLabel: getAppareilLabel(),
+            AppareilLabel: appareilLabelPrecis,
             AppareilId: getAppareilId()
         };
         const fields = roleTmp === "professeur" ? {
