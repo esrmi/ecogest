@@ -4979,6 +4979,10 @@ function Presences({
     const [filtreDateGeolocState, setFiltreDateGeolocState] = useState("");
     const [filtreFiliereGeolocState, setFiltreFiliereGeolocState] = useState("");
     const [filtreTypeGeolocState, setFiltreTypeGeolocState] = useState("");
+    const [filtreAnneeGeolocState, setFiltreAnneeGeolocState] = useState("");
+    const [filtreSemestreGeolocState, setFiltreSemestreGeolocState] = useState("");
+    const [filtreModuleGeolocState, setFiltreModuleGeolocState] = useState("");
+    const [rechercheGeolocState, setRechercheGeolocState] = useState("");
     const [mesAbsencesSection, setMesAbsencesSection] = useState("seances");
     const monProfesseur = (data.professeurs || []).find(p => p.email && user?.email && p.email.toLowerCase() === user.email.toLowerCase());
     const mesPresences = role === "etudiant" ? (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId) : role === "professeur" ? (data.presences || []).filter(p => p.enseignantCin === monProfesseur?.cin) : data.presences || [];
@@ -6450,9 +6454,43 @@ function Presences({
     })(), voirArbrePresences && presencesSection === "geoloc" && (() => {
         const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceProf" || s.type === "PresenceEtudiant");
         const filieresOptionsGeoloc = getFilieres(data);
-        const dateAujourdhui = today();
-        const filtreDateGeoloc = filtreDateGeolocState || dateAujourdhui;
-        const confirmationsFiltrees = confirmations.filter(s => !filtreDateGeoloc || s.dateSeance === filtreDateGeoloc).filter(s => !filtreFiliereGeolocState || s.filiere === filtreFiliereGeolocState).filter(s => !filtreTypeGeolocState || s.type === filtreTypeGeolocState).sort((a, b) => (b.dateSeance || "").localeCompare(a.dateSeance || "") || (a.scanneLe || "").localeCompare(b.scanneLe || ""));
+        const anneesOptionsGeoloc = [... /* @__PURE__ */ new Set(confirmations.map(s => s.anneeUniversitaire).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        const semestresOptionsGeoloc = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...confirmations.map(s => s.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
+            numeric: true,
+            sensitivity: "base"
+        }));
+        const modulesOptionsGeoloc = [... /* @__PURE__ */ new Set(confirmations.filter(s => !filtreFiliereGeolocState || s.filiere === filtreFiliereGeolocState).map(s => s.module).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
+            sensitivity: "base"
+        }));
+        const confirmationsFiltrees = confirmations.filter(s => !filtreDateGeolocState || s.dateSeance === filtreDateGeolocState).filter(s => !filtreAnneeGeolocState || s.anneeUniversitaire === filtreAnneeGeolocState).filter(s => !filtreSemestreGeolocState || s.semestre === filtreSemestreGeolocState).filter(s => !filtreFiliereGeolocState || s.filiere === filtreFiliereGeolocState).filter(s => !filtreModuleGeolocState || s.module === filtreModuleGeolocState).filter(s => !filtreTypeGeolocState || s.type === filtreTypeGeolocState).filter(s => {
+                if (!rechercheGeolocState.trim()) return true;
+                const nom = (s.type === "PresenceProf" ? s.professeurNom : s.etudiantNom) || "";
+                return nom.toLowerCase().includes(rechercheGeolocState.trim().toLowerCase());
+            }) // Tri multi-niveaux demandé : année universitaire → semestre →
+            // séance (créneau horaire) → module, avec la date puis le nom
+            // comme critères de départage finaux.
+            .sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "") || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
+                numeric: true,
+                sensitivity: "base"
+            }) || (a.seance || "").localeCompare(b.seance || "") || (a.module || "").localeCompare(b.module || "", "fr", {
+                sensitivity: "base"
+            }) || (b.dateSeance || "").localeCompare(a.dateSeance || "") || (a.type === "PresenceProf" ? a.professeurNom : a.etudiantNom || "").localeCompare(b.type === "PresenceProf" ? b.professeurNom : b.etudiantNom || "")); // Bandeau visuel : une nouvelle teinte de fond à chaque
+        // changement de groupe (année+semestre+séance+module), pour
+        // repérer d'un coup d'œil les regroupements du tri multi-niveaux
+        // ci-dessus, sans pour autant replier le tableau en arbre.
+        const bandeParId = {};
+        const premiereLigneGroupeId = {};
+        let bande = 0,
+            cleGroupePrecedente = null;
+        confirmationsFiltrees.forEach(s => {
+            const cleGroupe = `${s.anneeUniversitaire}|||${s.semestre}|||${s.seance}|||${s.module}`;
+            if (cleGroupe !== cleGroupePrecedente) {
+                bande = 1 - bande;
+                cleGroupePrecedente = cleGroupe;
+                premiereLigneGroupeId[s.id] = true;
+            }
+            bandeParId[s.id] = bande;
+        });
         const nbProfs = confirmationsFiltrees.filter(s => s.type === "PresenceProf").length;
         const nbEtudiants = confirmationsFiltrees.filter(s => s.type === "PresenceEtudiant").length;
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(Card, {
@@ -6474,44 +6512,96 @@ function Presences({
                 margin: "0 0 14px",
                 lineHeight: 1.6
             }
-        }, "Liste des confirmations envoyées automatiquement par les professeurs et étudiants depuis leur propre appareil, au moment où ils ont cours d'après l'Emploi du temps — validées par leur position GPS (voir Paramétrage → Géolocalisation). Ce suivi est indépendant de la saisie manuelle des absences ci-dessus."), /*#__PURE__*/ React.createElement("div", {
+        }, "Liste des confirmations envoyées automatiquement par les professeurs et étudiants depuis leur propre appareil, au moment où ils ont cours d'après l'Emploi du temps — validées par leur position GPS (voir Paramétrage → Géolocalisation). Ce suivi est indépendant de la saisie manuelle des absences ci-dessus. Trié par année universitaire, puis semestre, puis séance, puis module."), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: 10
             }
-        }, /*#__PURE__*/ React.createElement(Input, {
-            label: "Date",
-            type: "date",
-            value: filtreDateGeoloc,
-            onChange: e => setFiltreDateGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("input", {
+            placeholder: "🔍 Rechercher un nom...",
+            value: rechercheGeolocState,
+            onChange: e => setRechercheGeolocState(e.target.value),
+            style: {
+                padding: "9px 12px",
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: "inherit"
+            }
         }), /*#__PURE__*/ React.createElement(Sel, {
-            label: "Filière",
+            label: null,
+            value: filtreAnneeGeolocState,
+            onChange: e => setFiltreAnneeGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Toutes les années --"), anneesOptionsGeoloc.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: a,
+            value: a
+        }, a))), /*#__PURE__*/ React.createElement(Sel, {
+            label: null,
+            value: filtreSemestreGeolocState,
+            onChange: e => setFiltreSemestreGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous les semestres --"), semestresOptionsGeoloc.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: s,
+            value: s
+        }, s))), /*#__PURE__*/ React.createElement(Sel, {
+            label: null,
             value: filtreFiliereGeolocState,
-            onChange: e => setFiltreFiliereGeolocState(e.target.value)
+            onChange: e => {
+                setFiltreFiliereGeolocState(e.target.value);
+                setFiltreModuleGeolocState("");
+            }
         }, /*#__PURE__*/ React.createElement("option", {
             value: ""
         }, "-- Tous les groupes --"), filieresOptionsGeoloc.map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
             key: f,
             value: f
         }, f))), /*#__PURE__*/ React.createElement(Sel, {
-            label: "Type",
+            label: null,
+            value: filtreModuleGeolocState,
+            onChange: e => setFiltreModuleGeolocState(e.target.value)
+        }, /*#__PURE__*/ React.createElement("option", {
+            value: ""
+        }, "-- Tous les modules --"), modulesOptionsGeoloc.map(m => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
+            key: m,
+            value: m
+        }, m))), /*#__PURE__*/ React.createElement(Sel, {
+            label: null,
             value: filtreTypeGeolocState,
             onChange: e => setFiltreTypeGeolocState(e.target.value)
         }, /*#__PURE__*/ React.createElement("option", {
             value: ""
-        }, "-- Tous --"), /*#__PURE__*/ React.createElement("option", {
+        }, "-- Tous (profs + étudiants) --"), /*#__PURE__*/ React.createElement("option", {
             value: "PresenceProf"
-        }, "Professeurs"), /*#__PURE__*/ React.createElement("option", {
+        }, "Professeurs uniquement"), /*#__PURE__*/ React.createElement("option", {
             value: "PresenceEtudiant"
-        }, "Étudiants"))), /*#__PURE__*/ React.createElement("div", {
+        }, "Étudiants uniquement")), /*#__PURE__*/ React.createElement(Input, {
+            label: null,
+            type: "date",
+            value: filtreDateGeolocState,
+            onChange: e => setFiltreDateGeolocState(e.target.value)
+        }), (filtreAnneeGeolocState || filtreSemestreGeolocState || filtreFiliereGeolocState || filtreModuleGeolocState || filtreTypeGeolocState || filtreDateGeolocState || rechercheGeolocState) && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Btn, {
+            variant: "light",
+            onClick: () => {
+                setFiltreAnneeGeolocState("");
+                setFiltreSemestreGeolocState("");
+                setFiltreFiliereGeolocState("");
+                setFiltreModuleGeolocState("");
+                setFiltreTypeGeolocState("");
+                setFiltreDateGeolocState("");
+                setRechercheGeolocState("");
+            }
+        }, "✕ Réinitialiser les filtres")), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "flex",
                 gap: 16,
                 marginTop: 14,
                 fontSize: 12.5
             }
-        }, /*#__PURE__*/ React.createElement("span", null, "👨‍🏫 ", /*#__PURE__*/ React.createElement("strong", null, nbProfs), " confirmation(s) professeur"), /*#__PURE__*/ React.createElement("span", null, "🎓 ", /*#__PURE__*/ React.createElement("strong", null, nbEtudiants), " confirmation(s) étudiant"))), confirmationsFiltrees.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+        }, /*#__PURE__*/ React.createElement("span", null, "📋 ", /*#__PURE__*/ React.createElement("strong", null, confirmationsFiltrees.length), " confirmation(s) au total"), /*#__PURE__*/ React.createElement("span", null, "👨‍🏫 ", /*#__PURE__*/ React.createElement("strong", null, nbProfs), " professeur(s)"), /*#__PURE__*/ React.createElement("span", null, "🎓 ", /*#__PURE__*/ React.createElement("strong", null, nbEtudiants), " étudiant(s)"))), confirmationsFiltrees.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
             style: {
                 padding: 32,
                 textAlign: "center",
@@ -6524,6 +6614,19 @@ function Presences({
             }
         }, /*#__PURE__*/ React.createElement(DataTable, {
             cols: [{
+                key: "anneeUniversitaire",
+                label: "Année univ.",
+                render: v => v || "—"
+            }, {
+                key: "semestre",
+                label: "Semestre"
+            }, {
+                key: "seance",
+                label: "Séance"
+            }, {
+                key: "module",
+                label: "Module"
+            }, {
                 key: "dateSeance",
                 label: "Date",
                 render: v => formatDateFR(v)
@@ -6532,7 +6635,7 @@ function Presences({
                 label: "Type",
                 render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
                     color: v === "PresenceProf" ? C.navy : C.teal
-                }, v === "PresenceProf" ? "👨‍🏫 Professeur" : "🎓 Étudiant")
+                }, v === "PresenceProf" ? "👨‍🏫 Prof" : "🎓 Étudiant")
             }, {
                 key: "_nom",
                 label: "Nom",
@@ -6542,19 +6645,17 @@ function Presences({
                 label: "Groupe",
                 render: v => filiereCode(v, data.filieres) || v
             }, {
-                key: "module",
-                label: "Module"
-            }, {
-                key: "seance",
-                label: "Créneau"
-            }, {
                 key: "scanneLe",
                 label: "Confirmé à",
                 render: v => v ? v.split(" ")[1] || v : "—"
             }],
             rows: confirmationsFiltrees,
             emptyMsg: "Aucune confirmation",
-            compact: true
+            compact: true,
+            rowStyle: row => ({
+                background: bandeParId[row.id] === 0 ? C.navyLight : "#e0f4f2",
+                borderTop: premiereLigneGroupeId[row.id] ? `2px solid ${C.navy}` : void 0
+            })
         })));
     })(), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: "Prendre / modifier les présences → SharePoint",
@@ -19221,7 +19322,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.253.1";
+const APP_VERSION = "v3.254.1";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -20470,7 +20571,7 @@ const SP_LISTS_SCHEMA = {
     // professeur au démarrage d'une séance, avec un Token qui tourne toutes
     // les ~90s) soit un "Scan" (créé par un étudiant qui confirme sa présence
     // via le QR affiché, relié à la session par SessionId).
-    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Demandes de modification/suppression d'évaluations soumises par un
+    ECOGEST_SessionsQR: ["TypeElement", "Token", "SessionId", "ProfesseurId", "ProfesseurNom", "Filiere", "Semestre", "AnneeUniversitaire", "Module", "DateSeance", "Seance", "CreeLe", "Statut", "EtudiantId", "EtudiantNom", "NumInscription", "ScanneLe"], // Demandes de modification/suppression d'évaluations soumises par un
     // professeur — restent "En attente" jusqu'à validation ou refus par un
     // administrateur/directrice ; la modification/suppression réelle des
     // notes n'est appliquée qu'au moment de la validation.
@@ -21073,6 +21174,7 @@ async function loadAllFromSP(token) {
             professeurNom: g(s, "ProfesseurNom"),
             filiere: g(s, "Filiere"),
             semestre: g(s, "Semestre"),
+            anneeUniversitaire: g(s, "AnneeUniversitaire"),
             module: g(s, "Module"),
             dateSeance: g(s, "DateSeance"),
             seance: g(s, "Seance"),
@@ -21222,7 +21324,13 @@ function App() {
     // pratique à les distinguer correctement.
     const anneeUniversitaireActuelle = moisVersAnneeUniversitaire(today().slice(0, 7), moisDebutAnneeUniversitaire(data.semestresDates));
     const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
-    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => e.filiere === monEtudiantSessionQR.filiere && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle), 5, 0) : null;
+    // CORRECTIF IMPORTANT : le créneau doit appartenir à l'année
+    // universitaire PROPRE À CET ÉTUDIANT (sa promotion), et non à "l'année
+    // calendaire du jour" — sans quoi un même nom de groupe (ex: "B1-SI")
+    // réutilisé sur plusieurs promotions successives ferait apparaître,
+    // pour un étudiant, le cours d'une AUTRE promotion partageant
+    // simplement le même nom de groupe au même horaire.
+    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => e.filiere === monEtudiantSessionQR.filiere && (!e.anneeUniversitaire || e.anneeUniversitaire === monEtudiantSessionQR.promotion), 5, 0) : null;
     const creneauPourMoi = roleTmp === "professeur" ? creneauEnCoursProf : creneauEnCoursEtudiantGeoloc;
     const geoRequiseGlobal = !!(data.configuration?.geolocalisationActive && data.configuration?.campusLatitude);
     const [statutGeolocBanniere, setStatutGeolocBanniere] = useState("attente");
@@ -21288,6 +21396,7 @@ function App() {
             Filiere: creneauPourMoi.filiere,
             Semestre: creneauPourMoi.semestre,
             Module: creneauPourMoi.module,
+            AnneeUniversitaire: creneauPourMoi.anneeUniversitaire || "",
             DateSeance: creneauPourMoi.dateStr,
             Seance: creneauPourMoi.seance,
             ScanneLe: maintenantHeureLocale(data.configuration?.decalageGMT),
