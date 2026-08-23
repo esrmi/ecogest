@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.260.0 — 23 Août 2026
+//  ECOGEST_App.jsx — version v3.261.0 — 23 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -3509,7 +3509,15 @@ function Notes({
         setNotesIdsEdition(ids);
         setShowModal(true);
     };
-    const nbNotesSaisies = Object.values(notesSaisies).filter(v => v !== "" && v !== void 0).length; // Demandes de modification/suppression d'évaluations déjà soumises par ce
+    const nbNotesSaisies = Object.values(notesSaisies).filter(v => v !== "" && v !== void 0).length; // Empêche la création d'une NOUVELLE évaluation en double pour la même
+    // combinaison (année universitaire, semestre, module, type
+    // d'évaluation) — une seule évaluation de chaque type est attendue par
+    // module et par semestre. Ne s'applique qu'en mode "Ajouter" (aucune
+    // session déjà chargée pour modification) : rouvrir une session
+    // existante reste évidemment autorisé, exactement comme pour la saisie
+    // classique des absences (rouvrir une séance déjà pointée plutôt que
+    // d'en créer une seconde en double).
+    const sessionExistanteDoublon = Object.keys(notesIdsEdition).length === 0 && form.anneeUniversitaire && form.semestre && form.filiere && form.module && form.typeEvaluation ? (data.notes || []).find(n => n.anneeUniversitaire === form.anneeUniversitaire && n.semestre === form.semestre && n.filiere === form.filiere && n.module === form.module && n.typeEvaluation === form.typeEvaluation) : null; // Demandes de modification/suppression d'évaluations déjà soumises par ce
     // professeur, encore "En attente" — sert à afficher un badge et à éviter
     // les doublons de demande sur une même session/note.
     const mesDemandesEvaluations = (data.demandesEvaluations || []).filter(r => r.professeurCin === monProfesseur?.cin);
@@ -3574,6 +3582,13 @@ function Notes({
         }
         if (!form.anneeUniversitaire) {
             toast("⚠️ Sélectionnez l'année universitaire avant d'enregistrer les notes");
+            return;
+        } // Blocage réel (pas seulement visuel) : impossible d'enregistrer une
+        // toute NOUVELLE évaluation si une autre du même type existe déjà pour
+        // ce module/semestre/année — protège même si l'avertissement affiché
+        // dans le formulaire a été contourné d'une manière ou d'une autre.
+        if (sessionExistanteDoublon) {
+            toast(`⚠️ Une évaluation "${form.typeEvaluation}" existe déjà pour ${form.module} (${form.semestre}, ${form.anneeUniversitaire}) — modifiez-la plutôt que d'en créer une nouvelle`);
             return;
         }
         const toutes = Object.entries(notesSaisies).filter(([, v]) => v !== "" && v !== void 0 && v !== null);
@@ -4644,7 +4659,34 @@ function Notes({
             ...f,
             anneeUniversitaire: e.target.value
         }))
-    }), form.filiere && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }), (() => {
+        if (!sessionExistanteDoublon) return null;
+        const entriesExistantes = (data.notes || []).filter(n => n.date === sessionExistanteDoublon.date && n.filiere === sessionExistanteDoublon.filiere && n.module === sessionExistanteDoublon.module && n.typeEvaluation === sessionExistanteDoublon.typeEvaluation);
+        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            style: {
+                background: "#fdeee3",
+                border: `1px solid ${C.orange}`,
+                borderRadius: 8,
+                padding: "12px 14px",
+                marginBottom: 16,
+                fontSize: 12.5
+            }
+        }, /*#__PURE__*/ React.createElement("div", {
+            style: {
+                fontWeight: 700,
+                color: C.orange,
+                marginBottom: 4
+            }
+        }, "⚠️ Une évaluation de ce type existe déjà"), /*#__PURE__*/ React.createElement("div", {
+            style: {
+                color: "#555",
+                marginBottom: 10
+            }
+        }, "Un(e) ", /*#__PURE__*/ React.createElement("strong", null, form.typeEvaluation), " a déjà été saisi(e) pour ", /*#__PURE__*/ React.createElement("strong", null, form.module), " ", "(", form.semestre, ", ", form.anneeUniversitaire, "), le ", formatDateFR(sessionExistanteDoublon.date), ". Modifiez cette évaluation existante plutôt que d'en créer une nouvelle."), /*#__PURE__*/ React.createElement(Btn, {
+            small: true,
+            onClick: () => openEditSession(sessionExistanteDoublon.date, sessionExistanteDoublon.filiere, sessionExistanteDoublon.semestre, sessionExistanteDoublon.module, sessionExistanteDoublon.typeEvaluation, entriesExistantes)
+        }, "✏️ Ouvrir cette évaluation existante"));
+    })(), form.filiere && !sessionExistanteDoublon && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             marginTop: 6,
             marginBottom: 16
@@ -4835,10 +4877,13 @@ function dureeSeanceHeures(seance) {
 // présence par GÉOLOCALISATION (data.sessionsQR), pour une année
 // universitaire et un semestre donnés — entièrement indépendant du volet
 // classique (data.presences), à ne jamais mélanger avec lui.
-// - Si etudiantId est fourni : calcule le taux PROPRE à cet étudiant
-//   (nombre de séances où il ne s'est pas confirmé présent / nombre de
-//   séances où il était attendu), module par module.
-// - Sinon (vue professeur ou direction) : calcule un taux AGRÉGÉ sur
+// Le taux est calculé EXACTEMENT comme le volet classique : heures
+// manquées / volume horaire TOTAL du module (data.cours.heures) × 100 —
+// et non un simple ratio du nombre de séances suivies par géolocalisation,
+// qui ne reflète pas fidèlement le poids réel de chaque absence.
+// - Si etudiantId est fourni : calcule les heures manquées PROPRES à cet
+//   étudiant, module par module.
+// - Sinon (vue professeur ou direction) : agrège les heures manquées de
 //   l'ensemble de l'effectif attendu de chaque séance (filtrable en plus
 //   par professeurCin et/ou filiere).
 function calculerTauxAbsenceGeoloc(data, {
@@ -4850,7 +4895,8 @@ function calculerTauxAbsenceGeoloc(data, {
 }) {
     const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceEtudiant" && s.anneeUniversitaire === anneeUniversitaire && s.semestre === semestre && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
     // groupe précis — identifiée par la combinaison filiere+module+date+
-    // créneau. On y rattache la liste des étudiants ayant confirmé.
+    // créneau. On y rattache la liste des étudiants ayant confirmé, ainsi
+    // que l'horaire lui-même (nécessaire pour en déduire la durée réelle).
     const instances = {};
     confirmations.forEach(s => {
         const cle = `${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
@@ -4858,6 +4904,7 @@ function calculerTauxAbsenceGeoloc(data, {
             instances[cle] = {
                 filiere: s.filiere,
                 module: s.module,
+                seance: s.seance,
                 confirmesIds: new Set()
             };
         }
@@ -4875,34 +4922,51 @@ function calculerTauxAbsenceGeoloc(data, {
         const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, anneeUniversitaire) === inst.filiere && (e.promotion === anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === anneeUniversitaire)));
         if (!parModule[inst.module]) parModule[inst.module] = {
             seancesAttendues: 0,
-            absences: 0
+            absences: 0,
+            heuresManquees: 0
         };
+        const dureeHeures = dureeSeanceHeures(inst.seance);
         if (etudiantId) { // Vue étudiant : ne compte que si CET étudiant précis fait partie de
             // l'effectif attendu de cette séance.
             if (effectifAttendu.some(e => String(e.id) === String(etudiantId))) {
                 parModule[inst.module].seancesAttendues += 1;
-                if (!inst.confirmesIds.has(String(etudiantId))) parModule[inst.module].absences += 1;
+                if (!inst.confirmesIds.has(String(etudiantId))) {
+                    parModule[inst.module].absences += 1;
+                    parModule[inst.module].heuresManquees += dureeHeures;
+                }
             }
         } else {
+            const absentsDeCetteSeance = effectifAttendu.filter(e => !inst.confirmesIds.has(String(e.id)));
             parModule[inst.module].seancesAttendues += effectifAttendu.length;
-            parModule[inst.module].absences += effectifAttendu.filter(e => !inst.confirmesIds.has(String(e.id))).length;
+            parModule[inst.module].absences += absentsDeCetteSeance.length;
+            parModule[inst.module].heuresManquees += absentsDeCetteSeance.length * dureeHeures;
         }
     });
-    return Object.entries(parModule).map(([module, v]) => ({
-        module,
-        seancesAttendues: v.seancesAttendues,
-        absences: v.absences,
-        taux: v.seancesAttendues > 0 ? Math.round(v.absences / v.seancesAttendues * 10000) / 100 : 0
-    })).filter(m => m.seancesAttendues > 0).sort((a, b) => b.taux - a.taux);
-}
-
+    return Object.entries(parModule).map(([module, v]) => {
+        const moduleInfo = (data.cours || []).find(c => c.intitule === module);
+        const heuresTotal = moduleInfo?.heures || 0;
+        const heuresManquees = Math.round(v.heuresManquees * 100) / 100;
+        const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
+        return {
+            module,
+            seancesAttendues: v.seancesAttendues,
+            absences: v.absences,
+            heuresManquees,
+            heuresTotal,
+            taux
+        };
+    }).filter(m => m.seancesAttendues > 0).sort((a, b) => b.taux - a.taux);
+} // Camembert avec étiquettes externes reliées à leur portion par un trait en
+// pointillés (style "leader line"), moderne et lisible même avec plusieurs
+// petites portions proches en pourcentage — chaque étiquette affiche le nom
+// du module et son taux, sans jamais empiéter sur le cercle lui-même.
 function PieChart({
     data,
     size = 190
 }) {
     const total = data.reduce((s, d) => s + d.value, 0);
     const radius = size / 2;
-    const LABEL_ZONE = 132;
+    const LABEL_ZONE = 190;
     const LIGNE_HAUTEUR = 34;
     const cx = LABEL_ZONE + radius,
         cy = radius + 10;
@@ -4984,14 +5048,14 @@ function PieChart({
     };
     const gauche = repartir(aEtiqueter.filter(d => Math.cos(toRad(d.midAngle)) < 0));
     const droite = repartir(aEtiqueter.filter(d => Math.cos(toRad(d.midAngle)) >= 0));
-    const troncature = (txt, max = 24) => txt && txt.length > max ? `${txt.slice(0,max-1)}…` : txt || "";
+    const troncature = (txt, max = 21) => txt && txt.length > max ? `${txt.slice(0,max-1)}…` : txt || "";
     const etiquettes = [...gauche, ...droite].map((d, i) => {
         const cote = Math.cos(toRad(d.midAngle)) < 0 ? -1 : 1;
         const xDepart = cx + (radius - 2) * Math.cos(toRad(d.midAngle));
         const yDepart = cy + (radius - 2) * Math.sin(toRad(d.midAngle));
         const xCoude = cx + (radius + 16) * Math.cos(toRad(d.midAngle));
         const yCoude = cy + (radius + 16) * Math.sin(toRad(d.midAngle));
-        const xFin = cote === -1 ? cx - radius - LABEL_ZONE + 14 : cx + radius + LABEL_ZONE - 14;
+        const xFin = cote === -1 ? cx - radius - 22 : cx + radius + 22;
         const valeurAffichee = d.taux !== void 0 && d.taux !== null ? d.taux.toFixed(2) : Math.round(d.pct);
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("g", {
             key: `et${i}`
@@ -5390,7 +5454,7 @@ function Presences({
         }));
         const pieData = analyse.map(a => ({
             label: a.module,
-            value: a.absences,
+            value: a.heuresManquees,
             color: a.color,
             taux: a.taux
         }));
@@ -5495,7 +5559,7 @@ function Presences({
             style: {
                 color: C.muted
             }
-        }, a.absences, "/", a.seancesAttendues), /*#__PURE__*/ React.createElement("strong", {
+        }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
             style: {
                 color: a.taux >= 25 ? C.red : C.navy,
                 minWidth: 46,
@@ -5989,7 +6053,7 @@ function Presences({
         }));
         const pieData = analyse.map(a => ({
             label: a.module,
-            value: a.absences,
+            value: a.heuresManquees,
             color: a.color,
             taux: a.taux
         }));
@@ -6088,7 +6152,7 @@ function Presences({
             style: {
                 color: C.muted
             }
-        }, a.absences, "/", a.seancesAttendues, " séance(s)"), /*#__PURE__*/ React.createElement("strong", {
+        }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
             style: {
                 color: a.taux >= 25 ? C.red : C.navy,
                 minWidth: 46,
@@ -6760,6 +6824,8 @@ function Presences({
                                     module: m.module,
                                     absences: m.absences,
                                     seancesAttendues: m.seancesAttendues,
+                                    heuresManquees: m.heuresManquees,
+                                    heuresTotal: m.heuresTotal,
                                     taux: m.taux
                                 });
                             });
@@ -6798,9 +6864,9 @@ function Presences({
                 key: "module",
                 label: "Module"
             }, {
-                key: "absences",
-                label: "Séances manquées",
-                render: (v, row) => `${v}/${row.seancesAttendues}`
+                key: "heuresManquees",
+                label: "Heures manquées",
+                render: (v, row) => `${v}h/${row.heuresTotal>0?`${row.heuresTotal}h`:"?"}`
             }, {
                 key: "taux",
                 label: "Taux d'absence",
@@ -7267,7 +7333,7 @@ function Presences({
             }));
             const pieData = analyse.map(a => ({
                 label: a.module,
-                value: a.absences,
+                value: a.heuresManquees,
                 color: a.color,
                 taux: a.taux
             }));
@@ -7344,7 +7410,7 @@ function Presences({
                 style: {
                     color: C.muted
                 }
-            }, a.absences, "/", a.seancesAttendues), /*#__PURE__*/ React.createElement("strong", {
+            }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
                 style: {
                     color: a.taux >= 25 ? C.red : C.navy,
                     minWidth: 46,
@@ -20298,7 +20364,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.260.1";
+const APP_VERSION = "v3.262.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
