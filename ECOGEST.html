@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.278.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.279.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -5849,7 +5849,7 @@ function Presences({
             sensitivity: "base"
         }));
         const parSemestreModule = {};
-        mesPresencesFiltrees.forEach(p => {
+        mesPresencesFiltrees.filter(p => p.statut === "Absent").forEach(p => {
             const mod = p.module || "Module non précisé";
             const moduleInfo = (data.cours || []).find(c => c.intitule === mod);
             const sem = moduleInfo?.semestre || p.semestre || "Semestre non précisé";
@@ -6193,7 +6193,7 @@ function Presences({
             key: "_absences",
             label: "Absences",
             render: (_, row) => {
-                const nb = mesPresencesFiltrees.filter(p => p.module === row.intitule).length;
+                const nb = mesPresencesFiltrees.filter(p => p.module === row.intitule && p.statut === "Absent").length;
                 return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                     style: {
                         display: "inline-flex",
@@ -6212,7 +6212,7 @@ function Presences({
             key: "_taux",
             label: "Synthèse",
             render: (_, row) => {
-                const heuresManquees = Math.round(mesPresencesFiltrees.filter(p => p.module === row.intitule).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
+                const heuresManquees = Math.round(mesPresencesFiltrees.filter(p => p.module === row.intitule && p.statut === "Absent").reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
                 const heuresTotal = row.heures || 0;
                 const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
                 const barColor = taux >= 20 ? C.red : taux >= 10 ? C.orange : C.green;
@@ -20695,7 +20695,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.278.0";
+const APP_VERSION = "v3.279.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -23919,70 +23919,84 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
             setActive(NAV_BY_ROLE[roleAuth][0]);
         }
     }, "✕ Quitter le mode test"))), role === "etudiant" && (() => {
-        const mesPresencesGlobal = (data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId);
-        const parModuleGlobal = {};
-        mesPresencesGlobal.forEach(p => {
-            const mod = p.module || "Module non précisé";
-            if (!parModuleGlobal[mod]) parModuleGlobal[mod] = 0;
-            parModuleGlobal[mod] += dureeSeanceHeures(p.seance || p.heure);
-        });
-        const alertes = Object.keys(parModuleGlobal).map(m => {
-            const moduleInfo = (data.cours || []).find(c => c.intitule === m);
-            const heuresTotal = moduleInfo?.heures || 0;
-            const taux = heuresTotal > 0 ? Math.round(parModuleGlobal[m] / heuresTotal * 10000) / 100 : 0;
-            return {
-                module: m,
-                taux
-            };
-        }).filter(a => a.taux >= 20).sort((a, b) => b.taux - a.taux);
-        if (alertes.length === 0) return null;
-        const critique = alertes.filter(a => a.taux >= 25);
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            style: {
-                marginBottom: 18,
-                borderRadius: 10,
-                overflow: "hidden",
-                border: `1px solid ${critique.length?"#f3b0a8":"#f5c98a"}`
-            }
-        }, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                background: critique.length ? "#fdeeec" : "#fff6e8",
-                padding: "14px 18px"
-            }
-        }, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 8
-            }
-        }, /*#__PURE__*/ React.createElement("span", {
-            style: {
-                fontSize: 20
-            }
-        }, critique.length ? "🚨" : "⚠️"), /*#__PURE__*/ React.createElement("span", {
-            style: {
-                fontWeight: 800,
-                fontSize: 14,
-                color: critique.length ? C.red : "#a5690a"
-            }
-        }, critique.length ? "Alerte : risque d'ajournement" : "Attention : taux d'absence élevé")), alertes.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            key: a.module,
-            style: {
-                fontSize: 12.5,
-                color: "#444",
-                padding: "3px 0 3px 30px"
-            }
-        }, /*#__PURE__*/ React.createElement("strong", null, a.module), " — ", a.taux.toFixed(2), "% d'absence du volume horaire", a.taux >= 25 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-            style: {
-                color: C.red,
-                fontWeight: 700
-            }
-        }, "— module considéré comme ", /*#__PURE__*/ React.createElement("u", null, "ajourné"), " au-delà de 25%") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-            style: {
-                color: "#a5690a"
-            }
-        }, "— au-delà de 25%, le module sera considéré comme ajourné")))));
+    // Même règle que partout ailleurs : ce calcul passe par
+    // calculerTauxAbsence() (LA SEULE fonction de calcul de taux
+    // d'absence de l'application), jamais par une agrégation
+    // locale — et par année universitaire distincte, pour ne
+    // jamais mélanger les absences d'une année déjà validée avec
+    // celles de l'année en cours.
+    const anneesConcernees = [... /* @__PURE__ */new Set((data.presences || []).filter(p => user?.numInscription && p.numInscription === user.numInscription || user?.etudiantId && p.etudiantId === user.etudiantId).map(p => p.anneeUniversitaire).filter(Boolean))];
+    const alertes = [];
+    anneesConcernees.forEach(annee => {
+      calculerTauxAbsence(data, {
+        etudiantId: user?.etudiantId,
+        numInscription: user?.numInscription,
+        anneeUniversitaire: annee
+      }).filter(m => m.taux >= 20).forEach(m => alertes.push({
+        module: m.module,
+        taux: m.taux,
+        anneeUniversitaire: annee
+      }));
+    });
+    alertes.sort((a, b) => b.taux - a.taux);
+    if (alertes.length === 0) return null;
+    const critique = alertes.filter(a => a.taux >= 25);
+    const plusieursAnnees = anneesConcernees.length > 1;
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", {
+      style: {
+        marginBottom: 18,
+        borderRadius: 10,
+        overflow: "hidden",
+        border: `1px solid ${critique.length ? "#f3b0a8" : "#f5c98a"}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: critique.length ? "#fdeeec" : "#fff6e8",
+        padding: "14px 18px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 20
+      }
+    }, critique.length ? "🚨" : "⚠️"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 800,
+        fontSize: 14,
+        color: critique.length ? C.red : "#a5690a"
+      }
+    }, critique.length ? "Alerte : risque d'ajournement" : "Attention : taux d'absence élevé")), alertes.map(a =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("div", {
+      key: `${a.anneeUniversitaire}__${a.module}`,
+      style: {
+        fontSize: 12.5,
+        color: "#444",
+        padding: "3px 0 3px 30px"
+      }
+    }, /*#__PURE__*/React.createElement("strong", null, a.module), plusieursAnnees ? ` (${a.anneeUniversitaire})` : "", " — ", a.taux.toFixed(2), "% d'absence du volume horaire", a.taux >= 25 ?
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("span", {
+      style: {
+        color: C.red,
+        fontWeight: 700
+      }
+    }, "— module considéré comme ", /*#__PURE__*/React.createElement("u", null, "ajourné"), " au-delà de 25%") :
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("span", {
+      style: {
+        color: "#a5690a"
+      }
+    }, "— au-delà de 25%, le module sera considéré comme ajourné")))));
     })(), ["k.bouabid@esrmi.ma", "a.bahalla@esrmi.ma"].includes((user?.email || "").toLowerCase()) && (() => {
         const etudiantsActifs = (data.etudiants || []).filter(e => e.statut !== "Inactif");
         const sansTarif = etudiantsActifs.filter(e => !e.tarifGlobalFormation);
