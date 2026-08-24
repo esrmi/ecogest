@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.272.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.274.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -1454,7 +1454,7 @@ function Dashboard({
                 color: col,
                 fontSize: 15
             }
-        }, n.note, "/20"), /*#__PURE__*/ React.createElement(Badge, {
+        }, Number(n.note).toFixed(2), "/20"), /*#__PURE__*/ React.createElement(Badge, {
             color: col,
             size: 10
         }, men)));
@@ -3571,7 +3571,7 @@ function Notes({
         const acteur = `${monProfesseur.prenom} ${monProfesseur.nom}`;
         terminerLotNotification(`ECOGEST — Demande de ${type.toLowerCase()} d'évaluation — ${sessionInfo.module}`, `Demande de ${type.toLowerCase()} en attente de validation`, sessionInfo.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> demande une <strong>${type.toLowerCase()}</strong> concernant ${details.length} évaluation(s) — validation requise :`) + _emailChipsRow([_emailChip("Filière", sessionInfo.filiere), _emailChip("Module", sessionInfo.module), _emailChip("Type", sessionInfo.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(sessionInfo.date))]) + _emailListeHtml(details.map(dd => ({
             gauche: dd.etudiant,
-            droite: type === "Modification" ? `${dd.ancienneNote} → ${dd.nouvelleNote}` : `${dd.note}/20`
+            droite: type === "Modification" ? `${Number(dd.ancienneNote).toFixed(2)} → ${Number(dd.nouvelleNote).toFixed(2)}` : `${Number(dd.note).toFixed(2)}/20`
         }))));
         return true;
     };
@@ -3684,7 +3684,7 @@ function Notes({
                     });
                     detailNotesPourEmail.push({
                         gauche: `${et.prenom} ${et.nom} (modifiée)`,
-                        droite: `${valeur}/20`
+                        droite: `${parseFloat(valeur).toFixed(2)}/20`
                     });
                 }
             } else {
@@ -3708,7 +3708,7 @@ function Notes({
                     });
                     detailNotesPourEmail.push({
                         gauche: `${et.prenom} ${et.nom}`,
-                        droite: `${valeur}/20`
+                        droite: `${parseFloat(valeur).toFixed(2)}/20`
                     });
                 }
             }
@@ -3972,11 +3972,11 @@ function Notes({
             borderRadius: 12,
             padding: "3px 9px"
         }
-    }, d.etudiant, " :", " ", r.type === "Modification" ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, /*#__PURE__*/ React.createElement("strong", null, d.ancienneNote), " → ", /*#__PURE__*/ React.createElement("strong", {
+    }, d.etudiant, " :", " ", r.type === "Modification" ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", null, /*#__PURE__*/ React.createElement("strong", null, Number(d.ancienneNote).toFixed(2)), " → ", /*#__PURE__*/ React.createElement("strong", {
         style: {
             color: C.orange
         }
-    }, d.nouvelleNote)) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("strong", null, d.note, "/20"))))), /*#__PURE__*/ React.createElement("div", {
+    }, Number(d.nouvelleNote).toFixed(2))) : /*#__PURE__*/ /* @__PURE__ */ React.createElement("strong", null, Number(d.note).toFixed(2), "/20"))))), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 8,
@@ -4509,7 +4509,7 @@ function Notes({
                         color: col,
                         fontSize: 14
                     }
-                }, v);
+                }, Number(v).toFixed(2));
             }
         }, ...(canEdit ? [{
             key: "_modifier",
@@ -5423,7 +5423,8 @@ function Presences({
                 Filiere: form.filiere || "",
                 Seance: form.seance || "",
                 Semestre: form.semestre || "",
-                AnneeUniversitaire: form.anneeUniversitaire || ""
+                AnneeUniversitaire: form.anneeUniversitaire || "",
+                ModeEnregistrement: "Manuel"
             };
             return saveToSP("ECOGEST_Presences", spF, user.token).then(result => result ? {
                 et,
@@ -5433,7 +5434,8 @@ function Presences({
             et,
             existant
         }) => saveToSP("ECOGEST_Presences", {
-            Statut: "Absent"
+            Statut: "Absent",
+            ModeEnregistrement: "Manuel"
         }, user.token, existant._spId).then(result => result ? {
             et,
             existant
@@ -5483,7 +5485,8 @@ function Presences({
                 filiere: form.filiere,
                 seance: form.seance,
                 semestre: form.semestre,
-                anneeUniversitaire: form.anneeUniversitaire
+                anneeUniversitaire: form.anneeUniversitaire,
+                modeEnregistrement: "Manuel"
             }))];
             if (okMaj.length > 0) {
                 const majParSpId = {};
@@ -5492,7 +5495,8 @@ function Presences({
                 }) => majParSpId[existant._spId] = true);
                 presences = presences.map(p => majParSpId[p._spId] ? {
                     ...p,
-                    statut: "Absent"
+                    statut: "Absent",
+                    modeEnregistrement: "Manuel"
                 } : p);
             }
             if (okSupprimer.length > 0) {
@@ -5638,7 +5642,7 @@ function Presences({
             style: {
                 color: C.muted
             }
-        }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
+        }, Number(a.heuresManquees).toFixed(2), "h/", a.heuresTotal > 0 ? `${Number(a.heuresTotal).toFixed(2)}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
             style: {
                 color: a.taux >= 25 ? C.red : C.navy,
                 minWidth: 46,
@@ -6105,7 +6109,7 @@ function Presences({
                     fontSize: 11,
                     color: C.muted
                 }
-            }, (Math.round(a.heuresManquees * 100) / 100).toFixed(2), "h manquée(s)", a.heuresTotal > 0 ? ` sur ${a.heuresTotal}h` : " — volume horaire du module non renseigné")), a.taux !== null && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+            }, (Math.round(a.heuresManquees * 100) / 100).toFixed(2), "h manquée(s)", a.heuresTotal > 0 ? ` sur ${Number(a.heuresTotal).toFixed(2)}h` : " — volume horaire du module non renseigné")), a.taux !== null && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     fontSize: 13,
                     fontWeight: 800,
@@ -6230,7 +6234,7 @@ function Presences({
             style: {
                 color: C.muted
             }
-        }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
+        }, Number(a.heuresManquees).toFixed(2), "h/", a.heuresTotal > 0 ? `${Number(a.heuresTotal).toFixed(2)}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
             style: {
                 color: a.taux >= 25 ? C.red : C.navy,
                 minWidth: 46,
@@ -6321,7 +6325,7 @@ function Presences({
                         fontSize: 9.5,
                         fontWeight: 600
                     }
-                }, heuresTotal, "h total"), /*#__PURE__*/ React.createElement("span", {
+                }, Number(heuresTotal).toFixed(2), "h total"), /*#__PURE__*/ React.createElement("span", {
                     style: {
                         background: barColor + "18",
                         color: barColor,
@@ -6331,7 +6335,7 @@ function Presences({
                         fontSize: 9.5,
                         fontWeight: 600
                     }
-                }, heuresManquees, "h manquée(s)")), /*#__PURE__*/ React.createElement("div", {
+                }, Number(heuresManquees).toFixed(2), "h manquée(s)")), /*#__PURE__*/ React.createElement("div", {
                     style: {
                         display: "flex",
                         alignItems: "center",
@@ -6729,6 +6733,24 @@ function Presences({
             render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(Badge, {
                 color: v === "Présent" ? C.green : v === "Absent" ? C.red : C.orange
             }, v)
+        }, {
+            key: "modeEnregistrement",
+            label: "Mode",
+            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 20,
+                    background: v === "Automatique" ? "#eef4fb" : "#f3f1fb",
+                    color: v === "Automatique" ? C.navy : C.purple,
+                    border: `1px solid ${v === "Automatique" ? C.navy : C.purple}30`
+                },
+                title: v === "Automatique" ? "Détectée automatiquement (aucune confirmation de géolocalisation reçue au démarrage de la séance)" : "Saisie ou corrigée par un professeur/administrateur"
+            }, v === "Automatique" ? "🤖 Automatique" : "🖐️ Manuel")
         }, ...(canEdit ? [{
             key: "_modifier",
             label: "Modifier",
@@ -6851,11 +6873,11 @@ function Presences({
         }, {
             key: "heuresManquees",
             label: "Heures manquées",
-            render: v => `${v}h`
+            render: v => `${Number(v).toFixed(2)}h`
         }, {
             key: "heuresTotal",
             label: "Heures totales",
-            render: v => v > 0 ? `${v}h` : "—"
+            render: v => v > 0 ? `${Number(v).toFixed(2)}h` : "—"
         }, {
             key: "taux",
             label: "Taux d'absence",
@@ -6944,7 +6966,7 @@ function Presences({
             }, {
                 key: "heuresManquees",
                 label: "Heures manquées",
-                render: (v, row) => `${v}h/${row.heuresTotal>0?`${row.heuresTotal}h`:"?"}`
+                render: (v, row) => `${Number(v).toFixed(2)}h/${row.heuresTotal>0?`${Number(row.heuresTotal).toFixed(2)}h`:"?"}`
             }, {
                 key: "taux",
                 label: "Taux d'absence",
@@ -7192,7 +7214,8 @@ function Presences({
                 Filiere: groupeSeance.filiere || "",
                 Seance: groupeSeance.seance || "",
                 Semestre: groupeSeance.semestre || "",
-                AnneeUniversitaire: groupeSeance.anneeUniversitaire || ""
+                AnneeUniversitaire: groupeSeance.anneeUniversitaire || "",
+                ModeEnregistrement: "Manuel"
             };
             const result = await saveToSP("ECOGEST_Presences", spF, user.token);
             if (!result) {
@@ -7212,7 +7235,8 @@ function Presences({
                 statut: "Absent",
                 filiere: groupeSeance.filiere,
                 semestre: groupeSeance.semestre,
-                anneeUniversitaire: groupeSeance.anneeUniversitaire
+                anneeUniversitaire: groupeSeance.anneeUniversitaire,
+                modeEnregistrement: "Manuel"
             };
             setData(d => ({
                 ...d,
@@ -7494,7 +7518,7 @@ function Presences({
                 style: {
                     color: C.muted
                 }
-            }, a.heuresManquees, "h/", a.heuresTotal > 0 ? `${a.heuresTotal}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
+            }, Number(a.heuresManquees).toFixed(2), "h/", a.heuresTotal > 0 ? `${Number(a.heuresTotal).toFixed(2)}h` : "?"), /*#__PURE__*/ React.createElement("strong", {
                 style: {
                     color: a.taux >= 25 ? C.red : C.navy,
                     minWidth: 46,
@@ -11443,6 +11467,14 @@ function EmploiDuTemps({
                     value: dateVal,
                     min: "2020-01-01",
                     max: "2099-12-31",
+                    title: "Vous pouvez coller une date directement (ex: 30/11/2026)",
+                    onPaste: e => {
+                        const iso = parseDateColleeVersISO(e.clipboardData.getData("text"));
+                        if (iso && anneeDateRaisonnable(iso)) {
+                            e.preventDefault();
+                            handleSetDate(m, "dateCC", iso);
+                        }
+                    },
                     onChange: e => handleSetDate(m, "dateCC", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -11483,6 +11515,14 @@ function EmploiDuTemps({
                     value: dateVal,
                     min: "2020-01-01",
                     max: "2099-12-31",
+                    title: "Vous pouvez coller une date directement (ex: 30/11/2026)",
+                    onPaste: e => {
+                        const iso = parseDateColleeVersISO(e.clipboardData.getData("text"));
+                        if (iso && anneeDateRaisonnable(iso)) {
+                            e.preventDefault();
+                            handleSetDate(m, "dateExamen", iso);
+                        }
+                    },
                     onChange: e => handleSetDate(m, "dateExamen", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -16772,6 +16812,26 @@ function anneeDateRaisonnable(iso) {
     const annee = parseInt(String(iso).slice(0, 4), 10);
     return annee >= 2000 && annee <= 2100;
 }
+// Interprète un texte collé (Ctrl+V) dans un champ date et le convertit en
+// ISO "YYYY-MM-DD" — accepte le format ISO ("2026-11-30") ainsi que le
+// format français/européen ("30/11/2026", "30-11-2026", "30.11.2026").
+// Renvoie null si non reconnu ou hors bornes jour/mois.
+function parseDateColleeVersISO(texte) {
+    const s = String(texte || "").trim();
+    let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m) {
+        const [, y, mo, d] = m;
+        if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+        return null;
+    }
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (m) {
+        const [, d, mo, y] = m;
+        if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+        return null;
+    }
+    return null;
+}
 const genRecu = () => `REC-${/* @__PURE__ */new Date().getFullYear()}-${String(Math.floor(Math.random()*9e3)+1e3)}`;
 const genNumInscriptionESRMI = (etudiants, year, paiements) => {
     const anneeRef = year || /* @__PURE__ */ new Date().getFullYear();
@@ -20917,7 +20977,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.272.0";
+const APP_VERSION = "v3.274.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22303,7 +22363,7 @@ const SP_LISTS_SCHEMA = {
     ECOGEST_Filieres: ["Code", "Intitule", "Niveau", "Duree", "Capacite", "Frais", "Statut", "Description", "Responsable", "Couleur", "Accreditation", "TypeSeances", "Horaires"],
     ECOGEST_Visiteurs: ["Nom", "Prenom", "CIN", "DateNaissance", "LieuNaissance", "Genre", "Email", "Telephone", "Adresse", "Ville", "Quartier", "BacAnnee", "BacMention", "BacSerie", "Etablissement", "FiliereS", "DateVisite", "Source", "Statut", "Observations", "AnneeUniversitaire", "RecuPar"],
     ECOGEST_Notes: ["EtudiantId", "NomEtudiant", "NumInscription", "Module", "Filiere", "Semestre", "TypeEvaluation", "Note", "DateEvaluation", "Enseignant", "EnseignantCIN", "AnneeUniversitaire"],
-    ECOGEST_Presences: ["EtudiantId", "NomEtudiant", "NumInscription", "Module", "CodeModule", "DatePresence", "Heure", "Statut", "Motif", "Enseignant", "EnseignantCIN", "Filiere", "Seance", "Semestre", "DocumentJustification", "JustifiePar", "DateJustification", "AnneeUniversitaire"],
+    ECOGEST_Presences: ["EtudiantId", "NomEtudiant", "NumInscription", "Module", "CodeModule", "DatePresence", "Heure", "Statut", "Motif", "Enseignant", "EnseignantCIN", "Filiere", "Seance", "Semestre", "DocumentJustification", "JustifiePar", "DateJustification", "AnneeUniversitaire", "ModeEnregistrement"],
     ECOGEST_Cours: ["Intitule", "Departement", "ResponsablePedagogique", "Semestre", "Filiere", "Professeur", "ProfesseurCIN", "HeuresTotal", "Salle", "DateCC", "DateExamen", "DatesCCExamenJSON", "AnneeUniversitaire"],
     ECOGEST_EmploiDuTemps: ["Filiere", "Semestre", "AnneeUniversitaire", "JourSemaine", "Seance", "Module", "Professeur", "ProfesseurCIN", "Salle", "TypeRecurrence", "DateDebut", "DateFin", "DatesExclues", "EstRattrapage", "LienTeams", "LienEnregistrements"],
     ECOGEST_Annonces: ["Titre", "Contenu", "Auteur", "Cible", "DateAnnonce", "DateExpiration", "Priorite", "Statut"],
@@ -22729,7 +22789,8 @@ async function loadAllFromSP(token) {
             documentJustification: g(p, "DocumentJustification"),
             justifiePar: g(p, "JustifiePar"),
             dateJustification: g(p, "DateJustification"),
-            anneeUniversitaire: g(p, "AnneeUniversitaire") || ""
+            anneeUniversitaire: g(p, "AnneeUniversitaire") || "",
+            modeEnregistrement: g(p, "ModeEnregistrement") || "Manuel"
         })),
         cours: cours.map(c => {
             const filiereRaw = g(c, "Filiere");
@@ -23158,7 +23219,8 @@ function App() {
                             Semestre: seance.semestre || "",
                             AnneeUniversitaire: seance.anneeUniversitaire || "",
                             Enseignant: moduleInfo?.professeur || "",
-                            EnseignantCIN: moduleInfo?.professeurCin || ""
+                            EnseignantCIN: moduleInfo?.professeurCin || "",
+                            ModeEnregistrement: "Automatique"
                         };
                         const result = await saveToSP("ECOGEST_Presences", spF, userTmp.token);
                         creationAbsenceEnCoursRef.current.delete(cle);
@@ -23180,7 +23242,8 @@ function App() {
                                 semestre: seance.semestre,
                                 anneeUniversitaire: seance.anneeUniversitaire,
                                 enseignant: moduleInfo?.professeur || "",
-                                enseignantCin: moduleInfo?.professeurCin || ""
+                                enseignantCin: moduleInfo?.professeurCin || "",
+                                modeEnregistrement: "Automatique"
                             }]
                         }));
                     })();
