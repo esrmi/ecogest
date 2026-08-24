@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.276.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.277.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -17460,43 +17460,43 @@ function genererBulletinNotes(etudiant, notesEtudiantSemestre, semestre, anneeUn
     } = calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, coursListe, presencesEtudiantSemestre, filieresAvecTauxAbsence);
     const cols = tauxAbsencePriseEnCompte ? [{
         label: "Module",
-        w: 48 * MM
+        w: 54 * MM
     }, {
         label: "Moyenne CC/TP",
-        w: 20 * MM
+        w: 18 * MM
     }, {
         label: "Note EFM",
-        w: 17 * MM
+        w: 15 * MM
     }, {
         label: "Note Module",
-        w: 17 * MM
+        w: 15 * MM
     }, {
         label: "Taux d'absence atteint",
-        w: 22 * MM
+        w: 21 * MM
+    }, {
+        label: "Note rattrapage",
+        w: 18 * MM
+    }, {
+        label: "Décision Jury d'examen",
+        w: W - 2 * marge - (54 + 18 + 15 + 15 + 21 + 18) * MM
+    }] : [{
+        label: "Module",
+        w: 64 * MM
+    }, {
+        label: "Moyenne CC/TP",
+        w: 20 * MM
+    }, {
+        label: "Note EFM",
+        w: 17 * MM
+    }, {
+        label: "Note Module",
+        w: 17 * MM
     }, {
         label: "Note rattrapage",
         w: 20 * MM
     }, {
         label: "Décision Jury d'examen",
-        w: W - 2 * marge - (48 + 20 + 17 + 17 + 22 + 20) * MM
-    }] : [{
-        label: "Module",
-        w: 58 * MM
-    }, {
-        label: "Moyenne CC/TP",
-        w: 22 * MM
-    }, {
-        label: "Note EFM",
-        w: 19 * MM
-    }, {
-        label: "Note Module",
-        w: 19 * MM
-    }, {
-        label: "Note rattrapage",
-        w: 22 * MM
-    }, {
-        label: "Décision Jury d'examen",
-        w: W - 2 * marge - (58 + 22 + 19 + 19 + 22) * MM
+        w: W - 2 * marge - (64 + 20 + 17 + 17 + 20) * MM
     }];
     const tableX = marge,
         tableW = W - 2 * marge,
@@ -17538,8 +17538,11 @@ function genererBulletinNotes(etudiant, notesEtudiantSemestre, semestre, anneeUn
         doc.line(tableX, y, tableX + tableW, y, 0.9, [0, 0, 0]);
     };
     drawTableHeader();
+    const ligneModuleH = 8 * 1.3;
     lignes.forEach((l, i) => {
-        if (y < 45 * MM) {
+        const moduleLines = wrapText(String(l.module ?? "—"), cols[0].w - 3 * MM, 8, false);
+        const rowHActuelle = Math.max(rowH, moduleLines.length * ligneModuleH + 3 * MM);
+        if (y - rowHActuelle < 25 * MM) {
             dessinerGrilleTableau(tableTopY);
             doc.newPage();
             doc.rect(0, H - 1.2 * MM, W, 1.2 * MM, ORANGE_RGB);
@@ -17548,12 +17551,10 @@ function genererBulletinNotes(etudiant, notesEtudiantSemestre, semestre, anneeUn
             drawTableHeader();
             rowBottoms = [];
         }
-        if (i % 2 === 1) doc.rect(tableX, y - rowH, tableW, rowH, [0.96, 0.96, 0.97]);
+        if (i % 2 === 1) doc.rect(tableX, y - rowHActuelle, tableW, rowHActuelle, [0.96, 0.96, 0.97]);
         const vals = tauxAbsencePriseEnCompte ? [l.module, fmt(l.moyenneCC), fmt(l.efmNote), fmt(l.noteModule), l.tauxAbsence !== null ? `${l.tauxAbsence.toFixed(2)}%` : "—", fmt(l.rattrapageNote), l.decision] : [l.module, fmt(l.moyenneCC), fmt(l.efmNote), fmt(l.noteModule), fmt(l.rattrapageNote), l.decision];
         let cx = tableX;
         vals.forEach((v, ci) => {
-            const maxW = cols[ci].w - 3 * MM;
-            const texte = truncateFit(v, maxW, 8);
             const estColDecision = ci === cols.length - 1;
             const estColTaux = tauxAbsencePriseEnCompte && cols[ci].label === "Taux d'absence atteint";
             const enRouge = l.decision === "Non validé" && (estColDecision || estColTaux && l.tauxAbsence !== null && l.tauxAbsence >= 25);
@@ -17562,11 +17563,19 @@ function genererBulletinNotes(etudiant, notesEtudiantSemestre, semestre, anneeUn
                 color: enRouge ? RED_RGB : [0, 0, 0],
                 bold: enRouge
             };
-            if (ci === 0) doc.text(cx + 1.5 * MM, y - rowH / 2 - 1.3, texte, opts);
-            else doc.textCentered(cx + cols[ci].w / 2, y - rowH / 2 - 1.3, texte, opts);
+            if (ci === 0) {
+                const startY = y - rowHActuelle / 2 + (moduleLines.length - 1) * ligneModuleH / 2 - 1.3;
+                moduleLines.forEach((ligne, li) => {
+                    doc.text(cx + 1.5 * MM, startY - li * ligneModuleH, ligne, opts);
+                });
+            } else {
+                const maxW = cols[ci].w - 3 * MM;
+                const texte = truncateFit(v, maxW, 8);
+                doc.textCentered(cx + cols[ci].w / 2, y - rowHActuelle / 2 - 1.3, texte, opts);
+            }
             cx += cols[ci].w;
         });
-        y -= rowH;
+        y -= rowHActuelle;
         rowBottoms.push(y);
     });
     dessinerGrilleTableau(tableTopY);
@@ -20671,7 +20680,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.276.0";
+const APP_VERSION = "v3.277.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
