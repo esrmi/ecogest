@@ -4971,6 +4971,35 @@ function calculerTauxAbsenceGeoloc(data, {
             taux
         };
     }).filter(m => m.seancesAttendues > 0).sort((a, b) => b.taux - a.taux);
+} // Calcule le taux d'absence par module d'un étudiant précis, pour une
+// année universitaire et (éventuellement) un semestre donnés, à partir des
+// absences RÉELLEMENT ENREGISTRÉES dans "Gestion des absences"
+// (data.presences) — qu'elles y aient été ajoutées AUTOMATIQUEMENT (dès
+// qu'une séance démarre sans confirmation, voir le mécanisme global) ou
+// MANUELLEMENT par un professeur/administrateur. C'est exactement le même
+// calcul que "Synthèse par module" et que le relevé de notes
+// (calculerLignesBulletin) — pour que ce sous-menu reflète fidèlement,
+// sans écart possible, ce qui est réellement enregistré.
+function calculerTauxAbsenceDepuisPresences(data, {
+    etudiantId,
+    anneeUniversitaire,
+    semestre
+}) {
+    if (!etudiantId || !anneeUniversitaire) return [];
+    const presencesEtudiant = (data.presences || []).filter(p => String(p.etudiantId) === String(etudiantId) && p.anneeUniversitaire === anneeUniversitaire && (!semestre || p.semestre === semestre));
+    const modulesConcernes = [... /* @__PURE__ */ new Set(presencesEtudiant.map(p => p.module).filter(Boolean))];
+    return modulesConcernes.map(module => {
+        const moduleInfo = (data.cours || []).find(c => c.intitule === module);
+        const heuresTotal = moduleInfo?.heures || 0;
+        const heuresManquees = Math.round(presencesEtudiant.filter(p => p.module === module).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
+        const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
+        return {
+            module,
+            heuresManquees,
+            heuresTotal,
+            taux
+        };
+    }).sort((a, b) => b.taux - a.taux);
 } // Camembert avec étiquettes externes reliées à leur portion par un trait en
 // pointillés (style "leader line"), moderne et lisible même avec plusieurs
 // petites portions proches en pourcentage — chaque étiquette affiche le nom
@@ -5609,9 +5638,9 @@ function Presences({
         sub: "liste complète, filtrable"
     }, {
         key: "tauxGeoloc",
-        icon: "📍",
-        label: "Taux d'absence par module (géolocalisation)",
-        sub: "distinct de la saisie manuelle ci-dessus"
+        icon: "📊",
+        label: "Taux d'absence par module (graphique)",
+        sub: "mêmes données que la synthèse ci-dessus, en graphique"
     }].map((item, idx, arr) => {
         const actif = mesAbsencesSection === item.key;
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -6046,7 +6075,7 @@ function Presences({
                     fontSize: 11,
                     color: C.muted
                 }
-            }, a.heuresManquees, "h manquée(s)", a.heuresTotal > 0 ? ` sur ${a.heuresTotal}h` : " — volume horaire du module non renseigné")), a.taux !== null && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+            }, (Math.round(a.heuresManquees * 100) / 100).toFixed(2), "h manquée(s)", a.heuresTotal > 0 ? ` sur ${a.heuresTotal}h` : " — volume horaire du module non renseigné")), a.taux !== null && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                 style: {
                     fontSize: 13,
                     fontWeight: 800,
@@ -6057,11 +6086,15 @@ function Presences({
         })));
     })(), role === "etudiant" && mesAbsencesSection === "tauxGeoloc" && (() => {
         const GEOLOC_PALETTE = [C.teal, C.navy, C.orange, C.purple, "#0d9488", C.red, "#c99a2e", "#6b7280"];
-        const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])];
-        const analyse = calculerTauxAbsenceGeoloc(data, {
+        const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])]; // Basé sur "Gestion des absences" (data.presences) — absences
+        // enregistrées automatiquement (dès le démarrage d'une séance
+        // sans confirmation) OU manuellement par un professeur/
+        // administrateur. Reflète donc fidèlement, sans écart possible,
+        // ce qui est réellement enregistré pour cet étudiant.
+        const analyse = calculerTauxAbsenceDepuisPresences(data, {
+            etudiantId: monEtudiant?.id,
             anneeUniversitaire: anneeTauxGeoloc,
-            semestre: semestreTauxGeoloc,
-            etudiantId: monEtudiant?.id
+            semestre: semestreTauxGeoloc
         }).map((m, i) => ({
             ...m,
             color: GEOLOC_PALETTE[i % GEOLOC_PALETTE.length]
@@ -6083,14 +6116,14 @@ function Presences({
                 color: C.teal,
                 marginBottom: 4
             }
-        }, "📍 Taux d'absence par module — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+        }, "📍 Taux d'absence par module"), /*#__PURE__*/ React.createElement("p", {
             style: {
                 fontSize: 11.5,
                 color: C.muted,
                 margin: "0 0 16px",
                 lineHeight: 1.6
             }
-        }, "Calculé à partir de vos confirmations de présence par géolocalisation (voir bannière en cours de séance) — totalement indépendant de la saisie manuelle des absences ci-dessus."), /*#__PURE__*/ React.createElement("div", {
+        }, "Calculé à partir des absences réellement enregistrées dans \"Gestion des absences\" — qu'elles aient été ajoutées automatiquement (séance démarrée sans confirmation de présence) ou manuellement par un professeur/administrateur. C'est le même calcul que celui utilisé dans votre relevé de notes."), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "flex",
                 gap: 10,
@@ -6125,7 +6158,7 @@ function Presences({
                 color: C.muted,
                 fontSize: 13
             }
-        }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        }, "Aucune absence enregistrée pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
             style: {
                 display: "flex",
                 flexDirection: "column",
@@ -6232,7 +6265,7 @@ function Presences({
             key: "_taux",
             label: "Synthèse",
             render: (_, row) => {
-                const heuresManquees = mesPresencesFiltrees.filter(p => p.module === row.intitule).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0);
+                const heuresManquees = Math.round(mesPresencesFiltrees.filter(p => p.module === row.intitule).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
                 const heuresTotal = row.heures || 0;
                 const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
                 const barColor = taux >= 20 ? C.red : taux >= 10 ? C.orange : C.green;
@@ -20385,7 +20418,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.266.0";
+const APP_VERSION = "v3.267.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
