@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.274.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.275.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -6674,6 +6674,17 @@ function Presences({
             key: "date",
             label: "Date",
             render: v => formatDateFR(v) || v
+        }, {
+            key: "heure",
+            label: "Séance",
+            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
+                style: {
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: C.navy,
+                    whiteSpace: "nowrap"
+                }
+            }, "🕒 ", v || "—")
         }, {
             key: "etudiant",
             label: "Étudiant",
@@ -20977,7 +20988,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.274.0";
+const APP_VERSION = "v3.275.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
