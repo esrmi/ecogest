@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.266.0 — 23 Août 2026
+//  ECOGEST_App.jsx — version v3.268.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -20349,7 +20349,7 @@ function Paiements({
 const NAV_BY_ROLE = {
     directrice: ["dashboard", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes", "presences", "notes", "emploi", "professeurs"],
     administrateur: ["dashboard", "filieres", "visiteurs", "etudiants", "paiements", "pointage", "calendrier", "demandes", "presences", "notes", "cours", "emploi", "professeurs", "parametrage", "config"],
-    professeur: ["presences", "notes", "pointage"],
+    professeur: ["presences", "notes", "pointage", "emploi"],
     etudiant: ["calendrier", "paiements", "demandes", "notes", "presences", "emploi"]
 };
 const NAV_SECTIONS = {
@@ -20418,7 +20418,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.267.0";
+const APP_VERSION = "v3.268.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
