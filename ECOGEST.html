@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.271.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.272.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -10888,6 +10888,10 @@ function EmploiDuTemps({
             toast("⚠️ Sélectionnez d'abord une année universitaire");
             return;
         }
+        if (!anneeDateRaisonnable(valeur)) {
+            toast("⚠️ Année invalide dans la date saisie (vérifiez qu'elle contient bien 4 chiffres, ex: 2027) — date non enregistrée");
+            return;
+        }
         const parAnnee = {
             ...(module.datesCCExamenParAnnee || {})
         };
@@ -11437,6 +11441,8 @@ function EmploiDuTemps({
                 }, /*#__PURE__*/ React.createElement("input", {
                     type: "date",
                     value: dateVal,
+                    min: "2020-01-01",
+                    max: "2099-12-31",
                     onChange: e => handleSetDate(m, "dateCC", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -11475,6 +11481,8 @@ function EmploiDuTemps({
                 }, /*#__PURE__*/ React.createElement("input", {
                     type: "date",
                     value: dateVal,
+                    min: "2020-01-01",
+                    max: "2099-12-31",
                     onChange: e => handleSetDate(m, "dateExamen", e.target.value),
                     style: {
                         padding: "6px 10px",
@@ -12126,6 +12134,10 @@ function Calendrier({
       toast("⚠️ Non connecté à SharePoint — événement non enregistré");
       return;
     }
+    if (!anneeDateRaisonnable(form.dateDebut) || !anneeDateRaisonnable(form.dateFin)) {
+      toast("⚠️ Année invalide dans une des dates saisies (vérifiez qu'elle contient bien 4 chiffres, ex: 2027) — événement non enregistré");
+      return;
+    }
     if (editItem) {
       const newEv = {
         ...form,
@@ -12284,22 +12296,13 @@ function Calendrier({
         fontSize: compact ? 13 : 14,
         color: "#232733"
       }
-    }, ev.titre), /*#__PURE__*/React.createElement("div", {
+    }, ev.description || ev.titre), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
         color: "#5a6172",
         marginTop: 2
       }
-    }, formatDateFR(ev.dateDebut), ev.dateFin && ev.dateFin !== ev.dateDebut ? ` → ${formatDateFR(ev.dateFin)}` : "", ev.filiere ? ` · ${ev.filiere}` : ""), !compact && ev.description &&
-    /*#__PURE__*/
-    /* @__PURE__ */
-    React.createElement("div", {
-      style: {
-        fontSize: 12.5,
-        color: "#4a5164",
-        marginTop: 4
-      }
-    }, ev.description))), /*#__PURE__*/React.createElement("div", {
+    }, formatDateFR(ev.dateDebut), ev.dateFin && ev.dateFin !== ev.dateDebut ? ` → ${formatDateFR(ev.dateFin)}` : "", ev.filiere ? ` · ${ev.filiere}` : ""))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
@@ -12831,6 +12834,8 @@ function Calendrier({
   }, /*#__PURE__*/React.createElement(Input, {
     label: "Date de début *",
     type: "date",
+    min: "2020-01-01",
+    max: "2099-12-31",
     value: form.dateDebut,
     onChange: e => setForm(f => ({
       ...f,
@@ -12839,6 +12844,8 @@ function Calendrier({
   }), /*#__PURE__*/React.createElement(Input, {
     label: "Date de fin (si période)",
     type: "date",
+    min: "2020-01-01",
+    max: "2099-12-31",
     value: form.dateFin,
     onChange: e => setForm(f => ({
       ...f,
@@ -16757,6 +16764,14 @@ const formatDateFR = iso => {
     const [y, m, d] = iso.split("-");
     return y && m && d ? `${d}/${m}/${y}` : iso;
 };
+// Détecte une année absurde (ex: "0020" au lieu de "2027") dans une date
+// ISO — certains navigateurs valident un champ <input type="date"> même
+// avec une année partiellement saisie. Bornes larges (2000-2100).
+function anneeDateRaisonnable(iso) {
+    if (!iso) return true;
+    const annee = parseInt(String(iso).slice(0, 4), 10);
+    return annee >= 2000 && annee <= 2100;
+}
 const genRecu = () => `REC-${/* @__PURE__ */new Date().getFullYear()}-${String(Math.floor(Math.random()*9e3)+1e3)}`;
 const genNumInscriptionESRMI = (etudiants, year, paiements) => {
     const anneeRef = year || /* @__PURE__ */ new Date().getFullYear();
@@ -20902,7 +20917,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.271.0";
+const APP_VERSION = "v3.272.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
