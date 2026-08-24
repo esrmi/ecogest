@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.275.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.276.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4903,138 +4903,48 @@ function dureeSeanceHeures(seance) {
     const h = parseSeanceHoraire(seance);
     if (h) return (h.finMin - h.debutMin) / 60;
     return SEANCE_DUREE[seance] || 1.5;
-} // Calcule le taux d'absence par module à partir des confirmations de
-// présence par GÉOLOCALISATION (data.sessionsQR), pour une année
-// universitaire et un semestre donnés — entièrement indépendant du volet
-// classique (data.presences), à ne jamais mélanger avec lui.
-// Le taux est calculé EXACTEMENT comme le volet classique : heures
-// manquées / volume horaire TOTAL du module (data.cours.heures) × 100 —
-// et non un simple ratio du nombre de séances suivies par géolocalisation,
-// qui ne reflète pas fidèlement le poids réel de chaque absence.
-// - Si etudiantId est fourni : calcule les heures manquées PROPRES à cet
-//   étudiant, module par module.
-// - Sinon (vue professeur ou direction) : agrège les heures manquées de
-//   l'ensemble de l'effectif attendu de chaque séance (filtrable en plus
-//   par professeurCin et/ou filiere).
-function calculerTauxAbsenceGeoloc(data, {
-    anneeUniversitaire,
-    semestre,
-    etudiantId,
-    professeurCin,
-    filiere
-}) { // Une séance doit être détectée comme ayant eu lieu à partir de TOUTES
-    // les confirmations (étudiant ET professeur), mais n'est retenue pour le
-    // calcul QUE si le PROFESSEUR l'a lui-même confirmée — sans cette
-    // confirmation, impossible d'être sûr que le cours a réellement eu
-    // lieu, et aucun étudiant ne doit donc être considéré absent pour cette
-    // séance (voir le filtre juste après la construction des instances).
-    const toutesConfirmationsSeance = (data.sessionsQR || []).filter(s => (s.type === "PresenceEtudiant" || s.type === "PresenceProf") && s.anneeUniversitaire === anneeUniversitaire && (!semestre || s.semestre === semestre) && (!filiere || s.filiere === filiere)); // Une séance instance = un module précis, donné un jour précis, à un
-    // groupe précis — identifiée par la combinaison filiere+module+date+
-    // créneau. On y rattache la liste des étudiants ayant confirmé, ainsi
-    // que l'horaire lui-même (nécessaire pour en déduire la durée réelle).
-    // Seules les confirmations D'ÉTUDIANTS alimentent confirmesIds (la
-    // confirmation du professeur sert uniquement à prouver que la séance a
-    // bien eu lieu, pas à compter comme la présence d'un étudiant).
-    const instancesBrutes = {};
-    toutesConfirmationsSeance.forEach(s => {
-        const cle = `${s.filiere}|||${s.module}|||${s.dateSeance}|||${s.seance}`;
-        if (!instancesBrutes[cle]) {
-            instancesBrutes[cle] = {
-                filiere: s.filiere,
-                module: s.module,
-                seance: s.seance,
-                confirmesIds: new Set(),
-                profConfirme: false
-            };
-        }
-        if (s.type === "PresenceEtudiant") instancesBrutes[cle].confirmesIds.add(String(s.etudiantId));
-        if (s.type === "PresenceProf") instancesBrutes[cle].profConfirme = true;
-    }); // Exclusion des séances où le professeur n'a PAS confirmé — même si des
-    // étudiants ont eux-mêmes confirmé, on ne peut pas établir avec
-    // certitude que le cours a bien eu lieu sans la confirmation du
-    // professeur, donc aucune absence (ni aucune présence) n'est comptée
-    // pour cette séance.
-    const instances = Object.fromEntries(Object.entries(instancesBrutes).filter(([, inst]) => inst.profConfirme)); // Ne conserve que les modules du/des professeur(s) concerné(s), si
-    // demandé (vue professeur) — un module peut être enseigné par plusieurs
-    // professeurs selon les groupes, d'où le filtrage par instance et non
-    // par nom de module seul.
-    const instancesFiltrees = Object.values(instances).filter(inst => {
-        if (!professeurCin) return true;
-        return (data.cours || []).some(c => c.intitule === inst.module && (c.filieresListe || [c.filiere]).includes(inst.filiere) && c.professeurCin === professeurCin);
-    });
-    const parModule = {};
-    instancesFiltrees.forEach(inst => {
-        const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, anneeUniversitaire) === inst.filiere && (e.promotion === anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === anneeUniversitaire)));
-        if (!parModule[inst.module]) parModule[inst.module] = {
-            seancesAttendues: 0,
-            absences: 0,
-            heuresManquees: 0
-        };
-        const dureeHeures = dureeSeanceHeures(inst.seance);
-        if (etudiantId) { // Vue étudiant : ne compte que si CET étudiant précis fait partie de
-            // l'effectif attendu de cette séance.
-            if (effectifAttendu.some(e => String(e.id) === String(etudiantId))) {
-                parModule[inst.module].seancesAttendues += 1;
-                if (!inst.confirmesIds.has(String(etudiantId))) {
-                    parModule[inst.module].absences += 1;
-                    parModule[inst.module].heuresManquees += dureeHeures;
-                }
-            }
-        } else {
-            const absentsDeCetteSeance = effectifAttendu.filter(e => !inst.confirmesIds.has(String(e.id)));
-            parModule[inst.module].seancesAttendues += effectifAttendu.length;
-            parModule[inst.module].absences += absentsDeCetteSeance.length;
-            parModule[inst.module].heuresManquees += absentsDeCetteSeance.length * dureeHeures;
-        }
-    });
-    return Object.entries(parModule).map(([module, v]) => {
-        const moduleInfo = (data.cours || []).find(c => c.intitule === module);
-        const heuresTotal = moduleInfo?.heures || 0;
-        const heuresManquees = Math.round(v.heuresManquees * 100) / 100;
-        const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
-        return {
-            module,
-            seancesAttendues: v.seancesAttendues,
-            absences: v.absences,
-            heuresManquees,
-            heuresTotal,
-            taux
-        };
-    }).filter(m => m.seancesAttendues > 0).sort((a, b) => b.taux - a.taux);
-} // Calcule le taux d'absence par module d'un étudiant précis, pour une
-// année universitaire et (éventuellement) un semestre donnés, à partir des
-// absences RÉELLEMENT ENREGISTRÉES dans "Gestion des absences"
-// (data.presences) — qu'elles y aient été ajoutées AUTOMATIQUEMENT (dès
-// qu'une séance démarre sans confirmation, voir le mécanisme global) ou
-// MANUELLEMENT par un professeur/administrateur. C'est exactement le même
-// calcul que "Synthèse par module" et que le relevé de notes
-// (calculerLignesBulletin) — pour que ce sous-menu reflète fidèlement,
-// sans écart possible, ce qui est réellement enregistré.
-function calculerTauxAbsenceDepuisPresences(data, {
-    etudiantId,
-    anneeUniversitaire,
-    semestre
-}) {
-    if (!etudiantId || !anneeUniversitaire) return [];
-    const presencesEtudiant = (data.presences || []).filter(p => String(p.etudiantId) === String(etudiantId) && p.anneeUniversitaire === anneeUniversitaire && (!semestre || p.semestre === semestre));
-    const modulesConcernes = [... /* @__PURE__ */ new Set(presencesEtudiant.map(p => p.module).filter(Boolean))];
-    return modulesConcernes.map(module => {
-        const moduleInfo = (data.cours || []).find(c => c.intitule === module);
-        const heuresTotal = moduleInfo?.heures || 0;
-        const heuresManquees = Math.round(presencesEtudiant.filter(p => p.module === module).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
-        const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
-        return {
-            module,
-            heuresManquees,
-            heuresTotal,
-            taux
-        };
-    }).sort((a, b) => b.taux - a.taux);
-} // Camembert avec étiquettes externes reliées à leur portion par un trait en
-// pointillés (style "leader line"), moderne et lisible même avec plusieurs
-// petites portions proches en pourcentage — chaque étiquette affiche le nom
-// du module et son taux, sans jamais empiéter sur le cercle lui-même.
-function PieChart({
+} // Calcule le taux d'absence par module, à partir des absences RÉELLEMENT
+// ENREGISTRÉES dans "Gestion des absences" (data.presences) — qu'elles y
+// aient été ajoutées AUTOMATIQUEMENT (détection géolocalisation, séance
+// démarrée sans confirmation, voir le mécanisme global) ou MANUELLEMENT
+// par un professeur/administrateur. Il s'agit ici d'une SEULE ET MÊME
+// liste, qui sert de source unique pour absolument tous les calculs de
+// taux d'absence de l'application (ce sous-menu, la synthèse par module,
+// le relevé de notes, les bulletins PDF) — il n'y a jamais deux résultats
+// différents pour la même donnée, quel que soit le menu consulté.
+// - etudiantId fourni : une ligne par module suivi par CET étudiant précis.
+// - etudiantId absent : agrège toutes les absences correspondant aux
+//   autres filtres (professeurCin et/ou filiere), une ligne par module,
+//   tous étudiants confondus — pour une vue d'ensemble par professeur ou
+//   par filière.
+function calculerTauxAbsence(data, {
+  anneeUniversitaire,
+  semestre,
+  etudiantId,
+  professeurCin,
+  filiere
+} = {}) {
+  const presencesFiltrees = (data.presences || []).filter(p => p.statut === "Absent" && p.module && (!anneeUniversitaire || p.anneeUniversitaire === anneeUniversitaire) && (!semestre || p.semestre === semestre) && (!filiere || p.filiere === filiere) && (!etudiantId || String(p.etudiantId) === String(etudiantId)) && (!professeurCin || p.enseignantCin === professeurCin));
+  const parModule = {};
+  presencesFiltrees.forEach(p => {
+    if (!parModule[p.module]) parModule[p.module] = {
+      heuresManquees: 0
+    };
+    parModule[p.module].heuresManquees += dureeSeanceHeures(p.seance || p.heure);
+  });
+  return Object.entries(parModule).map(([module, v]) => {
+    const moduleInfo = (data.cours || []).find(c => c.intitule === module);
+    const heuresTotal = moduleInfo?.heures || 0;
+    const heuresManquees = Math.round(v.heuresManquees * 100) / 100;
+    const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
+    return {
+      module,
+      heuresManquees,
+      heuresTotal,
+      taux
+    };
+  }).sort((a, b) => b.taux - a.taux);
+} function PieChart({
     data,
     size = 190
 }) {
@@ -5527,7 +5437,7 @@ function Presences({
     }), role === "professeur" && (() => {
         const GEOLOC_PALETTE = [C.teal, C.navy, C.orange, C.purple, "#0d9488", C.red, "#c99a2e", "#6b7280"];
         const semestresOptions = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])];
-        const analyse = calculerTauxAbsenceGeoloc(data, {
+        const analyse = calculerTauxAbsence(data, {
             anneeUniversitaire: anneeTauxGeoloc,
             semestre: semestreTauxGeoloc,
             professeurCin: monProfesseur?.cin
@@ -5553,14 +5463,14 @@ function Presences({
                 color: C.teal,
                 marginBottom: 4
             }
-        }, "📍 Taux d'absence par module (mes cours) — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+        }, "📊 Taux d'absence par module (mes cours)"), /*#__PURE__*/ React.createElement("p", {
             style: {
                 fontSize: 11.5,
                 color: C.muted,
                 margin: "0 0 16px",
                 lineHeight: 1.6
             }
-        }, "Calculé à partir des confirmations de présence par géolocalisation de vos étudiants, sur vos propres modules uniquement — totalement indépendant de la saisie manuelle des absences ci-dessous."), /*#__PURE__*/ React.createElement("div", {
+        }, "Calculé à partir des absences réellement enregistrées dans \"Gestion des absences\" pour vos modules — qu'elles aient été détectées automatiquement (géolocalisation) ou saisies manuellement."), /*#__PURE__*/ React.createElement("div", {
             style: {
                 display: "flex",
                 gap: 10,
@@ -5595,7 +5505,7 @@ function Presences({
                 color: C.muted,
                 fontSize: 13
             }
-        }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        }, "Aucune absence enregistrée pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
             style: {
                 display: "flex",
                 gap: 24,
@@ -6125,7 +6035,7 @@ function Presences({
         // sans confirmation) OU manuellement par un professeur/
         // administrateur. Reflète donc fidèlement, sans écart possible,
         // ce qui est réellement enregistré pour cet étudiant.
-        const analyse = calculerTauxAbsenceDepuisPresences(data, {
+        const analyse = calculerTauxAbsence(data, {
             etudiantId: monEtudiant?.id,
             anneeUniversitaire: anneeTauxGeoloc,
             semestre: semestreTauxGeoloc
@@ -6903,152 +6813,29 @@ function Presences({
             style: {
                 marginTop: 28
             }
-        }, (() => {
-            const modeActif = data.configuration?.modeGestionAbsences || "LesDeux";
-            const afficherClassique = modeActif === "Classique" || modeActif === "LesDeux";
-            const afficherGeoloc = modeActif === "Geolocalisation" || modeActif === "LesDeux"; // Calcul du seuil des 25% version GÉOLOCALISATION : entièrement
-            // indépendant du calcul classique ci-dessus (parCle25 /
-            // presencesBase25, basé sur data.presences) — celui-ci se base
-            // uniquement sur data.sessionsQR (confirmations GPS), étudiant
-            // par étudiant, module par module.
-            const lignes25Geoloc = afficherGeoloc ? (() => {
-                const etudiantsBase = (data.etudiants || []).filter(e => !filtreGroupe25 || e.filiere === filtreGroupe25 || (e.parcours || []).some(p => p.filiere === filtreGroupe25 || p.nouvelleFiliere === filtreGroupe25));
-                const anneesAIterer = filtreAnnee25 ? [filtreAnnee25] : ANNEES_UNIVERSITAIRES;
-                const semestresAIterer = filtreSemestre25 ? [filtreSemestre25] : SEMESTRES_MODULE_SEED;
-                const resultats = [];
-                etudiantsBase.forEach(e => {
-                    anneesAIterer.forEach(annee => {
-                        semestresAIterer.forEach(sem => {
-                            calculerTauxAbsenceGeoloc(data, {
-                                anneeUniversitaire: annee,
-                                semestre: sem,
-                                etudiantId: e.id,
-                                professeurCin: role === "professeur" ? monProfesseur?.cin : void 0
-                            }).filter(m => m.taux >= 25).forEach(m => {
-                                resultats.push({
-                                    key: `${e.id}__${m.module}__${annee}__${sem}`,
-                                    etudiant: `${e.prenom} ${e.nom}`,
-                                    numInscription: e.numInscription,
-                                    filiere: filiereEtudiantPourAnnee(e, annee),
-                                    semestre: sem,
-                                    anneeUniversitaire: annee,
-                                    module: m.module,
-                                    absences: m.absences,
-                                    seancesAttendues: m.seancesAttendues,
-                                    heuresManquees: m.heuresManquees,
-                                    heuresTotal: m.heuresTotal,
-                                    taux: m.taux
-                                });
-                            });
-                        });
-                    });
-                });
-                return resultats.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
-                    numeric: true,
-                    sensitivity: "base"
-                }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
-                    numeric: true,
-                    sensitivity: "base"
-                }) || b.taux - a.taux || a.etudiant.localeCompare(b.etudiant, "fr", {
-                    sensitivity: "base"
-                }));
-            })() : [];
-            const cols25Geoloc = [{
-                key: "etudiant",
-                label: "Étudiant"
-            }, {
-                key: "numInscription",
-                label: "N° inscription"
-            }, {
-                key: "_filiereCode25g",
-                label: "Filière",
-                render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
-                    code: filiereCode(row.filiere, data.filieres) || row.filiere || ""
-                })
-            }, {
-                key: "semestre",
-                label: "Semestre"
-            }, {
-                key: "anneeUniversitaire",
-                label: "Année universitaire"
-            }, {
-                key: "module",
-                label: "Module"
-            }, {
-                key: "heuresManquees",
-                label: "Heures manquées",
-                render: (v, row) => `${Number(v).toFixed(2)}h/${row.heuresTotal>0?`${Number(row.heuresTotal).toFixed(2)}h`:"?"}`
-            }, {
-                key: "taux",
-                label: "Taux d'absence",
-                render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-                    style: {
-                        fontWeight: 800,
-                        color: C.red
-                    }
-                }, v.toFixed(2), "%")
-            }];
-            return /*#__PURE__*/ /* @__PURE__ */ React.createElement(React.Fragment, null, /*#__PURE__*/ React.createElement("div", {
-                style: {
-                    display: "inline-block",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: C.navy,
-                    background: C.navyLight,
-                    borderRadius: 20,
-                    padding: "5px 14px",
-                    marginBottom: 18
-                }
-            }, modeActif === "Classique" && "📝 Mode officiel actif : Saisie classique uniquement", modeActif === "Geolocalisation" && "📍 Mode officiel actif : Géolocalisation uniquement", modeActif === "LesDeux" && "⚖️ Mode officiel actif : Les deux méthodes, en parallèle", " — ", "modifiable dans Paramétrage → Mode de gestion des absences"), afficherClassique && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-                style: {
-                    marginBottom: afficherGeoloc ? 32 : 0
-                }
-            }, /*#__PURE__*/ React.createElement("h4", {
-                style: {
-                    margin: "0 0 12px",
-                    color: C.navy,
-                    fontSize: 14.5
-                }
-            }, "📝 Étudiants ayant atteint 25% d'absence par module — saisie classique"), lignes25.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-                style: {
-                    padding: 32,
-                    textAlign: "center",
-                    color: C.muted,
-                    fontSize: 13
-                }
-            }, "Aucun étudiant n'a atteint 25% d'absence (saisie classique) pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-                style: {
-                    overflow: "hidden"
-                }
-            }, /*#__PURE__*/ React.createElement(DataTable, {
-                cols: cols25,
-                rows: lignes25,
-                emptyMsg: "Aucun étudiant concerné",
-                compact: true
-            }))), afficherGeoloc && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement("h4", {
-                style: {
-                    margin: "0 0 12px",
-                    color: C.teal,
-                    fontSize: 14.5
-                }
-            }, "📍 Étudiants ayant atteint 25% d'absence par module — géolocalisation"), lignes25Geoloc.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-                style: {
-                    padding: 32,
-                    textAlign: "center",
-                    color: C.muted,
-                    fontSize: 13
-                }
-            }, "Aucun étudiant n'a atteint 25% d'absence (géolocalisation) pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-                style: {
-                    overflow: "hidden"
-                }
-            }, /*#__PURE__*/ React.createElement(DataTable, {
-                cols: cols25Geoloc,
-                rows: lignes25Geoloc,
-                emptyMsg: "Aucun étudiant concerné",
-                compact: true
-            }))));
-        })(), /*#__PURE__*/ React.createElement(Card, {
+        }, /*#__PURE__*/ React.createElement("h4", {
+            style: {
+                margin: "0 0 12px",
+                color: C.navy,
+                fontSize: 14.5
+            }
+        }, "\uD83C\uDF93 \u00c9tudiants ayant atteint 25% d'absence par module"), lignes25.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                padding: 32,
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 13
+            }
+        }, "Aucun \u00e9tudiant n'a atteint 25% d'absence pour cette s\u00e9lection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
+            style: {
+                overflow: "hidden"
+            }
+        }, /*#__PURE__*/ React.createElement(DataTable, {
+            cols: cols25,
+            rows: lignes25,
+            emptyMsg: "Aucun \u00e9tudiant concern\u00e9",
+            compact: true
+        })), /*#__PURE__*/ React.createElement(Card, {
             style: {
                 padding: 16,
                 marginBottom: 16,
@@ -7440,9 +7227,9 @@ function Presences({
                         color: C.muted,
                         fontSize: 12.5
                     }
-                }, "📊 Sélectionnez une année universitaire et un semestre précis (dans les filtres ci-dessus) pour afficher le taux d'absence par module — d'après la géolocalisation.");
+                }, "📊 Sélectionnez une année universitaire et un semestre précis (dans les filtres ci-dessus) pour afficher le taux d'absence par module.");
             }
-            const analyse = calculerTauxAbsenceGeoloc(data, {
+            const analyse = calculerTauxAbsence(data, {
                 anneeUniversitaire: filtreAnneeGeolocState,
                 semestre: filtreSemestreGeolocState,
                 filiere: filtreFiliereGeolocState || void 0
@@ -7468,21 +7255,21 @@ function Presences({
                     color: C.teal,
                     marginBottom: 4
                 }
-            }, "📍 Taux d'absence par module — ", filtreAnneeGeolocState, " — ", filtreSemestreGeolocState, " — d'après la géolocalisation"), /*#__PURE__*/ React.createElement("p", {
+            }, "📊 Taux d'absence par module — ", filtreAnneeGeolocState, " — ", filtreSemestreGeolocState), /*#__PURE__*/ React.createElement("p", {
                 style: {
                     fontSize: 11.5,
                     color: C.muted,
                     margin: "0 0 16px",
                     lineHeight: 1.6
                 }
-            }, "Calculé à partir des confirmations de présence par géolocalisation des étudiants — totalement indépendant de la saisie manuelle des absences (\"Gestion des absences\" classique)."), analyse.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            }, "Calculé à partir de toutes les absences réellement enregistrées dans \"Gestion des absences\" — qu'elles aient été détectées automatiquement (géolocalisation) ou saisies manuellement."), analyse.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                 style: {
                     padding: 20,
                     textAlign: "center",
                     color: C.muted,
                     fontSize: 13
                 }
-            }, "Aucune séance suivie par géolocalisation pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            }, "Aucune absence enregistrée pour cette sélection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
                 style: {
                     display: "flex",
                     gap: 24,
@@ -13003,39 +12790,10 @@ function Parametrage({
             appliquerModeConnexionForcee(mode);
             toast(mode === "HorsLigne" ? "🔌 Mode Hors ligne activé — l'application n'utilisera plus que les données déjà en cache local" : "🌐 Mode Connecté activé — synchronisation avec SharePoint reprise");
         });
-    }; // Mode de gestion des absences : détermine quelle méthode fait foi pour
-    // les conséquences officielles (seuil des 25%, justifications requises)
-    // — "Classique" (saisie manuelle), "Geolocalisation", ou "LesDeux" (les
-    // deux tableaux sont montrés côte à côte, sans jamais être fusionnés).
-    // Les deux volets de présentation restent de toute façon toujours
-    // visibles et strictement séparés dans l'application, quel que soit ce
-    // choix — celui-ci ne fait que déterminer lequel sert de référence
-    // officielle.
-    const handleSetModeGestionAbsences = mode => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const spId = data.configuration?._spId;
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            ModeGestionAbsences: mode
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'ModeGestionAbsences' existe bien dans la liste SharePoint ECOGEST_Parametres");
-                return;
-            }
-            setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    modeGestionAbsences: mode,
-                    _spId: result._offline ? d.configuration?._spId : result.id || d.configuration?._spId
-                }
-            }));
-            toast("Mode de gestion des absences mis à jour ✓");
-        });
-    };
+    }; // Le réglage "Mode de gestion des absences" a été supprimé : les
+    // absences détectées automatiquement et celles saisies manuellement
+    // sont désormais fusionnées dans une seule et même liste dès leur
+    // création — il n'existe donc plus deux résultats distincts à arbitrer.
     const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
     const [horairesEdit, setHorairesEdit] = useState([]);
     const handleToggleFiliereWeekend = filiere => {
@@ -13508,81 +13266,6 @@ function Parametrage({
             padding: "8px 12px"
         }
     }, "⚠️ Mode Hors ligne actif pour tous les utilisateurs de l'application, sur tous les appareils — pensez à repasser en mode Connecté dès que la situation le permet, pour que les modifications en attente soient synchronisées avec SharePoint.")), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginBottom: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "🎓 Mode de gestion des absences"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Détermine quelle méthode fait foi pour les conséquences officielles (seuil des 25% d'absence, obligation de justification). Les deux volets de présentation des résultats (saisie classique et géolocalisation) restent dans tous les cas toujours visibles séparément, dans les sessions Admin, professeur, étudiant et direction — ce réglage ne fait que désigner lequel des deux est la référence officielle de l'établissement."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            display: "flex",
-            flexDirection: "column",
-            gap: 8
-        }
-    }, [{
-        valeur: "Classique",
-        icon: "📝",
-        titre: "Saisie classique",
-        desc: "La saisie manuelle des absences (formulaire de présence) fait foi pour le seuil des 25% et les justifications."
-    }, {
-        valeur: "Geolocalisation",
-        icon: "📍",
-        titre: "Géolocalisation",
-        desc: "Les confirmations de présence par géolocalisation font foi pour le seuil des 25% et les justifications."
-    }, {
-        valeur: "LesDeux",
-        icon: "⚖️",
-        titre: "Les deux en parallèle (par défaut)",
-        desc: "Aucune méthode n'est désignée comme référence unique — les deux tableaux du seuil des 25% sont affichés côte à côte, clairement séparés."
-    }].map(opt => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-        key: opt.valeur,
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            border: `1px solid ${(data.configuration?.modeGestionAbsences||"LesDeux")===opt.valeur?C.navy:C.border}`,
-            borderRadius: 8,
-            cursor: "pointer",
-            fontSize: 13,
-            background: (data.configuration?.modeGestionAbsences || "LesDeux") === opt.valeur ? C.navyLight : "transparent"
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "radio",
-        name: "modeGestionAbsences",
-        checked: (data.configuration?.modeGestionAbsences || "LesDeux") === opt.valeur,
-        onChange: () => handleSetModeGestionAbsences(opt.valeur),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontWeight: 700
-        }
-    }, opt.icon, " ", opt.titre), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted
-        }
-    }, opt.desc)))))), /*#__PURE__*/ React.createElement(Card, {
         style: {
             padding: 24,
             maxWidth: 480,
@@ -20988,7 +20671,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.275.0";
+const APP_VERSION = "v3.276.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -23064,7 +22747,6 @@ async function loadAllFromSP(token) {
             decalageGMT: g(parametresSP[0] || {}, "DecalageGMT") || "1",
             filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean),
             modeConnexion: g(parametresSP[0] || {}, "ModeConnexion") === "HorsLigne" ? "HorsLigne" : "Connecte",
-            modeGestionAbsences: ["Classique", "Geolocalisation", "LesDeux"].includes(g(parametresSP[0] || {}, "ModeGestionAbsences")) ? g(parametresSP[0] || {}, "ModeGestionAbsences") : "LesDeux",
             filieresAvecGeolocAbsences: (g(parametresSP[0] || {}, "FilieresAvecGeolocAbsences") || "").split("|").map(s => s.trim()).filter(Boolean)
         },
         calendrier: calendrier.map(c => ({
