@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.269.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.270.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4802,7 +4802,17 @@ function getSeancesGroupe(data, filiereNom) {
     const f = (data.filieres || []).find(x => x.intitule === filiereNom);
     const configures = f?.horaires && f.horaires.length > 0 ? f.horaires : f?.typeSeances === "Jour" ? SEANCES_HORAIRE.filter(s => s !== "19h00 - 21h00") : SEANCES_HORAIRE.filter(s => s === "19h00 - 21h00");
     const utilisesHistoriquement = (data.emploiDuTemps || []).filter(e => e.filiere === filiereNom).map(e => e.seance).filter(Boolean);
-    return [... /* @__PURE__ */ new Set([...configures, ...utilisesHistoriquement])];
+    // Déduplique par horaire RÉEL (heures de début/fin, voir seanceClef),
+    // et non par chaîne brute — sinon un même créneau saisi une fois avec
+    // "h" et une fois avec ":" apparaîtrait comme deux lignes distinctes.
+    // Le libellé issu du paramétrage du groupe (configures, en premier)
+    // est conservé en priorité sur une variante historique mal formatée.
+    const parClef = /* @__PURE__ */ new Map();
+    [...configures, ...utilisesHistoriquement].forEach(s => {
+        const clef = seanceClef(s);
+        if (!parClef.has(clef)) parClef.set(clef, s);
+    });
+    return trierParHoraire([...parClef.values()]);
 } // ── Détection automatique du créneau en cours (Pointage QR) ─────────────
 // Réutilise l'Emploi du temps comme source unique de vérité : pas de
 // planification séparée à maintenir pour savoir "qui a cours, où, quand".
@@ -4825,6 +4835,26 @@ function parseSeanceHoraire(seance) { // Accepte indifféremment le séparateur 
         debutMin: parseInt(m[1], 10) * 60 + parseInt(m[2], 10),
         finMin: parseInt(m[3], 10) * 60 + parseInt(m[4], 10)
     };
+}
+// Clé de regroupement d'un horaire de séance, insensible au format de
+// saisie ("09h00 - 10h30" vs "09:00 - 10h30" par ex.) — deux créneaux
+// représentant le MÊME horaire réel doivent apparaître sur UNE SEULE ligne
+// dans les grilles d'emploi du temps.
+function seanceClef(seance) {
+    const h = parseSeanceHoraire(seance);
+    return h ? `${h.debutMin}-${h.finMin}` : String(seance || "").trim();
+}
+// Trie une liste de libellés de séance par heure de début réelle (et non
+// alphabétiquement), pour garder la grille dans l'ordre chronologique.
+function trierParHoraire(seances) {
+    return [...seances].sort((a, b) => {
+        const ha = parseSeanceHoraire(a);
+        const hb = parseSeanceHoraire(b);
+        if (ha && hb) return ha.debutMin - hb.debutMin;
+        if (ha) return -1;
+        if (hb) return 1;
+        return String(a).localeCompare(String(b));
+    });
 }
 
 function jourFrancaisActuel() {
@@ -10566,6 +10596,14 @@ function EmploiDuTemps({
         let hash = 0;
         for (let i = 0; i < s.length; i++) hash = hash * 31 + s.charCodeAt(i) >>> 0;
         return GRADIENTS_MODULES[hash % GRADIENTS_MODULES.length];
+    };
+    // Détermine, pour une case de la grille, sur quel critère baser sa
+    // couleur : Professeur → groupe (filière) ; Étudiant → professeur
+    // (CIN, repli sur le nom) ; Administrateur/Directrice → module.
+    const cleCouleurCell = cell => {
+        if (role === "professeur") return cell.filiere || cell.module;
+        if (role === "etudiant") return cell.professeurCin || cell.professeur || cell.module;
+        return cell.module;
     }; // Paramétrage de l'emploi du temps (créneaux/séances) réservé à
     // l'administrateur uniquement, comme le reste du paramétrage pédagogique.
     const canEdit = ["administrateur"].includes(role);
@@ -10622,7 +10660,12 @@ function EmploiDuTemps({
     // groupes (non standard) resterait invisible, faute de ligne pour
     // l'accueillir dans la grille.
     const seancesAffichees = role === "professeur" ? (() => {
-        const utilisees = [... /* @__PURE__ */ new Set((data.emploiDuTemps || []).filter(e => e.professeurCin === monProfesseur?.cin && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee).map(e => e.seance).filter(Boolean))];
+        const brutes = (data.emploiDuTemps || []).filter(e => e.professeurCin === monProfesseur?.cin && e.semestre === filterSemestre && e.anneeUniversitaire === filterAnnee).map(e => e.seance).filter(Boolean);
+        const parClef = /* @__PURE__ */ new Map();
+        brutes.forEach(s => {
+            if (!parClef.has(seanceClef(s))) parClef.set(seanceClef(s), s);
+        });
+        const utilisees = trierParHoraire([...parClef.values()]);
         return utilisees.length > 0 ? utilisees : SEANCES_HORAIRE;
     })() : getSeancesGroupe(data, filterFiliere); // Pour un professeur (pas de filière unique sélectionnée, planning
     // personnel tous groupes confondus), le weekend doit être affiché dès
@@ -10822,7 +10865,7 @@ function EmploiDuTemps({
         if (slot.dateFin && d > slot.dateFin) return false;
         return true;
     };
-    const cellsFor = (jour, seance) => grille.filter(e => e.jour === jour && e.seance === seance && appliqueASemaine(e, jour));
+    const cellsFor = (jour, seance) => grille.filter(e => e.jour === jour && seanceClef(e.seance) === seanceClef(seance) && appliqueASemaine(e, jour));
     const modulesDuGroupe = (data.cours || []).filter(c => (c.filieresListe || [c.filiere]).includes(filterFiliere) && c.semestre === filterSemestre && (!filterAnnee || (c.anneesUniversitaires || []).length === 0 || (c.anneesUniversitaires || []).includes(filterAnnee))); // Un même module peut être dispensé sur plusieurs années universitaires,
     // avec des dates de contrôle continu / examen différentes à chaque fois.
     // Ces dates sont donc désormais conservées PAR ANNÉE (datesCCExamenParAnnee),
@@ -11183,7 +11226,7 @@ function EmploiDuTemps({
                 e.currentTarget.style.transform = "translateY(0)";
             },
             style: {
-                background: `linear-gradient(135deg, ${colorForModule(cell.id)[0]} 0%, ${colorForModule(cell.id)[1]} 100%)`,
+                background: `linear-gradient(135deg, ${colorForModule(cleCouleurCell(cell))[0]} 0%, ${colorForModule(cleCouleurCell(cell))[1]} 100%)`,
                 border: "1px solid rgba(255,255,255,0.12)",
                 borderLeft: `5px solid rgba(255,255,255,0.55)`,
                 borderRadius: 10,
@@ -20419,7 +20462,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.269.0";
+const APP_VERSION = "v3.270.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
