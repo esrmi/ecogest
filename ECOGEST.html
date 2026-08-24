@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.277.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.278.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -3466,7 +3466,8 @@ function Notes({
                     prenom: row.etudiant || "",
                     nom: ""
                 }),
-                filiere: row._filiere || row.filiere || etReel?.filiere || ""
+                filiere: row._filiere || row.filiere || etReel?.filiere || "",
+                numInscription: row.numInscription
             };
             const semestre = row.semestre || "";
             const notesSem = (data.notes || []).filter(n => n.numInscription === row.numInscription && n.semestre === semestre);
@@ -4155,7 +4156,7 @@ function Notes({
                 lignes,
                 moyenneSemestre,
                 tauxAbsencePriseEnCompte
-            } = calculerLignesBulletin(etudiantPourBulletin, notesSem, sem, data.cours, mesPresencesEtudiant, data.configuration?.filieresAvecTauxAbsence);
+            } = calculerLignesBulletin(etudiantPourBulletin, notesSem, sem, data.cours, mesPresencesEtudiant, data.configuration?.filieresAvecTauxAbsence, anneeGroupe);
             const fmt = v => v === null || v === void 0 || isNaN(v) ? "—" : v.toFixed(2).replace(".", ",");
             const entetes = tauxAbsencePriseEnCompte ? ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Taux d'absence atteint", "Note rattrapage", "Décision"] : ["Module", "Moyenne CC/TP", "Note EFM", "Note Module", "Note rattrapage", "Décision"];
             return /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
@@ -4921,10 +4922,12 @@ function calculerTauxAbsence(data, {
   anneeUniversitaire,
   semestre,
   etudiantId,
+  numInscription,
   professeurCin,
   filiere
 } = {}) {
-  const presencesFiltrees = (data.presences || []).filter(p => p.statut === "Absent" && p.module && (!anneeUniversitaire || p.anneeUniversitaire === anneeUniversitaire) && (!semestre || p.semestre === semestre) && (!filiere || p.filiere === filiere) && (!etudiantId || String(p.etudiantId) === String(etudiantId)) && (!professeurCin || p.enseignantCin === professeurCin));
+  const matchEtudiant = p => !etudiantId && !numInscription ? true : etudiantId && String(p.etudiantId) === String(etudiantId) || numInscription && p.numInscription === numInscription;
+  const presencesFiltrees = (data.presences || []).filter(p => p.statut === "Absent" && p.module && (!anneeUniversitaire || p.anneeUniversitaire === anneeUniversitaire) && (!semestre || p.semestre === semestre) && (!filiere || p.filiere === filiere) && matchEtudiant(p) && (!professeurCin || p.enseignantCin === professeurCin));
   const parModule = {};
   presencesFiltrees.forEach(p => {
     if (!parModule[p.module]) parModule[p.module] = {
@@ -6729,38 +6732,41 @@ function Presences({
         // restreinte à ses séances) plutôt que de la totalité des
         // présences de l'établissement, pour ne jamais exposer les
         // absences enregistrées par d'autres professeurs.
-        const presencesBase25 = mesPresences.filter(p => (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25)); // Regroupe les heures manquées par couple (étudiant, module,
-        // année universitaire) afin de pouvoir calculer un taux
-        // d'absence par module et repérer les étudiants ayant atteint
-        // le seuil des 25% — une même paire étudiant/module peut se
-        // répéter sur plusieurs années.
-        const parCle25 = {};
-        presencesBase25.forEach(p => {
-            const cleEt = p.etudiantId || p.numInscription;
-            if (!cleEt || !p.module) return;
-            const cle = `${cleEt}__${p.module}__${p.anneeUniversitaire||""}`;
-            if (!parCle25[cle]) parCle25[cle] = {
-                etudiantId: p.etudiantId,
-                numInscription: p.numInscription,
-                etudiant: p.etudiant,
-                filiere: p.filiere,
-                semestre: p.semestre,
-                module: p.module,
-                anneeUniversitaire: p.anneeUniversitaire || "",
-                heuresManquees: 0
-            };
-            parCle25[cle].heuresManquees += dureeSeanceHeures(p.seance || p.heure);
+        const presencesBase25 = mesPresences.filter(p => (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25));
+        // Un même taux d'absence doit toujours être identique partout où il
+        // est affiché — le calcul passe donc systématiquement par
+        // calculerTauxAbsence(), LA SEULE ET UNIQUE fonction de calcul de
+        // taux d'absence de toute l'application, une fois par (étudiant,
+        // année universitaire) distinct rencontré dans la sélection.
+        const clesEtudiantAnnee = [...new Set(presencesBase25.map(p => `${p.etudiantId || p.numInscription}__${p.anneeUniversitaire || ""}`))];
+        const lignes25 = [];
+        clesEtudiantAnnee.forEach(cle => {
+            const [cleEt, annee] = cle.split("__");
+            const exempleP = presencesBase25.find(p => `${p.etudiantId || p.numInscription}` === cleEt && (p.anneeUniversitaire || "") === annee);
+            if (!exempleP) return;
+            calculerTauxAbsence(data, {
+                etudiantId: exempleP.etudiantId,
+                numInscription: exempleP.numInscription,
+                anneeUniversitaire: annee || void 0,
+                semestre: filtreSemestre25 || void 0,
+                filiere: filtreGroupe25 || void 0,
+                professeurCin: role === "professeur" ? monProfesseur?.cin : void 0
+            }).filter(m => m.taux >= 25).forEach(m => {
+                lignes25.push({
+                    key: `${cleEt}__${m.module}__${annee}`,
+                    etudiant: exempleP.etudiant,
+                    numInscription: exempleP.numInscription,
+                    filiere: exempleP.filiere,
+                    semestre: exempleP.semestre,
+                    anneeUniversitaire: annee,
+                    module: m.module,
+                    heuresManquees: m.heuresManquees,
+                    heuresTotal: m.heuresTotal,
+                    taux: m.taux
+                });
+            });
         });
-        const lignes25 = Object.values(parCle25).map(l => {
-            const moduleInfo = (data.cours || []).find(c => c.intitule === l.module);
-            const heuresTotal = moduleInfo?.heures || 0;
-            const taux = heuresTotal > 0 ? Math.round(l.heuresManquees / heuresTotal * 10000) / 100 : 0;
-            return {
-                ...l,
-                heuresTotal,
-                taux
-            };
-        }).filter(l => l.taux >= 25).sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+        lignes25.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
             numeric: true,
             sensitivity: "base"
         }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
@@ -17340,9 +17346,18 @@ function genererReleveAbsences(etudiant, presencesEtudiant, coursListe = []) {
     downloadPDF(doc.build(), `Releve_Absences_${etudiant.prenom||""}_${etudiant.nom||""}.pdf`.replace(/\s+/g, "_"));
 }
 
-function calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, coursListe, presencesEtudiantSemestre, filieresAvecTauxAbsence = []) {
+function calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, coursListe, presencesEtudiantSemestre, filieresAvecTauxAbsence = [], anneeUniversitaire = void 0) {
     const modulesDuSemestre = (coursListe || []).filter(c => c.semestre === semestre && (c.filieresListe || [c.filiere]).includes(etudiant.filiere));
     const tauxAbsencePriseEnCompte = filieresAvecTauxAbsence.includes(etudiant.filiere);
+    const analyseAbsences = tauxAbsencePriseEnCompte ? calculerTauxAbsence({
+        presences: presencesEtudiantSemestre || [],
+        cours: coursListe || []
+    }, {
+        etudiantId: etudiant.id,
+        numInscription: etudiant.numInscription,
+        anneeUniversitaire,
+        semestre
+    }) : [];
     let sommeNotesModules = 0,
         nbModulesNotes = 0;
     const brut = modulesDuSemestre.map(module => {
@@ -17355,8 +17370,8 @@ function calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, cours
         const noteModule = rattrapageNote !== null ? rattrapageNote : noteModuleInitiale;
         let tauxAbsence = null;
         if (tauxAbsencePriseEnCompte) {
-            const heuresManquees = (presencesEtudiantSemestre || []).filter(p => p.module === module.intitule).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0);
-            tauxAbsence = module.heures > 0 ? Math.round(heuresManquees / module.heures * 10000) / 100 : null;
+            const analyseModule = analyseAbsences.find(m => m.module === module.intitule);
+            tauxAbsence = module.heures > 0 ? (analyseModule ? analyseModule.taux : 0) : null;
         }
         if (noteModule !== null) {
             sommeNotesModules += noteModule;
@@ -17457,7 +17472,7 @@ function genererBulletinNotes(etudiant, notesEtudiantSemestre, semestre, anneeUn
         lignes,
         moyenneSemestre,
         tauxAbsencePriseEnCompte
-    } = calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, coursListe, presencesEtudiantSemestre, filieresAvecTauxAbsence);
+    } = calculerLignesBulletin(etudiant, notesEtudiantSemestre, semestre, coursListe, presencesEtudiantSemestre, filieresAvecTauxAbsence, anneeUniversitaire);
     const cols = tauxAbsencePriseEnCompte ? [{
         label: "Module",
         w: 54 * MM
@@ -20680,7 +20695,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.277.0";
+const APP_VERSION = "v3.278.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
