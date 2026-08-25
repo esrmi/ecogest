@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.289.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.290.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -12885,1230 +12885,1499 @@ function Calendrier({
   }, editItem ? "Mettre à jour → SharePoint" : "Ajouter → SharePoint"))));
 }
 function Parametrage({
-    data,
-    setData,
-    user,
-    toast
-}) { // Mode de connexion (Connecté / Hors ligne) : réutilise intégralement le
-    // mécanisme de cache local + file d'attente déjà en place dans toute
-    // l'application (voir isBrowserOnline/appliquerModeConnexionForcee) —
-    // aucun nouveau système de synchronisation n'est introduit ici.
-    const handleSetModeConnexion = mode => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
+  data,
+  setData,
+  user,
+  toast
+}) {
+  const [rechercheConnexions, setRechercheConnexions] = useState("");
+  const [filtreRoleConnexions, setFiltreRoleConnexions] = useState("");
+  const [rechercheHistorique, setRechercheHistorique] = useState("");
+  const [filtreRoleHistorique, setFiltreRoleHistorique] = useState("");
+  const [filtreDateHistorique, setFiltreDateHistorique] = useState("");
+  // Mode de connexion (Connecté / Hors ligne) : réutilise intégralement le
+  // mécanisme de cache local + file d'attente déjà en place dans toute
+  // l'application (voir isBrowserOnline/appliquerModeConnexionForcee) —
+  // aucun nouveau système de synchronisation n'est introduit ici.
+  const handleSetModeConnexion = mode => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    if (mode === "HorsLigne" && !loadDataCache()) {
+      toast("⚠️ Aucune donnée n'est encore en cache localement — restez au moins une fois en mode Connecté avant de pouvoir activer le mode Hors ligne");
+      return;
+    }
+    const modeAvant = data.configuration?.modeConnexion || "Connecte";
+    // Si l'on repasse en "Connecté", on lève d'abord le forçage pour que
+    // CET enregistrement parte réellement vers SharePoint plutôt que
+    // d'être mis en file d'attente par erreur.
+    if (mode === "Connecte") appliquerModeConnexionForcee(null);
+    const spId = data.configuration?._spId;
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      ModeConnexion: mode
+    }, user.token, spId).then(result => {
+      if (!result) {
+        if (mode === "Connecte") appliquerModeConnexionForcee(modeAvant);
+        toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'ModeConnexion' existe bien dans la liste SharePoint ECOGEST_Parametres");
+        return;
+      }
+      setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          modeConnexion: mode,
+          _spId: result._offline ? d.configuration?._spId : result.id || d.configuration?._spId
         }
-        if (mode === "HorsLigne" && !loadDataCache()) {
-            toast("⚠️ Aucune donnée n'est encore en cache localement — restez au moins une fois en mode Connecté avant de pouvoir activer le mode Hors ligne");
-            return;
-        }
-        const modeAvant = data.configuration?.modeConnexion || "Connecte"; // Si l'on repasse en "Connecté", on lève d'abord le forçage pour que
-        // CET enregistrement parte réellement vers SharePoint plutôt que
-        // d'être mis en file d'attente par erreur.
-        if (mode === "Connecte") appliquerModeConnexionForcee(null);
-        const spId = data.configuration?._spId;
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            ModeConnexion: mode
-        }, user.token, spId).then(result => {
-            if (!result) {
-                if (mode === "Connecte") appliquerModeConnexionForcee(modeAvant);
-                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'ModeConnexion' existe bien dans la liste SharePoint ECOGEST_Parametres");
-                return;
-            }
-            setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    modeConnexion: mode,
-                    _spId: result._offline ? d.configuration?._spId : result.id || d.configuration?._spId
-                }
-            }));
-            appliquerModeConnexionForcee(mode);
-            toast(mode === "HorsLigne" ? "🔌 Mode Hors ligne activé — l'application n'utilisera plus que les données déjà en cache local" : "🌐 Mode Connecté activé — synchronisation avec SharePoint reprise");
-        });
-    }; // Le réglage "Mode de gestion des absences" a été supprimé : les
-    // absences détectées automatiquement et celles saisies manuellement
-    // sont désormais fusionnées dans une seule et même liste dès leur
-    // création — il n'existe donc plus deux résultats distincts à arbitrer.
-    const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
-    const [horairesEdit, setHorairesEdit] = useState([]);
-    const handleToggleFiliereWeekend = filiere => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const actuelles = data.configuration?.filieresAvecWeekend || [];
-        const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                filieresAvecWeekend: nouvelles
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            FilieresAvecWeekend: nouvelles.join(" | ")
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-        });
-    };
-    const handleToggleFiliereGeolocAbsences = filiere => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const actuelles = data.configuration?.filieresAvecGeolocAbsences || [];
-        const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                filieresAvecGeolocAbsences: nouvelles
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            FilieresAvecGeolocAbsences: nouvelles.join(" | ")
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'FilieresAvecGeolocAbsences' existe bien dans la liste SharePoint ECOGEST_Parametres");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-        });
-    };
-    const handleToggleFiliereTauxAbsence = filiere => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const actuelles = data.configuration?.filieresAvecTauxAbsence || [];
-        const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                filieresAvecTauxAbsence: nouvelles
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            FilieresAvecTauxAbsence: nouvelles.join(" | ")
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-        });
-    };
-    const handleToggleNotificationsEmail = () => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const nouvelleValeur = !data.configuration?.notificationsEmailActives;
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                notificationsEmailActives: nouvelleValeur
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            FilieresAvecTauxAbsence: (data.configuration?.filieresAvecTauxAbsence || []).join(" | "),
-            NotificationsEmailActives: nouvelleValeur ? "true" : "false",
-            NotificationsEmailDestinataires: data.configuration?.notificationsEmailDestinataires || "tous"
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-            toast(nouvelleValeur ? "🔔 Notifications par email activées ✓" : "🔕 Notifications par email désactivées ✓");
-        });
-    };
-    const handleSetNotificationsDestinataires = valeur => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                notificationsEmailDestinataires: valeur
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            FilieresAvecTauxAbsence: (data.configuration?.filieresAvecTauxAbsence || []).join(" | "),
-            NotificationsEmailActives: data.configuration?.notificationsEmailActives ? "true" : "false",
-            NotificationsEmailDestinataires: valeur
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-            toast(valeur === "adminSeul" ? "🔔 Notifications limitées à l'administrateur uniquement ✓" : "🔔 Notifications envoyées à tous les concernés ✓");
-        });
-    };
-    const [captureGeoloc, setCaptureGeoloc] = useState(false);
-    const [formGeoloc, setFormGeoloc] = useState({
-        latitude: data.configuration?.campusLatitude || "",
-        longitude: data.configuration?.campusLongitude || "",
-        rayon: data.configuration?.campusRayonMetres || "150",
-        delaiPointage: data.configuration?.delaiPointageMinutes || "15"
+      }));
+      appliquerModeConnexionForcee(mode);
+      toast(mode === "HorsLigne" ? "🔌 Mode Hors ligne activé — l'application n'utilisera plus que les données déjà en cache local" : "🌐 Mode Connecté activé — synchronisation avec SharePoint reprise");
     });
-    const handleCapturerPositionActuelle = () => {
-        if (!navigator.geolocation) {
-            toast("⚠️ La géolocalisation n'est pas disponible sur cet appareil");
-            return;
-        }
-        setCaptureGeoloc(true);
-        navigator.geolocation.getCurrentPosition(pos => {
-            setCaptureGeoloc(false);
-            setFormGeoloc(f => ({
-                ...f,
-                latitude: pos.coords.latitude.toFixed(6),
-                longitude: pos.coords.longitude.toFixed(6)
-            }));
-            toast("📍 Position actuelle capturée — pensez à enregistrer");
-        }, err => {
-            setCaptureGeoloc(false);
-            toast("⚠️ Impossible de récupérer la position : " + err.message);
-        }, {
-            enableHighAccuracy: true,
-            timeout: 15e3
-        });
-    };
-    const handleSaveGeoloc = () => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const spId = data.configuration?._spId;
-        const delaiValide = Math.max(1, parseInt(formGeoloc.delaiPointage, 10) || 15);
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                campusLatitude: formGeoloc.latitude,
-                campusLongitude: formGeoloc.longitude,
-                campusRayonMetres: formGeoloc.rayon,
-                delaiPointageMinutes: delaiValide
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            CampusLatitude: formGeoloc.latitude,
-            CampusLongitude: formGeoloc.longitude,
-            CampusRayonMetres: formGeoloc.rayon,
-            DelaiPointageMinutes: String(delaiValide)
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-            toast("📍 Emplacement du campus et délai de pointage enregistrés ✓");
-        });
-    };
-    const handleToggleGeolocalisation = () => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        if (!data.configuration?.geolocalisationActive && (!formGeoloc.latitude || !formGeoloc.longitude)) {
-            toast("⚠️ Renseignez d'abord l'emplacement du campus avant d'activer la vérification");
-            return;
-        }
-        const nouvelleValeur = !data.configuration?.geolocalisationActive;
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                geolocalisationActive: nouvelleValeur
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            GeolocalisationActive: nouvelleValeur ? "true" : "false"
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-            toast(nouvelleValeur ? "📍 Vérification de localisation activée pour le pointage QR ✓" : "📍 Vérification de localisation désactivée ✓");
-        });
-    };
-    const [formDecalageGMT, setFormDecalageGMT] = useState(data.configuration?.decalageGMT || "1");
-    const handleSaveDecalageGMT = () => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
-            return;
-        }
-        const spId = data.configuration?._spId;
-        setData(d => ({
-            ...d,
-            configuration: {
-                ...d.configuration,
-                decalageGMT: formDecalageGMT
-            }
-        }));
-        saveToSP("ECOGEST_Parametres", {
-            Title: "Configuration ECOGEST",
-            DecalageGMT: formDecalageGMT
-        }, user.token, spId).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            if (!spId) setData(d => ({
-                ...d,
-                configuration: {
-                    ...d.configuration,
-                    _spId: result.id
-                }
-            }));
-            toast(`🕒 Fuseau horaire enregistré (GMT+${formDecalageGMT}) ✓`);
-        });
-    };
-    const semestresConnus = [... /* @__PURE__ */ new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean), ...(data.semestresDates || []).map(s => s.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
-        numeric: true,
-        sensitivity: "base"
+  };
+  // Le réglage "Mode de gestion des absences" (Classique/Géolocalisation/
+  // LesDeux) a été supprimé : les absences détectées automatiquement et
+  // celles saisies manuellement sont désormais fusionnées dans une seule
+  // et même liste ("Gestion des absences") dès leur création — il n'existe
+  // donc plus deux résultats distincts à arbitrer entre eux.
+  const [groupeHorairesOuvert, setGroupeHorairesOuvert] = useState(null);
+  const [horairesEdit, setHorairesEdit] = useState([]);
+  const handleToggleFiliereWeekend = filiere => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const actuelles = data.configuration?.filieresAvecWeekend || [];
+    const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        filieresAvecWeekend: nouvelles
+      }
     }));
-    const handleSaveSemestreDate = (semestre, champ, valeur) => {
-        if (!user?.token) {
-            toast("⚠️ Non connecté à SharePoint — date non enregistrée");
-            return;
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      FilieresAvecWeekend: nouvelles.join(" | ")
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-        const existant = (data.semestresDates || []).find(s => s.semestre === semestre);
-        if (existant) {
-            const updated = {
-                ...existant,
-                [champ]: valeur
-            };
-            setData(d => ({
-                ...d,
-                semestresDates: d.semestresDates.map(s => s.semestre === semestre ? updated : s)
-            }));
-            if (existant._spId && existant._spId !== "pending") {
-                saveToSP("ECOGEST_SemestresDates", {
-                    Semestre: semestre,
-                    DateDebut: updated.dateDebut || "",
-                    DateFin: updated.dateFin || ""
-                }, user.token, existant._spId).then(result => {
-                    if (!result) toast("⚠️ Échec de l'enregistrement");
-                });
-            }
-            return;
+      }));
+    });
+  };
+  const handleToggleFiliereGeolocAbsences = filiere => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const actuelles = data.configuration?.filieresAvecGeolocAbsences || [];
+    const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        filieresAvecGeolocAbsences: nouvelles
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      FilieresAvecGeolocAbsences: nouvelles.join(" | ")
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement — vérifiez que la colonne 'FilieresAvecGeolocAbsences' existe bien dans la liste SharePoint ECOGEST_Parametres");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-        const nouvelleEntreeLocale = {
-            id: Date.now(),
-            _spId: "pending",
-            semestre,
-            dateDebut: "",
-            dateFin: "",
-            [champ]: valeur
-        };
-        setData(d => ({
-            ...d,
-            semestresDates: [...d.semestresDates, nouvelleEntreeLocale]
-        }));
-        saveToSP("ECOGEST_SemestresDates", {
-            Title: semestre,
-            Semestre: semestre,
-            DateDebut: nouvelleEntreeLocale.dateDebut || "",
-            DateFin: nouvelleEntreeLocale.dateFin || ""
-        }, user.token).then(result => {
-            if (!result) {
-                toast("⚠️ Échec de l'enregistrement");
-                return;
-            }
-            setData(d => {
-                const actuel = d.semestresDates.find(s => s.semestre === semestre && s._spId === "pending");
-                const nouveaux = d.semestresDates.map(s => s.semestre === semestre && s._spId === "pending" ? {
-                    ...s,
-                    _spId: result.id
-                } : s);
-                if (actuel) {
-                    saveToSP("ECOGEST_SemestresDates", {
-                        Semestre: semestre,
-                        DateDebut: actuel.dateDebut || "",
-                        DateFin: actuel.dateFin || ""
-                    }, user.token, result.id);
-                }
-                return {
-                    ...d,
-                    semestresDates: nouveaux
-                };
-            });
-        });
-    };
-    return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(PageHeader, {
-        title: "Paramétrage",
-        sub: "Réglages généraux appliqués à l'ensemble de l'application"
-    }), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginBottom: 20,
-            border: `2px solid ${data.configuration?.modeConnexion==="HorsLigne"?C.red:"transparent"}`
+      }));
+    });
+  };
+  const handleToggleFiliereTauxAbsence = filiere => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const actuelles = data.configuration?.filieresAvecTauxAbsence || [];
+    const nouvelles = actuelles.includes(filiere) ? actuelles.filter(f => f !== filiere) : [...actuelles, filiere];
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        filieresAvecTauxAbsence: nouvelles
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      FilieresAvecTauxAbsence: nouvelles.join(" | ")
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
+      }));
+    });
+  };
+  const handleToggleNotificationsEmail = () => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const nouvelleValeur = !data.configuration?.notificationsEmailActives;
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        notificationsEmailActives: nouvelleValeur
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      FilieresAvecTauxAbsence: (data.configuration?.filieresAvecTauxAbsence || []).join(" | "),
+      NotificationsEmailActives: nouvelleValeur ? "true" : "false",
+      NotificationsEmailDestinataires: data.configuration?.notificationsEmailDestinataires || "tous"
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, "🔌 Mode de connexion"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
+      }));
+      toast(nouvelleValeur ? "🔔 Notifications par email activées ✓" : "🔕 Notifications par email désactivées ✓");
+    });
+  };
+  const handleSetNotificationsDestinataires = valeur => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        notificationsEmailDestinataires: valeur
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      FilieresAvecTauxAbsence: (data.configuration?.filieresAvecTauxAbsence || []).join(" | "),
+      NotificationsEmailActives: data.configuration?.notificationsEmailActives ? "true" : "false",
+      NotificationsEmailDestinataires: valeur
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, "Détermine si l'application communique en temps réel avec SharePoint, ou si elle travaille exclusivement à partir des données déjà enregistrées localement (dernière synchronisation réussie). S'applique à l'ensemble de l'application, pour tous les rôles."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            display: "flex",
-            flexDirection: "column",
-            gap: 8
-        }
-    }, /*#__PURE__*/ React.createElement("label", {
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            border: `1px solid ${(data.configuration?.modeConnexion||"Connecte")==="Connecte"?C.navy:C.border}`,
-            borderRadius: 8,
-            cursor: "pointer",
-            fontSize: 13,
-            background: (data.configuration?.modeConnexion || "Connecte") === "Connecte" ? C.navyLight : "transparent"
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "radio",
-        name: "modeConnexion",
-        checked: (data.configuration?.modeConnexion || "Connecte") === "Connecte",
-        onChange: () => handleSetModeConnexion("Connecte"),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontWeight: 700
-        }
-    }, "🌐 Connecté"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted
-        }
-    }, "Fonctionnement normal — lecture/écriture en temps réel avec SharePoint (mode par défaut)."))), /*#__PURE__*/ React.createElement("label", {
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            border: `1px solid ${data.configuration?.modeConnexion==="HorsLigne"?C.red:C.border}`,
-            borderRadius: 8,
-            cursor: "pointer",
-            fontSize: 13,
-            background: data.configuration?.modeConnexion === "HorsLigne" ? "#fdeeec" : "transparent"
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "radio",
-        name: "modeConnexion",
-        checked: data.configuration?.modeConnexion === "HorsLigne",
-        onChange: () => handleSetModeConnexion("HorsLigne"),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontWeight: 700
-        }
-    }, "🔌 Hors ligne"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted
-        }
-    }, "Aucun appel réseau vers SharePoint — l'application affiche les dernières données mises en cache. Les modifications effectuées sont conservées localement et synchronisées automatiquement au retour en mode Connecté.")))), data.configuration?.modeConnexion === "HorsLigne" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-        style: {
-            marginTop: 12,
-            fontSize: 11.5,
-            color: C.red,
-            background: "#fdeeec",
-            borderRadius: 8,
-            padding: "8px 12px"
-        }
-    }, "⚠️ Mode Hors ligne actif pour tous les utilisateurs de l'application, sur tous les appareils — pensez à repasser en mode Connecté dès que la situation le permet, pour que les modifications en attente soient synchronisées avec SharePoint.")), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 480,
-            marginBottom: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "Dates des semestres"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Utilisées pour générer les semaines sélectionnables dans l'Emploi du temps, et pour délimiter automatiquement les affectations hebdomadaires (elles s'arrêtent par défaut à la date de fin du semestre)."), semestresConnus.map(sem => {
-        const sd = (data.semestresDates || []).find(s => s.semestre === sem) || {};
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            key: sem,
-            style: {
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: "0 14px",
-                alignItems: "end",
-                marginBottom: 4
-            }
-        }, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                fontSize: 13,
-                fontWeight: 700,
-                color: C.navy,
-                marginBottom: 13
-            }
-        }, sem), /*#__PURE__*/ React.createElement(Input, {
-            label: "Début",
-            type: "date",
-            value: sd.dateDebut || "",
-            onChange: e => handleSaveSemestreDate(sem, "dateDebut", e.target.value)
-        }), /*#__PURE__*/ React.createElement(Input, {
-            label: "Fin",
-            type: "date",
-            value: sd.dateFin || "",
-            onChange: e => handleSaveSemestreDate(sem, "dateFin", e.target.value)
-        }));
-    })), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "🗓️ Jours de cours autorisés"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Cochez les groupes pour lesquels les cours peuvent être planifiés le week-end (samedi et dimanche). Pour les groupes non cochés, seuls les jours ouvrables (lundi à vendredi) restent proposés. Ce réglage s'applique à l'Emploi du temps (jours proposés dans le formulaire et affichés dans la grille hebdomadaire) ainsi qu'à la fiche de présence hebdomadaire imprimable."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            maxHeight: 220,
-            overflowY: "auto"
-        }
-    }, getFilieres(data).map((f, i, arr) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-        key: f,
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            padding: "9px 14px",
-            borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
-            cursor: "pointer",
-            fontSize: 13
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "checkbox",
-        checked: (data.configuration?.filieresAvecWeekend || []).includes(f),
-        onChange: () => handleToggleFiliereWeekend(f),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), f, /*#__PURE__*/ React.createElement("span", {
-        style: {
-            marginLeft: "auto",
-            fontSize: 11,
-            color: C.muted
-        }
-    }, (data.configuration?.filieresAvecWeekend || []).includes(f) ? "Lundi → dimanche" : "Lundi → vendredi"))))), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.teal,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "📍 Groupes administrés par géolocalisation"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Cochez les groupes dont les absences sont administrées par confirmation de présence GPS plutôt que par la saisie manuelle classique. Pour un groupe coché, la bannière/fenêtre de confirmation de présence s'affichera aux étudiants et au professeur concernés pendant leurs séances. Pour un groupe non coché, cette bannière ne s'affiche jamais — leurs absences restent administrées uniquement par la saisie classique."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            maxHeight: 220,
-            overflowY: "auto"
-        }
-    }, getFilieres(data).map((f, i, arr) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-        key: f,
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            padding: "9px 14px",
-            borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
-            cursor: "pointer",
-            fontSize: 13
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "checkbox",
-        checked: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f),
-        onChange: () => handleToggleFiliereGeolocAbsences(f),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), f, /*#__PURE__*/ React.createElement("span", {
-        style: {
-            marginLeft: "auto",
-            fontSize: 10.5,
-            fontWeight: 700,
-            color: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? C.teal : C.muted,
-            background: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "#e3f8f2" : C.light,
-            borderRadius: 12,
-            padding: "3px 10px"
-        }
-    }, (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "📍 Géolocalisation" : "📝 Classique"))))), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "📉 Taux d'absence dans les relevés de notes"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Cochez les filières pour lesquelles le relevé de notes doit calculer et afficher le taux d'absence par module, et l'utiliser dans la décision du jury : ", /*#__PURE__*/ React.createElement("strong", null, "le module est déclaré \"Non validé\" dès que ce taux atteint 25%"), ", quelle que soit la note obtenue. Pour les filières non cochées, ce taux n'est jamais calculé ni affiché dans leurs relevés."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            maxHeight: 220,
-            overflowY: "auto"
-        }
-    }, getFilieres(data).map((f, i, arr) => /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-        key: f,
-        style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            padding: "9px 14px",
-            borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
-            cursor: "pointer",
-            fontSize: 13
-        }
-    }, /*#__PURE__*/ React.createElement("input", {
-        type: "checkbox",
-        checked: (data.configuration?.filieresAvecTauxAbsence || []).includes(f),
-        onChange: () => handleToggleFiliereTauxAbsence(f),
-        style: {
-            width: 16,
-            height: 16,
-            cursor: "pointer"
-        }
-    }), f)))), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "🔔 Notifications par email"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Quand cette option est activée, un email est envoyé automatiquement à l'administrateur et à la direction à chaque ajout, modification ou suppression effectué dans l'application, quel que soit le type de session (directrice, administrateur, professeur ou étudiant)."), /*#__PURE__*/ React.createElement("label", {
-        style: {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 14,
-            padding: "12px 16px",
-            border: `1px solid ${data.configuration?.notificationsEmailActives?C.green:C.border}`,
-            borderRadius: 10,
-            background: data.configuration?.notificationsEmailActives ? C.greenLight : C.light,
-            cursor: "pointer"
-        }
-    }, /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 13.5,
-            fontWeight: 700,
-            color: C.navy
-        }
-    }, "Notifier par email toute opération effectuée dans ECOGEST"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted,
-            marginTop: 3
-        }
-    }, data.configuration?.notificationsEmailActives ? "✅ Activé — emails envoyés en temps réel" : "Désactivé — aucun email n'est envoyé")), /*#__PURE__*/ React.createElement("span", {
-        onClick: handleToggleNotificationsEmail,
-        style: {
-            position: "relative",
-            width: 46,
-            height: 26,
-            borderRadius: 20,
-            background: data.configuration?.notificationsEmailActives ? C.green : "#ccc",
-            flexShrink: 0,
-            transition: "background 0.2s"
-        }
-    }, /*#__PURE__*/ React.createElement("span", {
-        style: {
-            position: "absolute",
-            top: 3,
-            left: data.configuration?.notificationsEmailActives ? 23 : 3,
-            width: 20,
-            height: 20,
-            borderRadius: "50%",
-            background: "white",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-            transition: "left 0.2s"
-        }
-    }))), data.configuration?.notificationsEmailActives && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-        style: {
-            marginTop: 14
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            fontWeight: 700,
-            color: "#555",
-            marginBottom: 8
-        }
-    }, "Qui doit recevoir ces notifications ?"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            display: "flex",
-            flexDirection: "column",
-            gap: 8
-        }
-    }, [{
-        valeur: "tous",
-        titre: "Tous les concernés",
-        desc: "Administrateur et direction (tous les comptes ayant un rôle de direction)"
+      }));
+      toast(valeur === "adminSeul" ? "🔔 Notifications limitées à l'administrateur uniquement ✓" : "🔔 Notifications envoyées à tous les concernés ✓");
+    });
+  };
+  const [captureGeoloc, setCaptureGeoloc] = useState(false);
+  const [formGeoloc, setFormGeoloc] = useState({
+    latitude: data.configuration?.campusLatitude || "",
+    longitude: data.configuration?.campusLongitude || "",
+    rayon: data.configuration?.campusRayonMetres || "150",
+    delaiPointage: data.configuration?.delaiPointageMinutes || "15"
+  });
+  const handleCapturerPositionActuelle = () => {
+    if (!navigator.geolocation) {
+      toast("⚠️ La géolocalisation n'est pas disponible sur cet appareil");
+      return;
+    }
+    setCaptureGeoloc(true);
+    navigator.geolocation.getCurrentPosition(pos => {
+      setCaptureGeoloc(false);
+      setFormGeoloc(f => ({
+        ...f,
+        latitude: pos.coords.latitude.toFixed(6),
+        longitude: pos.coords.longitude.toFixed(6)
+      }));
+      toast("📍 Position actuelle capturée — pensez à enregistrer");
+    }, err => {
+      setCaptureGeoloc(false);
+      toast("⚠️ Impossible de récupérer la position : " + err.message);
     }, {
-        valeur: "adminSeul",
-        titre: "Administrateur uniquement",
-        desc: "Seul le compte administrateur de l'application reçoit les notifications"
-    }].map(opt => {
-        const actif = (data.configuration?.notificationsEmailDestinataires || "tous") === opt.valeur;
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("label", {
-            key: opt.valeur,
-            onClick: () => handleSetNotificationsDestinataires(opt.valeur),
-            style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 14px",
-                border: `1px solid ${actif?C.navy:C.border}`,
-                borderRadius: 8,
-                background: actif ? C.navyLight : C.white,
-                cursor: "pointer"
-            }
-        }, /*#__PURE__*/ React.createElement("span", {
-            style: {
-                width: 18,
-                height: 18,
-                borderRadius: "50%",
-                border: `2px solid ${actif?C.navy:"#bbb"}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0
-            }
-        }, actif && /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-            style: {
-                width: 9,
-                height: 9,
-                borderRadius: "50%",
-                background: C.navy
-            }
-        })), /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                fontSize: 13,
-                fontWeight: 700,
-                color: C.navy
-            }
-        }, opt.titre), /*#__PURE__*/ React.createElement("div", {
-            style: {
-                fontSize: 11,
-                color: C.muted,
-                marginTop: 1
-            }
-        }, opt.desc)));
-    }))), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            marginTop: 12,
-            background: "#f0f7ff",
-            border: "1px solid #bee3f8",
-            borderRadius: 8,
-            padding: "8px 14px",
-            fontSize: 11.5,
-            color: "#2b6cb0"
+      enableHighAccuracy: true,
+      timeout: 15e3
+    });
+  };
+  const handleSaveGeoloc = () => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const spId = data.configuration?._spId;
+    const delaiValide = Math.max(1, parseInt(formGeoloc.delaiPointage, 10) || 15);
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        campusLatitude: formGeoloc.latitude,
+        campusLongitude: formGeoloc.longitude,
+        campusRayonMetres: formGeoloc.rayon,
+        delaiPointageMinutes: delaiValide
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      CampusLatitude: formGeoloc.latitude,
+      CampusLongitude: formGeoloc.longitude,
+      CampusRayonMetres: formGeoloc.rayon,
+      DelaiPointageMinutes: String(delaiValide)
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, "ℹ️ Nécessite la permission Microsoft « Mail.Send » — si l'envoi échoue silencieusement, vérifiez que cette permission est bien accordée dans Azure AD et reconnectez-vous une fois pour en bénéficier.")), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
+      }));
+      toast("📍 Emplacement du campus et délai de pointage enregistrés ✓");
+    });
+  };
+  const handleToggleGeolocalisation = () => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    if (!data.configuration?.geolocalisationActive && (!formGeoloc.latitude || !formGeoloc.longitude)) {
+      toast("⚠️ Renseignez d'abord l'emplacement du campus avant d'activer la vérification");
+      return;
+    }
+    const nouvelleValeur = !data.configuration?.geolocalisationActive;
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        geolocalisationActive: nouvelleValeur
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      GeolocalisationActive: nouvelleValeur ? "true" : "false"
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
+      }));
+      toast(nouvelleValeur ? "📍 Vérification de localisation activée pour le pointage QR ✓" : "📍 Vérification de localisation désactivée ✓");
+    });
+  };
+  const [formDecalageGMT, setFormDecalageGMT] = useState(data.configuration?.decalageGMT || "1");
+  const handleSaveDecalageGMT = () => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — modification non enregistrée");
+      return;
+    }
+    const spId = data.configuration?._spId;
+    setData(d => ({
+      ...d,
+      configuration: {
+        ...d.configuration,
+        decalageGMT: formDecalageGMT
+      }
+    }));
+    saveToSP("ECOGEST_Parametres", {
+      Title: "Configuration ECOGEST",
+      DecalageGMT: formDecalageGMT
+    }, user.token, spId).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      if (!spId) setData(d => ({
+        ...d,
+        configuration: {
+          ...d.configuration,
+          _spId: result.id
         }
-    }, "📍 Vérification de localisation — Pointage QR"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
+      }));
+      toast(`🕒 Fuseau horaire enregistré (GMT+${formDecalageGMT}) ✓`);
+    });
+  };
+  const semestresConnus = [... /* @__PURE__ */new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean), ...(data.semestresDates || []).map(s => s.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
+    numeric: true,
+    sensitivity: "base"
+  }));
+  const handleSaveSemestreDate = (semestre, champ, valeur) => {
+    if (!user?.token) {
+      toast("⚠️ Non connecté à SharePoint — date non enregistrée");
+      return;
+    }
+    const existant = (data.semestresDates || []).find(s => s.semestre === semestre);
+    if (existant) {
+      const updated = {
+        ...existant,
+        [champ]: valeur
+      };
+      setData(d => ({
+        ...d,
+        semestresDates: d.semestresDates.map(s => s.semestre === semestre ? updated : s)
+      }));
+      if (existant._spId && existant._spId !== "pending") {
+        saveToSP("ECOGEST_SemestresDates", {
+          Semestre: semestre,
+          DateDebut: updated.dateDebut || "",
+          DateFin: updated.dateFin || ""
+        }, user.token, existant._spId).then(result => {
+          if (!result) toast("⚠️ Échec de l'enregistrement");
+        });
+      }
+      return;
+    }
+    const nouvelleEntreeLocale = {
+      id: Date.now(),
+      _spId: "pending",
+      semestre,
+      dateDebut: "",
+      dateFin: "",
+      [champ]: valeur
+    };
+    setData(d => ({
+      ...d,
+      semestresDates: [...d.semestresDates, nouvelleEntreeLocale]
+    }));
+    saveToSP("ECOGEST_SemestresDates", {
+      Title: semestre,
+      Semestre: semestre,
+      DateDebut: nouvelleEntreeLocale.dateDebut || "",
+      DateFin: nouvelleEntreeLocale.dateFin || ""
+    }, user.token).then(result => {
+      if (!result) {
+        toast("⚠️ Échec de l'enregistrement");
+        return;
+      }
+      setData(d => {
+        const actuel = d.semestresDates.find(s => s.semestre === semestre && s._spId === "pending");
+        const nouveaux = d.semestresDates.map(s => s.semestre === semestre && s._spId === "pending" ? {
+          ...s,
+          _spId: result.id
+        } : s);
+        if (actuel) {
+          saveToSP("ECOGEST_SemestresDates", {
+            Semestre: semestre,
+            DateDebut: actuel.dateDebut || "",
+            DateFin: actuel.dateFin || ""
+          }, user.token, result.id);
         }
-    }, "Quand cette option est activée, un étudiant ne peut confirmer sa présence via le Pointage QR que si son téléphone est physiquement sur le campus au moment du scan — ça empêche qu'une capture d'écran du QR envoyée à un étudiant absent (même à distance) soit utilisée pour se faire pointer présent."), /*#__PURE__*/ React.createElement("div", {
+        return {
+          ...d,
+          semestresDates: nouveaux
+        };
+      });
+    });
+  };
+  return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", null, /*#__PURE__*/React.createElement(PageHeader, {
+    title: "Paramétrage",
+    sub: "Réglages généraux appliqués à l'ensemble de l'application"
+  }), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginBottom: 20,
+      border: `2px solid ${data.configuration?.modeConnexion === "HorsLigne" ? C.red : "transparent"}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "🔌 Mode de connexion"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Détermine si l'application communique en temps réel avec SharePoint, ou si elle travaille exclusivement à partir des données déjà enregistrées localement (dernière synchronisation réussie). S'applique à l'ensemble de l'application, pour tous les rôles."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "10px 14px",
+      border: `1px solid ${(data.configuration?.modeConnexion || "Connecte") === "Connecte" ? C.navy : C.border}`,
+      borderRadius: 8,
+      cursor: "pointer",
+      fontSize: 13,
+      background: (data.configuration?.modeConnexion || "Connecte") === "Connecte" ? C.navyLight : "transparent"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "radio",
+    name: "modeConnexion",
+    checked: (data.configuration?.modeConnexion || "Connecte") === "Connecte",
+    onChange: () => handleSetModeConnexion("Connecte"),
+    style: {
+      width: 16,
+      height: 16,
+      cursor: "pointer"
+    }
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700
+    }
+  }, "🌐 Connecté"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: C.muted
+    }
+  }, "Fonctionnement normal — lecture/écriture en temps réel avec SharePoint (mode par défaut)."))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "10px 14px",
+      border: `1px solid ${data.configuration?.modeConnexion === "HorsLigne" ? C.red : C.border}`,
+      borderRadius: 8,
+      cursor: "pointer",
+      fontSize: 13,
+      background: data.configuration?.modeConnexion === "HorsLigne" ? "#fdeeec" : "transparent"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "radio",
+    name: "modeConnexion",
+    checked: data.configuration?.modeConnexion === "HorsLigne",
+    onChange: () => handleSetModeConnexion("HorsLigne"),
+    style: {
+      width: 16,
+      height: 16,
+      cursor: "pointer"
+    }
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700
+    }
+  }, "🔌 Hors ligne"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: C.muted
+    }
+  }, "Aucun appel réseau vers SharePoint — l'application affiche les dernières données mises en cache. Les modifications effectuées sont conservées localement et synchronisées automatiquement au retour en mode Connecté.")))), data.configuration?.modeConnexion === "HorsLigne" &&
+  /*#__PURE__*/
+  /* @__PURE__ */
+  React.createElement("div", {
+    style: {
+      marginTop: 12,
+      fontSize: 11.5,
+      color: C.red,
+      background: "#fdeeec",
+      borderRadius: 8,
+      padding: "8px 12px"
+    }
+  }, "⚠️ Mode Hors ligne actif pour tous les utilisateurs de l'application, sur tous les appareils — pensez à repasser en mode Connecté dès que la situation le permet, pour que les modifications en attente soient synchronisées avec SharePoint.")), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 480,
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "Dates des semestres"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Utilisées pour générer les semaines sélectionnables dans l'Emploi du temps, et pour délimiter automatiquement les affectations hebdomadaires (elles s'arrêtent par défaut à la date de fin du semestre)."), semestresConnus.map(sem => {
+    const sd = (data.semestresDates || []).find(s => s.semestre === sem) || {};
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", {
+      key: sem,
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: "0 14px",
+        alignItems: "end",
+        marginBottom: 4
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: C.navy,
+        marginBottom: 13
+      }
+    }, sem), /*#__PURE__*/React.createElement(Input, {
+      label: "Début",
+      type: "date",
+      value: sd.dateDebut || "",
+      onChange: e => handleSaveSemestreDate(sem, "dateDebut", e.target.value)
+    }), /*#__PURE__*/React.createElement(Input, {
+      label: "Fin",
+      type: "date",
+      value: sd.dateFin || "",
+      onChange: e => handleSaveSemestreDate(sem, "dateFin", e.target.value)
+    }));
+  })), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "🗓️ Jours de cours autorisés"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Cochez les groupes pour lesquels les cours peuvent être planifiés le week-end (samedi et dimanche). Pour les groupes non cochés, seuls les jours ouvrables (lundi à vendredi) restent proposés. Ce réglage s'applique à l'Emploi du temps (jours proposés dans le formulaire et affichés dans la grille hebdomadaire) ainsi qu'à la fiche de présence hebdomadaire imprimable."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      maxHeight: 220,
+      overflowY: "auto"
+    }
+  }, getFilieres(data).map((f, i, arr) =>
+  /*#__PURE__*/
+  /* @__PURE__ */
+  React.createElement("label", {
+    key: f,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 9,
+      padding: "9px 14px",
+      borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
+      cursor: "pointer",
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: (data.configuration?.filieresAvecWeekend || []).includes(f),
+    onChange: () => handleToggleFiliereWeekend(f),
+    style: {
+      width: 16,
+      height: 16,
+      cursor: "pointer"
+    }
+  }), f, /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto",
+      fontSize: 11,
+      color: C.muted
+    }
+  }, (data.configuration?.filieresAvecWeekend || []).includes(f) ? "Lundi → dimanche" : "Lundi → vendredi"))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.teal,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "📍 Groupes administrés par géolocalisation"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Cochez les groupes dont les absences sont administrées par confirmation de présence GPS plutôt que par la saisie manuelle classique. Pour un groupe coché, la bannière/fenêtre de confirmation de présence s'affichera aux étudiants et au professeur concernés pendant leurs séances. Pour un groupe non coché, cette bannière ne s'affiche jamais — leurs absences restent administrées uniquement par la saisie classique."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      maxHeight: 220,
+      overflowY: "auto"
+    }
+  }, getFilieres(data).map((f, i, arr) =>
+  /*#__PURE__*/
+  /* @__PURE__ */
+  React.createElement("label", {
+    key: f,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 9,
+      padding: "9px 14px",
+      borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
+      cursor: "pointer",
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f),
+    onChange: () => handleToggleFiliereGeolocAbsences(f),
+    style: {
+      width: 16,
+      height: 16,
+      cursor: "pointer"
+    }
+  }), f, /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto",
+      fontSize: 10.5,
+      fontWeight: 700,
+      color: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? C.teal : C.muted,
+      background: (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "#e3f8f2" : C.light,
+      borderRadius: 12,
+      padding: "3px 10px"
+    }
+  }, (data.configuration?.filieresAvecGeolocAbsences || []).includes(f) ? "📍 Géolocalisation" : "📝 Classique"))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "📉 Taux d'absence dans les relevés de notes"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Cochez les filières pour lesquelles le relevé de notes doit calculer et afficher le taux d'absence par module, et l'utiliser dans la décision du jury : ", /*#__PURE__*/React.createElement("strong", null, "le module est déclaré \"Non validé\" dès que ce taux atteint 25%"), ", quelle que soit la note obtenue. Pour les filières non cochées, ce taux n'est jamais calculé ni affiché dans leurs relevés."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      maxHeight: 220,
+      overflowY: "auto"
+    }
+  }, getFilieres(data).map((f, i, arr) =>
+  /*#__PURE__*/
+  /* @__PURE__ */
+  React.createElement("label", {
+    key: f,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 9,
+      padding: "9px 14px",
+      borderBottom: i < arr.length - 1 ? `1px solid ${C.light}` : "none",
+      cursor: "pointer",
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: (data.configuration?.filieresAvecTauxAbsence || []).includes(f),
+    onChange: () => handleToggleFiliereTauxAbsence(f),
+    style: {
+      width: 16,
+      height: 16,
+      cursor: "pointer"
+    }
+  }), f)))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "🔔 Notifications par email"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Quand cette option est activée, un email est envoyé automatiquement à l'administrateur et à la direction à chaque ajout, modification ou suppression effectué dans l'application, quel que soit le type de session (directrice, administrateur, professeur ou étudiant)."), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 14,
+      padding: "12px 16px",
+      border: `1px solid ${data.configuration?.notificationsEmailActives ? C.green : C.border}`,
+      borderRadius: 10,
+      background: data.configuration?.notificationsEmailActives ? C.greenLight : C.light,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      fontWeight: 700,
+      color: C.navy
+    }
+  }, "Notifier par email toute opération effectuée dans ECOGEST"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: C.muted,
+      marginTop: 3
+    }
+  }, data.configuration?.notificationsEmailActives ? "✅ Activé — emails envoyés en temps réel" : "Désactivé — aucun email n'est envoyé")), /*#__PURE__*/React.createElement("span", {
+    onClick: handleToggleNotificationsEmail,
+    style: {
+      position: "relative",
+      width: 46,
+      height: 26,
+      borderRadius: 20,
+      background: data.configuration?.notificationsEmailActives ? C.green : "#ccc",
+      flexShrink: 0,
+      transition: "background 0.2s"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      top: 3,
+      left: data.configuration?.notificationsEmailActives ? 23 : 3,
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      background: "white",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+      transition: "left 0.2s"
+    }
+  }))), data.configuration?.notificationsEmailActives &&
+  /*#__PURE__*/
+  /* @__PURE__ */
+  React.createElement("div", {
+    style: {
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      fontWeight: 700,
+      color: "#555",
+      marginBottom: 8
+    }
+  }, "Qui doit recevoir ces notifications ?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, [{
+    valeur: "tous",
+    titre: "Tous les concernés",
+    desc: "Administrateur et direction (tous les comptes ayant un rôle de direction)"
+  }, {
+    valeur: "adminSeul",
+    titre: "Administrateur uniquement",
+    desc: "Seul le compte administrateur de l'application reçoit les notifications"
+  }].map(opt => {
+    const actif = (data.configuration?.notificationsEmailDestinataires || "tous") === opt.valeur;
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement("label", {
+      key: opt.valeur,
+      onClick: () => handleSetNotificationsDestinataires(opt.valeur),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 14px",
+        border: `1px solid ${actif ? C.navy : C.border}`,
+        borderRadius: 8,
+        background: actif ? C.navyLight : C.white,
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 18,
+        height: 18,
+        borderRadius: "50%",
+        border: `2px solid ${actif ? C.navy : "#bbb"}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0
+      }
+    }, actif &&
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("span", {
+      style: {
+        width: 9,
+        height: 9,
+        borderRadius: "50%",
+        background: C.navy
+      }
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: C.navy
+      }
+    }, opt.titre), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: C.muted,
+        marginTop: 1
+      }
+    }, opt.desc)));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      background: "#f0f7ff",
+      border: "1px solid #bee3f8",
+      borderRadius: 8,
+      padding: "8px 14px",
+      fontSize: 11.5,
+      color: "#2b6cb0"
+    }
+  }, "ℹ️ Nécessite la permission Microsoft « Mail.Send » — si l'envoi échoue silencieusement, vérifiez que cette permission est bien accordée dans Azure AD et reconnectez-vous une fois pour en bénéficier.")), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "📍 Vérification de localisation — Pointage QR"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Quand cette option est activée, un étudiant ne peut confirmer sa présence via le Pointage QR que si son téléphone est physiquement sur le campus au moment du scan — ça empêche qu'une capture d'écran du QR envoyée à un étudiant absent (même à distance) soit utilisée pour se faire pointer présent."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "0 14px",
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement(Input, {
+    label: "Latitude du campus",
+    value: formGeoloc.latitude,
+    placeholder: "ex : 34.020882",
+    onChange: e => setFormGeoloc(f => ({
+      ...f,
+      latitude: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(Input, {
+    label: "Longitude du campus",
+    value: formGeoloc.longitude,
+    placeholder: "ex : -6.834543",
+    onChange: e => setFormGeoloc(f => ({
+      ...f,
+      longitude: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement(Input, {
+    label: "Rayon autorisé (en mètres)",
+    type: "number",
+    value: formGeoloc.rayon,
+    onChange: e => setFormGeoloc(f => ({
+      ...f,
+      rayon: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(Input, {
+    label: "Délai de pointage automatique après le début de la séance (en minutes)",
+    type: "number",
+    min: "1",
+    value: formGeoloc.delaiPointage,
+    onChange: e => setFormGeoloc(f => ({
+      ...f,
+      delaiPointage: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11.5,
+      color: C.muted,
+      marginTop: -10,
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Détermine combien de temps, à compter de l'heure de début de chaque séance, le pointage automatique (bannière \"Je suis présent(e)\", étudiants et professeur) reste ouvert. Passé ce délai, il se ferme automatiquement pour cette séance — plus aucune confirmation automatique n'est alors possible, et l'absence de toute personne n'ayant pas confirmé est enregistrée. Exemple : avec un délai de 15 minutes, une séance de 09h00 accepte les confirmations jusqu'à 09h15."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "light",
+    onClick: handleCapturerPositionActuelle,
+    disabled: captureGeoloc
+  }, captureGeoloc ? "Localisation en cours..." : "📍 Utiliser ma position actuelle"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: handleSaveGeoloc
+  }, "Enregistrer l'emplacement")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16,
+      background: "#f0f7ff",
+      border: "1px solid #bee3f8",
+      borderRadius: 8,
+      padding: "8px 14px",
+      fontSize: 11.5,
+      color: "#2b6cb0"
+    }
+  }, "💡 Le plus simple : tenez-vous sur le campus avec votre téléphone ou ordinateur, puis cliquez sur \"Utiliser ma position actuelle\" avant d'enregistrer."), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 14,
+      padding: "12px 16px",
+      border: `1px solid ${data.configuration?.geolocalisationActive ? C.green : C.border}`,
+      borderRadius: 10,
+      background: data.configuration?.geolocalisationActive ? C.greenLight : C.light,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      fontWeight: 700,
+      color: C.navy
+    }
+  }, "Exiger la présence sur le campus pour confirmer une séance QR"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: C.muted,
+      marginTop: 3
+    }
+  }, data.configuration?.geolocalisationActive ? "✅ Activé — vérification GPS obligatoire" : "Désactivé — aucune vérification de position")), /*#__PURE__*/React.createElement("span", {
+    onClick: handleToggleGeolocalisation,
+    style: {
+      position: "relative",
+      width: 46,
+      height: 26,
+      borderRadius: 20,
+      background: data.configuration?.geolocalisationActive ? C.green : "#ccc",
+      flexShrink: 0,
+      transition: "background 0.2s"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      top: 3,
+      left: data.configuration?.geolocalisationActive ? 23 : 3,
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      background: "white",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+      transition: "left 0.2s"
+    }
+  })))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "🕒 Fuseau horaire"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Les heures précises enregistrées automatiquement par l'application (comme les horodatages du Pointage QR) sont ajustées avec ce décalage avant d'être écrites dans SharePoint, pour s'afficher directement en heure locale au lieu de l'heure UTC/GMT."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      alignItems: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement(Input, {
+    label: "Décalage par rapport à GMT (heures)",
+    type: "number",
+    step: "0.5",
+    value: formDecalageGMT,
+    placeholder: "ex : 1 pour le Maroc (GMT+1)",
+    onChange: e => setFormDecalageGMT(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 13
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: handleSaveDecalageGMT
+  }, "Enregistrer")))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: 24,
+      maxWidth: 620,
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.orange,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 10
+    }
+  }, "🕒 Horaires des séances par groupe"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "Chaque groupe a ses propres créneaux horaires (généralement 5 par jour, mais certains groupes peuvent en avoir moins). Cliquez sur un groupe ci-dessous pour modifier directement ses créneaux."), (data.filieres || []).filter(f => f.statut === "Active").sort((a, b) => (a.intitule || "").localeCompare(b.intitule || "", "fr", {
+    numeric: true,
+    sensitivity: "base"
+  })).map(f => {
+    const horairesActuels = f.horaires && f.horaires.length > 0 ? f.horaires : f.typeSeances === "Jour" ? SEANCES_HORAIRE.filter(s => s !== "19h00 - 21h00") : ["19h00 - 21h00"];
+    const ouvert = groupeHorairesOuvert === f.id;
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", {
+      key: f.id,
+      style: {
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        marginBottom: 8,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setGroupeHorairesOuvert(ouvert ? null : f.id);
+        setHorairesEdit(horairesActuels);
+      },
+      style: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        border: "none",
+        background: ouvert ? C.navyLight : C.white,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: C.navy
+      }
+    }, f.intitule), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11.5,
+        color: C.muted
+      }
+    }, horairesActuels.length, " créneau", horairesActuels.length > 1 ? "x" : "", " ", ouvert ? "▲" : "▼")), ouvert &&
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("div", {
+      style: {
+        padding: 14,
+        borderTop: `1px solid ${C.border}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        marginBottom: 8
+      }
+    }, horairesEdit.map((h, i) => {
+      const [debut, fin] = h.split(" - ").map(s => (s || "").replace("h", ":"));
+      return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", {
+        key: i,
         style: {
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0 14px",
-            marginBottom: 4
+          display: "flex",
+          alignItems: "center",
+          gap: 6
         }
-    }, /*#__PURE__*/ React.createElement(Input, {
-        label: "Latitude du campus",
-        value: formGeoloc.latitude,
-        placeholder: "ex : 34.020882",
-        onChange: e => setFormGeoloc(f => ({
-            ...f,
-            latitude: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement(Input, {
-        label: "Longitude du campus",
-        value: formGeoloc.longitude,
-        placeholder: "ex : -6.834543",
-        onChange: e => setFormGeoloc(f => ({
-            ...f,
-            longitude: e.target.value
-        }))
-    })), /*#__PURE__*/ React.createElement(Input, {
-        label: "Rayon autorisé (en mètres)",
-        type: "number",
-        value: formGeoloc.rayon,
-        onChange: e => setFormGeoloc(f => ({
-            ...f,
-            rayon: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement(Input, {
-        label: "Délai de pointage automatique après le début de la séance (en minutes)",
-        type: "number",
-        min: "1",
-        value: formGeoloc.delaiPointage,
-        onChange: e => setFormGeoloc(f => ({
-            ...f,
-            delaiPointage: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement("p", {
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "time",
+        value: debut || "",
+        onChange: e => setHorairesEdit(arr => arr.map((x, j) => j === i ? `${e.target.value.replace(":", "h")} - ${fin || ""}` : x)),
         style: {
-            fontSize: 11.5,
-            color: C.muted,
-            marginTop: -10,
-            marginBottom: 16,
-            lineHeight: 1.6
+          padding: "7px 9px",
+          border: `1px solid ${C.border}`,
+          borderRadius: 8,
+          fontSize: 12.5,
+          fontFamily: "inherit"
         }
-    }, "Détermine combien de temps, à compter de l'heure de début de chaque séance, le pointage automatique (bannière \"Je suis présent(e)\", étudiants et professeur) reste ouvert. Passé ce délai, il se ferme automatiquement pour cette séance — plus aucune confirmation automatique n'est alors possible, et l'absence de toute personne n'ayant pas confirmé est enregistrée. Exemple : avec un délai de 15 minutes, une séance de 09h00 accepte les confirmations jusqu'à 09h15."), /*#__PURE__*/ React.createElement("div", {
+      }), /*#__PURE__*/React.createElement("span", {
         style: {
-            display: "flex",
-            gap: 10,
-            marginBottom: 18
+          color: C.muted,
+          fontSize: 12
         }
-    }, /*#__PURE__*/ React.createElement(Btn, {
-        variant: "light",
-        onClick: handleCapturerPositionActuelle,
-        disabled: captureGeoloc
-    }, captureGeoloc ? "Localisation en cours..." : "📍 Utiliser ma position actuelle"), /*#__PURE__*/ React.createElement(Btn, {
-        onClick: handleSaveGeoloc
-    }, "Enregistrer l'emplacement")), /*#__PURE__*/ React.createElement("div", {
+      }, "à"), /*#__PURE__*/React.createElement("input", {
+        type: "time",
+        value: fin || "",
+        onChange: e => setHorairesEdit(arr => arr.map((x, j) => j === i ? `${debut || ""} - ${e.target.value.replace(":", "h")}` : x)),
         style: {
-            marginBottom: 16,
-            background: "#f0f7ff",
-            border: "1px solid #bee3f8",
-            borderRadius: 8,
-            padding: "8px 14px",
-            fontSize: 11.5,
-            color: "#2b6cb0"
+          padding: "7px 9px",
+          border: `1px solid ${C.border}`,
+          borderRadius: 8,
+          fontSize: 12.5,
+          fontFamily: "inherit"
         }
-    }, "💡 Le plus simple : tenez-vous sur le campus avec votre téléphone ou ordinateur, puis cliquez sur \"Utiliser ma position actuelle\" avant d'enregistrer."), /*#__PURE__*/ React.createElement("label", {
-        style: {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 14,
-            padding: "12px 16px",
-            border: `1px solid ${data.configuration?.geolocalisationActive?C.green:C.border}`,
-            borderRadius: 10,
-            background: data.configuration?.geolocalisationActive ? C.greenLight : C.light,
-            cursor: "pointer"
+      }), /*#__PURE__*/React.createElement(Btn, {
+        small: true,
+        variant: "danger",
+        onClick: () => setHorairesEdit(arr => arr.filter((_, j) => j !== i))
+      }, "🗑"));
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: "light",
+      onClick: () => setHorairesEdit(arr => [...arr, "09h00 - 10h30"])
+    }, "+ Ajouter un créneau"), /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      onClick: () => {
+        if (!user?.token) {
+          toast("⚠️ Non connecté à SharePoint");
+          return;
         }
-    }, /*#__PURE__*/ React.createElement("div", null, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 13.5,
-            fontWeight: 700,
-            color: C.navy
-        }
-    }, "Exiger la présence sur le campus pour confirmer une séance QR"), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11.5,
-            color: C.muted,
-            marginTop: 3
-        }
-    }, data.configuration?.geolocalisationActive ? "✅ Activé — vérification GPS obligatoire" : "Désactivé — aucune vérification de position")), /*#__PURE__*/ React.createElement("span", {
-        onClick: handleToggleGeolocalisation,
-        style: {
-            position: "relative",
-            width: 46,
-            height: 26,
-            borderRadius: 20,
-            background: data.configuration?.geolocalisationActive ? C.green : "#ccc",
-            flexShrink: 0,
-            transition: "background 0.2s"
-        }
-    }, /*#__PURE__*/ React.createElement("span", {
-        style: {
-            position: "absolute",
-            top: 3,
-            left: data.configuration?.geolocalisationActive ? 23 : 3,
-            width: 20,
-            height: 20,
-            borderRadius: "50%",
-            background: "white",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-            transition: "left 0.2s"
-        }
-    })))), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "🕒 Fuseau horaire"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Les heures précises enregistrées automatiquement par l'application (comme les horodatages du Pointage QR) sont ajustées avec ce décalage avant d'être écrites dans SharePoint, pour s'afficher directement en heure locale au lieu de l'heure UTC/GMT."), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            display: "flex",
-            gap: 10,
-            alignItems: "flex-end"
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            flex: 1
-        }
-    }, /*#__PURE__*/ React.createElement(Input, {
-        label: "Décalage par rapport à GMT (heures)",
-        type: "number",
-        step: "0.5",
-        value: formDecalageGMT,
-        placeholder: "ex : 1 pour le Maroc (GMT+1)",
-        onChange: e => setFormDecalageGMT(e.target.value)
-    })), /*#__PURE__*/ React.createElement("div", {
-        style: {
-            marginBottom: 13
-        }
-    }, /*#__PURE__*/ React.createElement(Btn, {
-        onClick: handleSaveDecalageGMT
-    }, "Enregistrer")))), /*#__PURE__*/ React.createElement(Card, {
-        style: {
-            padding: 24,
-            maxWidth: 620,
-            marginTop: 20
-        }
-    }, /*#__PURE__*/ React.createElement("div", {
-        style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.orange,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10
-        }
-    }, "🕒 Horaires des séances par groupe"), /*#__PURE__*/ React.createElement("p", {
-        style: {
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 16,
-            lineHeight: 1.6
-        }
-    }, "Chaque groupe a ses propres créneaux horaires (généralement 5 par jour, mais certains groupes peuvent en avoir moins). Cliquez sur un groupe ci-dessous pour modifier directement ses créneaux."), (data.filieres || []).filter(f => f.statut === "Active").sort((a, b) => (a.intitule || "").localeCompare(b.intitule || "", "fr", {
-        numeric: true,
-        sensitivity: "base"
-    })).map(f => {
-        const horairesActuels = f.horaires && f.horaires.length > 0 ? f.horaires : f.typeSeances === "Jour" ? SEANCES_HORAIRE.filter(s => s !== "19h00 - 21h00") : ["19h00 - 21h00"];
-        const ouvert = groupeHorairesOuvert === f.id;
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            key: f.id,
-            style: {
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                marginBottom: 8,
-                overflow: "hidden"
-            }
-        }, /*#__PURE__*/ React.createElement("button", {
-            onClick: () => {
-                setGroupeHorairesOuvert(ouvert ? null : f.id);
-                setHorairesEdit(horairesActuels);
-            },
-            style: {
-                width: "100%",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 14px",
-                border: "none",
-                background: ouvert ? C.navyLight : C.white,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textAlign: "left"
-            }
-        }, /*#__PURE__*/ React.createElement("span", {
-            style: {
-                fontSize: 13,
-                fontWeight: 600,
-                color: C.navy
-            }
-        }, f.intitule), /*#__PURE__*/ React.createElement("span", {
-            style: {
-                fontSize: 11.5,
-                color: C.muted
-            }
-        }, horairesActuels.length, " créneau", horairesActuels.length > 1 ? "x" : "", " ", ouvert ? "▲" : "▼")), ouvert && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            style: {
-                padding: 14,
-                borderTop: `1px solid ${C.border}`
-            }
-        }, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                marginBottom: 8
-            }
-        }, horairesEdit.map((h, i) => {
-            const [debut, fin] = h.split(" - ").map(s => (s || "").replace("h", ":"));
-            return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-                key: i,
-                style: {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6
-                }
-            }, /*#__PURE__*/ React.createElement("input", {
-                type: "time",
-                value: debut || "",
-                onChange: e => setHorairesEdit(arr => arr.map((x, j) => j === i ? `${e.target.value.replace(":","h")} - ${fin||""}` : x)),
-                style: {
-                    padding: "7px 9px",
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 8,
-                    fontSize: 12.5,
-                    fontFamily: "inherit"
-                }
-            }), /*#__PURE__*/ React.createElement("span", {
-                style: {
-                    color: C.muted,
-                    fontSize: 12
-                }
-            }, "à"), /*#__PURE__*/ React.createElement("input", {
-                type: "time",
-                value: fin || "",
-                onChange: e => setHorairesEdit(arr => arr.map((x, j) => j === i ? `${debut||""} - ${e.target.value.replace(":","h")}` : x)),
-                style: {
-                    padding: "7px 9px",
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 8,
-                    fontSize: 12.5,
-                    fontFamily: "inherit"
-                }
-            }), /*#__PURE__*/ React.createElement(Btn, {
-                small: true,
-                variant: "danger",
-                onClick: () => setHorairesEdit(arr => arr.filter((_, j) => j !== i))
-            }, "🗑"));
-        })), /*#__PURE__*/ React.createElement("div", {
-            style: {
-                display: "flex",
-                gap: 8
-            }
-        }, /*#__PURE__*/ React.createElement(Btn, {
-            small: true,
-            variant: "light",
-            onClick: () => setHorairesEdit(arr => [...arr, "09h00 - 10h30"])
-        }, "+ Ajouter un créneau"), /*#__PURE__*/ React.createElement(Btn, {
-            small: true,
-            onClick: () => {
-                if (!user?.token) {
-                    toast("⚠️ Non connecté à SharePoint");
-                    return;
-                }
-                setData(d => ({
-                    ...d,
-                    filieres: d.filieres.map(x => x.id === f.id ? {
-                        ...x,
-                        horaires: horairesEdit
-                    } : x)
-                }));
-                saveToSP("ECOGEST_Filieres", {
-                    Horaires: horairesEdit.join(" | ")
-                }, user.token, f._spId).then(result => {
-                    if (!result) {
-                        toast("⚠️ Échec de l'enregistrement");
-                        return;
-                    }
-                    toast(`🕒 Horaires de ${f.intitule} mis à jour ✓`);
-                    setGroupeHorairesOuvert(null);
-                });
-            }
-        }, "Enregistrer"))));
-    })));
+        setData(d => ({
+          ...d,
+          filieres: d.filieres.map(x => x.id === f.id ? {
+            ...x,
+            horaires: horairesEdit
+          } : x)
+        }));
+        saveToSP("ECOGEST_Filieres", {
+          Horaires: horairesEdit.join(" | ")
+        }, user.token, f._spId).then(result => {
+          if (!result) {
+            toast("⚠️ Échec de l'enregistrement");
+            return;
+          }
+          toast(`🕒 Horaires de ${f.intitule} mis à jour ✓`);
+          setGroupeHorairesOuvert(null);
+        });
+      }
+    }, "Enregistrer"))));
+  })), (() => {
+    const ROLES_LABELS = {
+      administrateur: "Administrateur",
+      directrice: "Directrice",
+      professeur: "Professeur",
+      etudiant: "Étudiant"
+    };
+    // "Actuellement connecté" est une approximation nécessaire dans une
+    // application web classique (pas de websocket, pas de notion
+    // fiable de déconnexion) : on considère qu'une personne est encore
+    // connectée si son "heartbeat" (rafraîchi automatiquement toutes
+    // les 2 minutes tant que son onglet reste ouvert) date de moins de
+    // 5 minutes.
+    const SEUIL_CONNECTE_MS = 5 * 60 * 1000;
+    const maintenantMs = Date.now();
+    // Un même utilisateur peut avoir plusieurs enregistrements (une
+    // connexion par session ouverte) — on ne garde que le plus récent
+    // de chacun pour la vue "temps réel".
+    const dernierParUtilisateur = /* @__PURE__ */new Map();
+    (data.connexions || []).forEach(c => {
+      const cle = c.userEmail || c.nomComplet;
+      if (!cle) return;
+      const existant = dernierParUtilisateur.get(cle);
+      if (!existant || new Date(c.derniereActivite) > new Date(existant.derniereActivite)) {
+        dernierParUtilisateur.set(cle, c);
+      }
+    });
+    const connectesActuellement = [...dernierParUtilisateur.values()].filter(c => c.derniereActivite && maintenantMs - new Date(c.derniereActivite).getTime() <= SEUIL_CONNECTE_MS).filter(c => (!rechercheConnexions || `${c.nomComplet || ""} ${c.userEmail || ""}`.toLowerCase().includes(rechercheConnexions.toLowerCase())) && (!filtreRoleConnexions || c.role === filtreRoleConnexions)).sort((a, b) => new Date(b.derniereActivite) - new Date(a.derniereActivite));
+    const historiqueFiltre = (data.connexions || []).filter(c => (!rechercheHistorique || `${c.nomComplet || ""} ${c.userEmail || ""}`.toLowerCase().includes(rechercheHistorique.toLowerCase())) && (!filtreRoleHistorique || c.role === filtreRoleHistorique) && (!filtreDateHistorique || c.dateConnexion === filtreDateHistorique)).sort((a, b) => (b.dateConnexion || "").localeCompare(a.dateConnexion || "") || (b.heureConnexion || "").localeCompare(a.heureConnexion || ""));
+    const inputStyle = {
+      padding: "9px 12px",
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      fontSize: 13,
+      fontFamily: "inherit",
+      background: C.white,
+      width: "100%",
+      boxSizing: "border-box"
+    };
+    const rolesPresents = [...new Set((data.connexions || []).map(c => c.role).filter(Boolean))];
+    const colsConnexions = [{
+      key: "nomComplet",
+      label: "Nom",
+      render: v => v || "—"
+    }, {
+      key: "userEmail",
+      label: "Email",
+      render: v => v || "—"
+    }, {
+      key: "role",
+      label: "Rôle",
+      render: v =>
+      /*#__PURE__*/
+      /* @__PURE__ */
+      React.createElement(Badge, {
+        color: C.navy
+      }, ROLES_LABELS[v] || v || "—")
+    }, {
+      key: "appareil",
+      label: "Appareil",
+      render: v => v || "—"
+    }, {
+      key: "derniereActivite",
+      label: "Vu(e) il y a",
+      render: v => {
+        if (!v) return "—";
+        const minutes = Math.max(0, Math.round((maintenantMs - new Date(v).getTime()) / 60000));
+        return minutes === 0 ? "À l'instant" : `${minutes} min`;
+      }
+    }];
+    const colsHistorique = [{
+      key: "nomComplet",
+      label: "Nom",
+      render: v => v || "—"
+    }, {
+      key: "userEmail",
+      label: "Email",
+      render: v => v || "—"
+    }, {
+      key: "role",
+      label: "Rôle",
+      render: v =>
+      /*#__PURE__*/
+      /* @__PURE__ */
+      React.createElement(Badge, {
+        color: C.navy
+      }, ROLES_LABELS[v] || v || "—")
+    }, {
+      key: "dateConnexion",
+      label: "Date",
+      render: v => formatDateFR(v) || "—"
+    }, {
+      key: "heureConnexion",
+      label: "Heure",
+      render: v => v || "—"
+    }, {
+      key: "appareil",
+      label: "Appareil",
+      render: v => v || "—"
+    }];
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
+      style: {
+        padding: 24,
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.green,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        marginBottom: 4,
+        display: "flex",
+        alignItems: "center",
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: C.green,
+        display: "inline-block",
+        boxShadow: `0 0 0 3px ${C.green}30`
+      }
+    }), "🟢 Connectés actuellement (", connectesActuellement.length, ")"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 11.5,
+        color: C.muted,
+        marginBottom: 16,
+        lineHeight: 1.6
+      }
+    }, "Une personne est considérée connectée tant que son application est restée ouverte au cours des 5 dernières minutes."), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 10,
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      placeholder: "🔍  Nom, email...",
+      value: rechercheConnexions,
+      onChange: e => setRechercheConnexions(e.target.value),
+      style: inputStyle
+    }), /*#__PURE__*/React.createElement("select", {
+      value: filtreRoleConnexions,
+      onChange: e => setFiltreRoleConnexions(e.target.value),
+      style: inputStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les rôles --"), rolesPresents.map(r =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: r,
+      value: r
+    }, ROLES_LABELS[r] || r)))), connectesActuellement.length === 0 ?
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("div", {
+      style: {
+        padding: 24,
+        textAlign: "center",
+        color: C.muted,
+        fontSize: 13
+      }
+    }, "Personne n'est actuellement connecté pour cette sélection") :
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement(DataTable, {
+      cols: colsConnexions,
+      rows: connectesActuellement,
+      compact: true
+    })), /*#__PURE__*/React.createElement(Card, {
+      style: {
+        padding: 24,
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.orange,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        marginBottom: 10
+      }
+    }, "🕓 Historique des connexions (", historiqueFiltre.length, ")"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 10,
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      placeholder: "🔍  Nom, email...",
+      value: rechercheHistorique,
+      onChange: e => setRechercheHistorique(e.target.value),
+      style: inputStyle
+    }), /*#__PURE__*/React.createElement("select", {
+      value: filtreRoleHistorique,
+      onChange: e => setFiltreRoleHistorique(e.target.value),
+      style: inputStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les rôles --"), rolesPresents.map(r =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: r,
+      value: r
+    }, ROLES_LABELS[r] || r))), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: filtreDateHistorique,
+      onChange: e => setFiltreDateHistorique(e.target.value),
+      style: inputStyle
+    })), historiqueFiltre.length === 0 ?
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("div", {
+      style: {
+        padding: 24,
+        textAlign: "center",
+        color: C.muted,
+        fontSize: 13
+      }
+    }, "Aucune connexion enregistrée pour cette sélection") :
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement(Card, {
+      style: {
+        overflow: "hidden",
+        padding: 0
+      }
+    }, /*#__PURE__*/React.createElement(DataTable, {
+      cols: colsHistorique,
+      rows: historiqueFiltre,
+      compact: true
+    }))));
+  })());
 }
-
 function Configuration({
     toast,
     user
@@ -20859,7 +21128,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.289.0";
+const APP_VERSION = "v3.290.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21540,6 +21809,7 @@ async function getColTypeMap(listName, token, siteId) {
 //  pour notifier sans avoir à modifier chacun des appels existants.
 // ════════════════════════════════════════════════════════════════════
 const LIST_LABELS = {
+    ECOGEST_Connexions: "Connexions",
     ECOGEST_Etudiants: "Étudiants",
     ECOGEST_Professeurs: "Professeurs",
     ECOGEST_Notes: "Évaluations",
@@ -22257,6 +22527,7 @@ async function flushOfflineQueue(token) {
     };
 }
 const SP_LISTS_SCHEMA = {
+    ECOGEST_Connexions: ["UserEmail", "NomComplet", "Role", "Filiere", "DateConnexion", "HeureConnexion", "DerniereActivite", "Appareil"],
     ECOGEST_Etudiants: ["Nom", "Prenom", "CIN", "DateNaissance", "LieuNaissance", "Genre", "Email", "EmailPersonnel", "Telephone", "Adresse", "Ville", "Quartier", "Filiere", "Niveau", "Annee", "Promotion", "Statut", "NumInscription", "ResponsableFinancier", "TarifGlobalFormation", "Tarif20272028", "Tarif20282029", "Tarif20292030", "ModeReglement", "NotesConvention", "AnneeValidee", "ParcoursJSON", "InscritPar", "BacAnnee", "BacMention", "BacSerie", "Etablissement", "Observations"],
     ECOGEST_Professeurs: ["Nom", "Prenom", "CIN", "Email", "Telephone", "Specialite", "Matiere", "Grade", "TypeContrat", "Statut", "AnneeUniversitaire"],
     ECOGEST_Filieres: ["Code", "Intitule", "Niveau", "Duree", "Capacite", "Frais", "Statut", "Description", "Responsable", "Couleur", "Accreditation", "TypeSeances", "Horaires"],
@@ -22450,7 +22721,7 @@ async function loadAllFromSP(token) {
             if (typeof k === "string" && item[k] !== void 0 && item[k] !== null && item[k] !== "") return item[k];
         return "";
     };
-    const [etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP, demandesEvaluationsSP, contestationsPointageSP] = await Promise.all([fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR"), fetchList("ECOGEST_DemandesEvaluations"), fetchList("ECOGEST_ContestationsPointage")]);
+    const [connexionsSP, etudiants, professeurs, filieres, visiteurs, notes, presences, cours, annonces, paiements, versementsSP, parametresSP, calendrier, emploiDuTemps, semestresDatesSP, demandesDocumentsSP, paiementsArchivesSP, versementsArchivesSP, pointageFichesSP, pointageSeancesSP, sessionsQRSP, demandesEvaluationsSP, contestationsPointageSP] = await Promise.all([fetchList("ECOGEST_Connexions"), fetchList("ECOGEST_Etudiants"), fetchList("ECOGEST_Professeurs"), fetchList("ECOGEST_Filieres"), fetchList("ECOGEST_Visiteurs"), fetchList("ECOGEST_Notes"), fetchList("ECOGEST_Presences"), fetchList("ECOGEST_Cours"), fetchList("ECOGEST_Annonces"), fetchList("ECOGEST_Paiements"), fetchList("ECOGEST_Versements"), fetchList("ECOGEST_Parametres"), fetchList("ECOGEST_Calendrier"), fetchList("ECOGEST_EmploiDuTemps"), fetchList("ECOGEST_SemestresDates"), fetchList("ECOGEST_DemandesDocuments"), fetchList("ECOGEST_PaiementsArchives"), fetchList("ECOGEST_VersementsArchives"), fetchList("ECOGEST_PointageFiches"), fetchList("ECOGEST_PointageSeances"), fetchList("ECOGEST_SessionsQR"), fetchList("ECOGEST_DemandesEvaluations"), fetchList("ECOGEST_ContestationsPointage")]);
     const versementsByEtudiant = {};
     versementsSP.forEach(v => {
         const eid = g(v, "NumInscription");
@@ -22667,6 +22938,18 @@ async function loadAllFromSP(token) {
             enseignant: g(n, "Enseignant"),
             enseignantCin: g(n, "EnseignantCIN"),
             anneeUniversitaire: g(n, "AnneeUniversitaire") || ""
+        })),
+        connexions: connexionsSP.map(c => ({
+            id: c._spId,
+            _spId: c._spId,
+            userEmail: g(c, "UserEmail"),
+            nomComplet: g(c, "NomComplet"),
+            role: g(c, "Role"),
+            filiere: g(c, "Filiere"),
+            dateConnexion: g(c, "DateConnexion"),
+            heureConnexion: g(c, "HeureConnexion"),
+            derniereActivite: g(c, "DerniereActivite"),
+            appareil: g(c, "Appareil")
         })),
         presences: presences.map(p => ({
             _spId: p._spId,
@@ -22984,6 +23267,7 @@ function App() {
         filieres: [],
         visiteurs: [],
         notes: [],
+        connexions: [],
         presences: [],
         cours: [],
         annonces: [],
@@ -23151,6 +23435,67 @@ function App() {
             });
         } // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tickAbsencesAuto, data.emploiDuTemps, data.sessionsQR, data.etudiants, data.presences, data.configuration?.filieresAvecGeolocAbsences, data.configuration?.delaiPointageMinutes, roleTmp, userTmp?.token]);
+        const connexionSpIdRef = useRef(null);
+      const connexionEnregistreeRef = useRef(false);
+      useEffect(() => {
+        if (!roleAuth || !userAuth?.token || connexionEnregistreeRef.current) return;
+        connexionEnregistreeRef.current = true;
+        const maintenant = /* @__PURE__ */new Date();
+        const dateStr = today();
+        const heureStr = `${String(maintenant.getHours()).padStart(2, "0")}:${String(maintenant.getMinutes()).padStart(2, "0")}`;
+        const isoActivite = maintenant.toISOString();
+        const champs = {
+          Title: `${userAuth.nom || userAuth.email || "Utilisateur"} - ${dateStr} ${heureStr}`,
+          UserEmail: userAuth.email || "",
+          NomComplet: userAuth.nom || "",
+          Role: roleAuth,
+          DateConnexion: dateStr,
+          HeureConnexion: heureStr,
+          DerniereActivite: isoActivite,
+          Appareil: getAppareilLabel()
+        };
+        saveToSP("ECOGEST_Connexions", champs, userAuth.token).then(result => {
+          if (!result) return;
+          connexionSpIdRef.current = result.id;
+          setData(d => ({
+            ...d,
+            connexions: [...(d.connexions || []), {
+              id: Date.now(),
+              _spId: result.id,
+              userEmail: champs.UserEmail,
+              nomComplet: champs.NomComplet,
+              role: champs.Role,
+              filiere: "",
+              dateConnexion: champs.DateConnexion,
+              heureConnexion: champs.HeureConnexion,
+              derniereActivite: champs.DerniereActivite,
+              appareil: champs.Appareil
+            }]
+          }));
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [roleAuth, userAuth?.token]);
+      useEffect(() => {
+        if (!roleAuth || !userAuth?.token) return;
+        const intervalId = setInterval(() => {
+          if (!connexionSpIdRef.current) return;
+          const iso = (/* @__PURE__ */new Date()).toISOString();
+          saveToSP("ECOGEST_Connexions", {
+            DerniereActivite: iso
+          }, userAuth.token, connexionSpIdRef.current).then(result => {
+            if (!result) return;
+            setData(d => ({
+              ...d,
+              connexions: (d.connexions || []).map(c => c._spId === connexionSpIdRef.current ? {
+                ...c,
+                derniereActivite: iso
+              } : c)
+            }));
+          });
+        }, 2 * 60 * 1000);
+        return () => clearInterval(intervalId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [roleAuth, userAuth?.token]);
     const monEtudiantSessionQR = roleTmp === "etudiant" && data.etudiants ? data.etudiants.find(e => e.email && userTmp?.email && e.email.toLowerCase() === userTmp.email.toLowerCase()) : null; // ── Bannière de présence par géolocalisation (professeur + étudiant) ────
     // Système plus simple que le Pointage QR : chaque personne (professeur ou
     // étudiant) détecte, indépendamment et sur son propre appareil, si elle a
