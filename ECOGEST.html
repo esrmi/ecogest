@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.290.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.291.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -12890,6 +12890,119 @@ function Parametrage({
   user,
   toast
 }) {
+  const [envoiTestEnCours, setEnvoiTestEnCours] = useState(false);
+  // Envoie, à l'administrateur connecté uniquement, un exemplaire de
+  // CHAQUE type d'email de notification que l'application est capable
+  // d'envoyer — pour vérifier leur mise en forme et leur contenu sans
+  // avoir à réellement effectuer chacune de ces opérations dans l'app.
+  // Fonctionne indépendamment de l'activation ou non des notifications
+  // (c'est un test manuel, pas le circuit automatique), et utilise des
+  // données fictives clairement identifiables comme telles.
+  const handleEnvoyerTestsNotifications = async () => {
+    if (!user?.token || !user?.email) {
+      toast("⚠️ Non connecté — impossible d'envoyer les emails de test");
+      return;
+    }
+    setEnvoiTestEnCours(true);
+    const envoyer = async (sujet, titreAffiche, sousTitreAffiche, contenuHtml) => {
+      const htmlComplet = _emailWrapperHtml(titreAffiche, `🧪 TEST — ${sousTitreAffiche || ""}`, contenuHtml);
+      try {
+        await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: {
+              subject: `[TEST] ${sujet}`,
+              body: {
+                contentType: "HTML",
+                content: htmlComplet
+              },
+              toRecipients: [{
+                emailAddress: {
+                  address: user.email
+                }
+              }],
+              attachments: [{
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: "logo-ecogest.png",
+                contentType: "image/png",
+                contentBytes: LOGO.replace(/^data:image\/png;base64,/, ""),
+                isInline: true,
+                contentId: "ecogestlogo"
+              }]
+            },
+            saveToSentItems: false
+          })
+        });
+      } catch (e) {
+        console.warn("Email de test non envoyé:", sujet, e.message);
+      }
+      // Petite pause entre chaque envoi pour éviter tout throttling de
+      // l'API Graph (limite de fréquence sur /sendMail).
+      await new Promise(r => setTimeout(r, 350));
+    };
+    const maintenant = new Date().toLocaleString("fr-FR");
+    // 1) Générique — AJOUT (avec le détail complet des champs, exactement
+    // comme pour une vraie opération d'ajout dans l'application).
+    await envoyer("ECOGEST — Jean Dupont a ajouté un enregistrement (Étudiants)", "Étudiants", "Enregistrement ajouté", _emailIntro(`<strong>Jean Dupont</strong> (j.dupont@esrmi.ma) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", "ajouté", "#2e7d52"), _emailChip("Module", "Étudiants")]) + _emailListeHtml([{
+      gauche: "Nom",
+      droite: "TESTOUNI"
+    }, {
+      gauche: "Prenom",
+      droite: "Sara"
+    }, {
+      gauche: "Filiere",
+      droite: "1ère année, BAC+3 Systèmes d'Information"
+    }, {
+      gauche: "NumInscription",
+      droite: "ESRMI-2026-2027/99"
+    }, {
+      gauche: "Telephone",
+      droite: "0612345678"
+    }]) + _emailPiedMeta([maintenant]));
+    // 2) Générique — MODIFICATION
+    await envoyer("ECOGEST — Kawtar Bouabid a modifié un enregistrement (Paiements)", "Paiements", "Enregistrement modifié", _emailIntro(`<strong>Kawtar Bouabid</strong> (k.bouabid@esrmi.ma) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", "modifié", "#e56b2d"), _emailChip("Module", "Paiements")]) + _emailListeHtml([{
+      gauche: "NomEtudiant",
+      droite: "SABER Brahim"
+    }, {
+      gauche: "TotalPaye",
+      droite: "12000"
+    }, {
+      gauche: "Solde",
+      droite: "3000"
+    }]) + _emailPiedMeta([maintenant]));
+    // 3) Générique — SUPPRESSION (pas de détail de champs disponible pour
+    // une suppression, par définition — le contenu supprimé n'est plus là).
+    await envoyer("ECOGEST — Kawtar Bouabid a supprimé un enregistrement (Annonces)", "Annonces", "Enregistrement supprimé", _emailIntro(`<strong>Kawtar Bouabid</strong> (k.bouabid@esrmi.ma) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", "supprimé", "#c0392b"), _emailChip("Module", "Annonces")]) + _emailPiedMeta([maintenant]));
+    // 4) Notes — saisie groupée
+    await envoyer("ECOGEST — Notes ajoutées — Calcul intégral (Contrôle continu)", "Notes ajoutées", "Calcul intégral · Contrôle continu · B1-SI", _emailIntro(`<strong>Youssef Zahir</strong> a saisi de nouvelles notes :`) + _emailChipsRow([_emailChip("Module", "Calcul intégral"), _emailChip("Type", "Contrôle continu")]) + _emailListeHtml([{
+      gauche: "SABER Brahim",
+      droite: "14.00/20"
+    }, {
+      gauche: "HANI Chakir",
+      droite: "11.00/20"
+    }, {
+      gauche: "LABBOUA Malak",
+      droite: "7.00/20"
+    }]) + _emailPiedMeta([maintenant]));
+    // 5) Présences — absences enregistrées en lot
+    await envoyer("ECOGEST — Absences enregistrées — Introduction aux concepts des systèmes d'information", "Absences enregistrées", "B1-SI · 25/08/2026", _emailIntro(`<strong>Abdelhamid Malti</strong> a enregistré des absences :`) + _emailChipsRow([_emailChip("Module", "Introduction aux concepts des systèmes d'information"), _emailChip("Filière", "B1-SI")]) + _emailListeHtml([{
+      gauche: "SABER Brahim"
+    }, {
+      gauche: "TOUIS Islam"
+    }], true) + _emailPiedMeta([maintenant]));
+    // 6) Pointage — soumission de fiche
+    await envoyer("ECOGEST — Fiche de pointage soumise par Youssef Zahir", "Pointage — Fiche soumise", "En attente de validation", _emailIntro(`<strong>Youssef Zahir</strong> a soumis sa fiche de pointage pour validation.`) + _emailChipsRow([_emailChip("Période", "Août 2026"), _emailChip("Statut", "En attente", "#e56b2d")]) + _emailPiedMeta([maintenant]));
+    // 7) Pointage — validation de fiche
+    await envoyer("ECOGEST — Fiche de pointage validée", "Pointage — Fiche validée", "Youssef Zahir · Août 2026", _emailIntro(`La fiche de pointage de <strong>Youssef Zahir</strong> a été validée.`) + _emailChipsRow([_emailChip("Statut", "Validée", "#2e7d52")]) + _emailPiedMeta([maintenant]));
+    // 8) Demande de modification de note
+    await envoyer("ECOGEST — Demande de modification de note", "Demande de modification", "Calcul intégral · SABER Brahim", _emailIntro(`<strong>Youssef Zahir</strong> demande la modification d'une note :`) + _emailChipsRow([_emailChip("Ancienne note", "11.00"), _emailChip("Nouvelle note", "13.00")]) + _emailPiedMeta([maintenant]));
+    setEnvoiTestEnCours(false);
+    toast(`🧪 8 emails de test envoyés à ${user.email} ✓`);
+  };
   const [rechercheConnexions, setRechercheConnexions] = useState("");
   const [filtreRoleConnexions, setFiltreRoleConnexions] = useState("");
   const [rechercheHistorique, setRechercheHistorique] = useState("");
@@ -13797,7 +13910,22 @@ function Parametrage({
       fontSize: 11.5,
       color: "#2b6cb0"
     }
-  }, "ℹ️ Nécessite la permission Microsoft « Mail.Send » — si l'envoi échoue silencieusement, vérifiez que cette permission est bien accordée dans Azure AD et reconnectez-vous une fois pour en bénéficier.")), /*#__PURE__*/React.createElement(Card, {
+  }, "ℹ️ Nécessite la permission Microsoft « Mail.Send » — si l'envoi échoue silencieusement, vérifiez que cette permission est bien accordée dans Azure AD et reconnectez-vous une fois pour en bénéficier."), /*#__PURE__*/React.createElement(Btn, {
+    variant: "light",
+    onClick: handleEnvoyerTestsNotifications,
+    disabled: envoiTestEnCours,
+    style: {
+      marginTop: 14,
+      width: "100%"
+    }
+  }, envoiTestEnCours ? "Envoi des emails de test en cours..." : "🧪 Tester tous les types d'emails (envoyés à vous uniquement)"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 8,
+      lineHeight: 1.6
+    }
+  }, "Envoie 8 emails d'exemple (un par type de notification existant dans l'application) à", " ", /*#__PURE__*/React.createElement("strong", null, user?.email || "votre adresse"), " uniquement, avec des données fictives clairement identifiées — utile pour vérifier leur mise en forme sans avoir à réellement effectuer chaque opération. Fonctionne même si les notifications sont désactivées ci-dessus.")), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: 24,
       maxWidth: 620,
@@ -21128,7 +21256,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.290.0";
+const APP_VERSION = "v3.291.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21973,7 +22101,8 @@ function terminerLotNotification(sujet, titreAffiche, sousTitreAffiche, contenuH
     _envoyerEmailNotification(sujet, titreAffiche, sousTitreAffiche, contenuHtml, _notifState.destinataires);
 }
 
-function notifierOperation(list, action, spId) {
+const CHAMPS_EMAIL_MASQUES = /* @__PURE__ */ new Set(["Title"]);
+function notifierOperation(list, action, spId, fields) {
     if (_notifBatch.active) return;
     if (LISTES_SANS_NOTIF_GENERIQUE.has(list)) return;
     if (!_notifState.active || _notifState.destinataires.length === 0) return;
@@ -21982,7 +22111,11 @@ function notifierOperation(list, action, spId) {
     const actionCouleur = action === "delete" ? "#c0392b" : spId ? "#e56b2d" : "#2e7d52";
     const acteur = _notifState.acteurNom || _notifState.acteurEmail || "Un utilisateur";
     const sujet = `ECOGEST — ${acteur} a ${actionMot} un enregistrement (${label})`;
-    const contenuHtml = _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> (${_emailEscapeHtml(_notifState.acteurEmail||"email inconnu")}) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", actionMot, actionCouleur), _emailChip("Module", label)]) + _emailPiedMeta([new Date().toLocaleString("fr-FR")]);
+    const detailChamps = fields ? Object.entries(fields).filter(([k, v]) => !CHAMPS_EMAIL_MASQUES.has(k) && v !== "" && v !== null && v !== void 0).map(([k, v]) => ({
+        gauche: k,
+        droite: String(v)
+    })) : [];
+    const contenuHtml = _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> (${_emailEscapeHtml(_notifState.acteurEmail||"email inconnu")}) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", actionMot, actionCouleur), _emailChip("Module", label)]) + (detailChamps.length > 0 ? _emailListeHtml(detailChamps) : "") + _emailPiedMeta([new Date().toLocaleString("fr-FR")]);
     _envoyerEmailNotification(sujet, label, `Enregistrement ${actionMot}`, contenuHtml, _notifState.destinataires);
 } // Notification ciblée pour le circuit de Pointage : envoyée uniquement à la
 // personne concernée par l'étape suivante (pas à toute la liste des
@@ -22449,7 +22582,7 @@ async function saveToSP(list, fields, token, spId) {
         };
     }
     const result = await saveToSPOnline(list, fields, token, spId);
-    if (result) notifierOperation(list, "save", spId);
+    if (result) notifierOperation(list, "save", spId, fields);
     return result;
 }
 async function deleteFromSP(list, spId, token) {
@@ -22498,7 +22631,7 @@ async function flushOfflineQueue(token) {
                 if (result && result.id) {
                     remap[item.tempId] = result.id;
                     reussies++;
-                    notifierOperation(item.list, "save", spIdReel);
+                    notifierOperation(item.list, "save", spIdReel, item.fields);
                 } else {
                     restantes.push(item);
                     echouees++;
