@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.281.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.283.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4869,7 +4869,7 @@ function jourFrancaisActuel() {
 // possible) ou "en_cours" (pointage réel ouvert). margeMinutesFin prolonge
 // la fenêtre après l'heure de fin théorique (temps que la clôture
 // automatique se déclenche sur l'appareil de quelqu'un ayant l'app ouverte).
-function creneauEnCours(emploiDuTemps, filtre, margeMinutesDebut = 0, margeMinutesFin = 15) {
+function creneauEnCours(emploiDuTemps, filtre, delaiPointageMinutes = 15, margeMinutesAvant = 0) {
     const maintenant = /* @__PURE__ */ new Date();
     const dateStr = today();
     const jourFr = jourFrancaisActuel();
@@ -4878,13 +4878,36 @@ function creneauEnCours(emploiDuTemps, filtre, margeMinutesDebut = 0, margeMinut
     for (const c of candidats) {
         const horaire = parseSeanceHoraire(c.seance);
         if (!horaire) continue;
-        if (minutesActuelles >= horaire.debutMin - margeMinutesDebut && minutesActuelles <= horaire.finMin + margeMinutesFin) {
+        const finFenetrePointage = horaire.debutMin + delaiPointageMinutes;
+        if (minutesActuelles >= horaire.debutMin - margeMinutesAvant && minutesActuelles <= finFenetrePointage) {
             const phase = minutesActuelles < horaire.debutMin ? "avant" : "en_cours";
             return {
                 ...c,
                 dateStr,
                 ...horaire,
-                phase
+                phase,
+                finFenetrePointage
+            };
+        }
+    }
+    return null;
+}
+function creneauVientDExpirer(emploiDuTemps, filtre, delaiPointageMinutes = 15) {
+    const maintenant = /* @__PURE__ */ new Date();
+    const dateStr = today();
+    const jourFr = jourFrancaisActuel();
+    const minutesActuelles = maintenant.getHours() * 60 + maintenant.getMinutes();
+    const candidats = (emploiDuTemps || []).filter(e => filtre(e) && e.jour === jourFr && creneauEstActifPourDate(e, dateStr));
+    for (const c of candidats) {
+        const horaire = parseSeanceHoraire(c.seance);
+        if (!horaire) continue;
+        const finFenetrePointage = horaire.debutMin + delaiPointageMinutes;
+        if (minutesActuelles > finFenetrePointage && minutesActuelles <= horaire.finMin) {
+            return {
+                ...c,
+                dateStr,
+                ...horaire,
+                finFenetrePointage
             };
         }
     }
@@ -7515,17 +7538,7 @@ function Presences({
         value: ""
     }, "-- Sélectionner --"), getSeancesGroupe(data, form.filiere).map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: s
-    }, s)))), sessionPrete && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-        style: {
-            border: `1px dashed ${C.teal}`,
-            borderRadius: 10,
-            padding: "10px 14px",
-            background: "#e0f4f2",
-            color: C.teal,
-            fontSize: 12,
-            marginBottom: 16
-        }
-    }, "📱 Pour un pointage instantané par QR code (les étudiants scannent pour confirmer leur présence), utilisez le menu ", /*#__PURE__*/ React.createElement("strong", null, "Pointage QR"), ". Les absences qui en résultent apparaîtront automatiquement ici."), form.filiere && form.semestre && modulesOptions.length === 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }, s)))), form.filiere && form.semestre && modulesOptions.length === 0 && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             background: "#fff8e6",
             border: "1px solid #f0d078",
@@ -12969,7 +12982,8 @@ function Parametrage({
     const [formGeoloc, setFormGeoloc] = useState({
         latitude: data.configuration?.campusLatitude || "",
         longitude: data.configuration?.campusLongitude || "",
-        rayon: data.configuration?.campusRayonMetres || "150"
+        rayon: data.configuration?.campusRayonMetres || "150",
+        delaiPointage: data.configuration?.delaiPointageMinutes || "15"
     });
     const handleCapturerPositionActuelle = () => {
         if (!navigator.geolocation) {
@@ -12999,20 +13013,23 @@ function Parametrage({
             return;
         }
         const spId = data.configuration?._spId;
+        const delaiValide = Math.max(1, parseInt(formGeoloc.delaiPointage, 10) || 15);
         setData(d => ({
             ...d,
             configuration: {
                 ...d.configuration,
                 campusLatitude: formGeoloc.latitude,
                 campusLongitude: formGeoloc.longitude,
-                campusRayonMetres: formGeoloc.rayon
+                campusRayonMetres: formGeoloc.rayon,
+                delaiPointageMinutes: delaiValide
             }
         }));
         saveToSP("ECOGEST_Parametres", {
             Title: "Configuration ECOGEST",
             CampusLatitude: formGeoloc.latitude,
             CampusLongitude: formGeoloc.longitude,
-            CampusRayonMetres: formGeoloc.rayon
+            CampusRayonMetres: formGeoloc.rayon,
+            DelaiPointageMinutes: String(delaiValide)
         }, user.token, spId).then(result => {
             if (!result) {
                 toast("⚠️ Échec de l'enregistrement");
@@ -13025,7 +13042,7 @@ function Parametrage({
                     _spId: result.id
                 }
             }));
-            toast("📍 Emplacement du campus enregistré ✓");
+            toast("📍 Emplacement du campus et délai de pointage enregistrés ✓");
         });
     };
     const handleToggleGeolocalisation = () => {
@@ -13688,7 +13705,24 @@ function Parametrage({
             ...f,
             rayon: e.target.value
         }))
-    }), /*#__PURE__*/ React.createElement("div", {
+    }), /*#__PURE__*/ React.createElement(Input, {
+        label: "Délai de pointage automatique après le début de la séance (en minutes)",
+        type: "number",
+        min: "1",
+        value: formGeoloc.delaiPointage,
+        onChange: e => setFormGeoloc(f => ({
+            ...f,
+            delaiPointage: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement("p", {
+        style: {
+            fontSize: 11.5,
+            color: C.muted,
+            marginTop: -10,
+            marginBottom: 16,
+            lineHeight: 1.6
+        }
+    }, "Détermine combien de temps, à compter de l'heure de début de chaque séance, le pointage automatique (bannière \"Je suis présent(e)\", étudiants et professeur) reste ouvert. Passé ce délai, il se ferme automatiquement pour cette séance — plus aucune confirmation automatique n'est alors possible, et l'absence de toute personne n'ayant pas confirmé est enregistrée. Exemple : avec un délai de 15 minutes, une séance de 09h00 accepte les confirmations jusqu'à 09h15."), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
@@ -20695,7 +20729,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.281.0";
+const APP_VERSION = "v3.283.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -22124,7 +22158,7 @@ const SP_LISTS_SCHEMA = {
     // Iliass Elmzioui ; l'acceptation revalide directement la séance
     // concernée.
     ECOGEST_ContestationsPointage: ["FicheId", "SeanceId", "ProfesseurCIN", "ProfesseurNom", "Motif", "Module", "Date", "StatutSeanceAvant", "Statut", "DateContestation", "DateTraitement", "TraitePar", "CommentaireAdmin"], // Paramétrage général de l'application (un seul enregistrement).
-    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT", "ModeConnexion", "ModeGestionAbsences", "FilieresAvecGeolocAbsences"],
+    ECOGEST_Parametres: ["FilieresAvecTauxAbsence", "FilieresAvecWeekend", "NotificationsEmailActives", "NotificationsEmailDestinataires", "CampusLatitude", "CampusLongitude", "CampusRayonMetres", "GeolocalisationActive", "DecalageGMT", "ModeConnexion", "ModeGestionAbsences", "FilieresAvecGeolocAbsences", "DelaiPointageMinutes"],
     ECOGEST_SemestresDates: ["Semestre", "DateDebut", "DateFin"],
     ECOGEST_DemandesDocuments: ["EtudiantId", "NomEtudiant", "NumInscription", "Filiere", "TypeDocument", "DateDemande", "Statut", "Commentaire", "DateTraitement", "TraitePar", "AnneeUniversitaire"],
     ECOGEST_Calendrier: ["TypeEvenement", "DateDebut", "DateFin", "Description", "Filiere"]
@@ -22784,6 +22818,7 @@ async function loadAllFromSP(token) {
             campusLatitude: g(parametresSP[0] || {}, "CampusLatitude") || "",
             campusLongitude: g(parametresSP[0] || {}, "CampusLongitude") || "",
             campusRayonMetres: g(parametresSP[0] || {}, "CampusRayonMetres") || "150",
+            delaiPointageMinutes: parseInt(g(parametresSP[0] || {}, "DelaiPointageMinutes"), 10) || 15,
             geolocalisationActive: g(parametresSP[0] || {}, "GeolocalisationActive") === "true" || g(parametresSP[0] || {}, "GeolocalisationActive") === true,
             decalageGMT: g(parametresSP[0] || {}, "DecalageGMT") || "1",
             filieresAvecWeekend: (g(parametresSP[0] || {}, "FilieresAvecWeekend") || "").split("|").map(s => s.trim()).filter(Boolean),
@@ -22893,6 +22928,7 @@ function App() {
         const maintenant = /* @__PURE__ */ new Date();
         const minutesActuelles = maintenant.getHours() * 60 + maintenant.getMinutes();
         const filieresGeoloc = data.configuration?.filieresAvecGeolocAbsences || [];
+        const delaiPointageMinutes = data.configuration?.delaiPointageMinutes || 15;
         const NB_JOURS_RATTRAPAGE = 14; // Pour chaque jour des 14 derniers jours (aujourd'hui inclus), on
         // détermine la date exacte et le jour de la semaine correspondant, et
         // on applique la même détection que pour "aujourd'hui" — pour un jour
@@ -22912,7 +22948,7 @@ function App() {
                 if (e.jour !== jourFr) return false;
                 if (!creneauEstActifPourDate(e, dateStr)) return false;
                 const horaire = parseSeanceHoraire(e.seance);
-                return horaire && minutesLimite >= horaire.debutMin;
+                return horaire && minutesLimite >= horaire.debutMin + delaiPointageMinutes;
             });
             seancesDemarrees.forEach(seance => {
                 const effectifAttendu = (data.etudiants || []).filter(e => filiereEtudiantPourAnnee(e, seance.anneeUniversitaire) === seance.filiere && (e.promotion === seance.anneeUniversitaire || (e.parcours || []).some(p => p.anneeUniversitaire === seance.anneeUniversitaire)));
@@ -22984,7 +23020,7 @@ function App() {
                 });
             });
         } // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tickAbsencesAuto, data.emploiDuTemps, data.sessionsQR, data.etudiants, data.presences, data.configuration?.filieresAvecGeolocAbsences, roleTmp, userTmp?.token]);
+    }, [tickAbsencesAuto, data.emploiDuTemps, data.sessionsQR, data.etudiants, data.presences, data.configuration?.filieresAvecGeolocAbsences, data.configuration?.delaiPointageMinutes, roleTmp, userTmp?.token]);
     const monEtudiantSessionQR = roleTmp === "etudiant" && data.etudiants ? data.etudiants.find(e => e.email && userTmp?.email && e.email.toLowerCase() === userTmp.email.toLowerCase()) : null; // ── Bannière de présence par géolocalisation (professeur + étudiant) ────
     // Système plus simple que le Pointage QR : chaque personne (professeur ou
     // étudiant) détecte, indépendamment et sur son propre appareil, si elle a
@@ -22996,31 +23032,21 @@ function App() {
     // — même si les dates de début/fin de chaque créneau suffisent déjà en
     // pratique à les distinguer correctement.
     const anneeUniversitaireActuelle = moisVersAnneeUniversitaire(today().slice(0, 7), moisDebutAnneeUniversitaire(data.semestresDates));
-    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, e => e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle) && // Le réglage "Groupes administrés par géolocalisation"
-        // (Paramétrage) détermine, groupe par groupe, si la bannière de
-        // confirmation de présence doit se déclencher — un professeur ne
-        // reçoit donc cette invitation que pour SES séances données à un
-        // groupe explicitement coché.
-        (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere), 5, 0) : null;
-    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, e => {
-        if (!e.anneeUniversitaire) return e.filiere === monEtudiantSessionQR.filiere && (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere); // CORRECTIF (v2) : un étudiant PROMU entre-temps (ex: passé de
-        // B1-SI/2026-2027 à B2-SI/2027-2028) doit continuer à recevoir la
-        // bannière pour les cours de son ANCIEN groupe tant que l'année
-        // du créneau correspond à une année où il a réellement fait
-        // partie de ce groupe — la comparaison ne doit donc JAMAIS se
-        // baser uniquement sur sa filière ACTUELLE (monEtudiantSessionQR.
-        // filiere) ni sur sa seule promotion actuelle, mais sur sa
-        // filière HISTORIQUE pour l'année précise du créneau, après
-        // avoir vérifié qu'il a bien un lien réel avec cette année
-        // (promotion actuelle OU une étape de son parcours, dans un sens
-        // comme dans l'autre) — même principe d'éligibilité déjà utilisé
-        // partout ailleurs dans l'application (page Étudiants, saisie
-        // classique des absences...).
+    const delaiPointageMinutes = data.configuration?.delaiPointageMinutes || 15;
+    const filtreCreneauProf = e => monProfesseurGlobal && e.professeurCin === monProfesseurGlobal.cin && (!e.anneeUniversitaire || e.anneeUniversitaire === anneeUniversitaireActuelle) && (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere);
+    const filtreCreneauEtudiant = e => {
+        if (!monEtudiantSessionQR) return false;
+        if (!e.anneeUniversitaire) return e.filiere === monEtudiantSessionQR.filiere && (data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere);
         const eligible = monEtudiantSessionQR.promotion === e.anneeUniversitaire || (monEtudiantSessionQR.parcours || []).some(p => p.anneeUniversitaire === e.anneeUniversitaire || p.nouvelleAnneeUniversitaire === e.anneeUniversitaire);
         if (!eligible) return false;
         if (!(data.configuration?.filieresAvecGeolocAbsences || []).includes(e.filiere)) return false;
         return filiereEtudiantPourAnnee(monEtudiantSessionQR, e.anneeUniversitaire) === e.filiere;
-    }, 5, 0) : null;
+    };
+    const creneauEnCoursProf = monProfesseurGlobal ? creneauEnCours(data.emploiDuTemps, filtreCreneauProf, delaiPointageMinutes, 5) : null;
+    const creneauEnCoursEtudiantGeoloc = monEtudiantSessionQR ? creneauEnCours(data.emploiDuTemps, filtreCreneauEtudiant, delaiPointageMinutes, 5) : null;
+    const creneauExpireProf = !creneauEnCoursProf && monProfesseurGlobal ? creneauVientDExpirer(data.emploiDuTemps, filtreCreneauProf, delaiPointageMinutes) : null;
+    const creneauExpireEtudiant = !creneauEnCoursEtudiantGeoloc && monEtudiantSessionQR ? creneauVientDExpirer(data.emploiDuTemps, filtreCreneauEtudiant, delaiPointageMinutes) : null;
+    const creneauExpirePourMoi = roleTmp === "professeur" ? creneauExpireProf : creneauExpireEtudiant;
     const creneauPourMoi = roleTmp === "professeur" ? creneauEnCoursProf : creneauEnCoursEtudiantGeoloc;
     const geoRequiseGlobal = !!(data.configuration?.geolocalisationActive && data.configuration?.campusLatitude);
     const [statutGeolocBanniere, setStatutGeolocBanniere] = useState("attente");
@@ -23039,12 +23065,14 @@ function App() {
     // confirmation déjà enregistrée. En calculant cette valeur directement
     // à chaque rendu (au lieu de la mémoriser), elle reflète TOUJOURS
     // fidèlement l'état réel le plus à jour de data.sessionsQR.
-    const dejaConfirmeCreneau = (() => {
-        if (!creneauPourMoi) return false;
+    const estCreneauConfirme = creneau => {
+        if (!creneau) return false;
         const identifiantMoi = roleTmp === "professeur" ? String(monProfesseurGlobal?.id || "") : String(monEtudiantSessionQR?.id || "");
         const typeAttendu = roleTmp === "professeur" ? "PresenceProf" : "PresenceEtudiant";
-        return (data.sessionsQR || []).some(s => s.type === typeAttendu && s.dateSeance === creneauPourMoi.dateStr && s.seance === creneauPourMoi.seance && s.module === creneauPourMoi.module && (roleTmp === "professeur" ? s.professeurId : s.etudiantId) === identifiantMoi);
-    })(); // La fenêtre modale de rappel se réaffiche systématiquement pour CHAQUE
+        return (data.sessionsQR || []).some(s => s.type === typeAttendu && s.dateSeance === creneau.dateStr && s.seance === creneau.seance && s.module === creneau.module && (roleTmp === "professeur" ? s.professeurId : s.etudiantId) === identifiantMoi);
+    };
+    const dejaConfirmeCreneau = estCreneauConfirme(creneauPourMoi);
+    const creneauExpireNonConfirme = creneauExpirePourMoi && !estCreneauConfirme(creneauExpirePourMoi) ? creneauExpirePourMoi : null; // La fenêtre modale de rappel se réaffiche systématiquement pour CHAQUE
     // nouvelle séance détectée (nouvel id de créneau, ou nouveau jour), même
     // si l'utilisateur avait fermé celle d'une séance précédente — sans quoi
     // fermer une fois désactiverait le rappel pour toujours.
@@ -24434,7 +24462,35 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
             fontFamily: "inherit",
             flexShrink: 0
         }
-    }, "🔄 Synchroniser")), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauPourMoi && !dejaConfirmeCreneau && geoRequiseGlobal && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }, "🔄 Synchroniser")), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauExpireNonConfirme && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        style: {
+            position: "fixed",
+            top: 18,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: `linear-gradient(135deg, ${C.red} 0%, #a5321f 100%)`,
+            color: "white",
+            padding: "12px 18px",
+            borderRadius: 14,
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 2100,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            boxShadow: "0 8px 24px rgba(10,20,40,0.35)",
+            maxWidth: "min(94vw, 480px)"
+        }
+    }, /*#__PURE__*/ React.createElement("span", {
+        style: {
+            fontSize: 20,
+            flexShrink: 0
+        }
+    }, "⏱️"), /*#__PURE__*/ React.createElement("span", {
+        style: {
+            lineHeight: 1.4
+        }
+    }, "Le délai de pointage automatique pour cette séance (", creneauExpireNonConfirme.module, ") est expiré. L'enregistrement automatique des absences n'est plus disponible.")), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauPourMoi && !dejaConfirmeCreneau && geoRequiseGlobal && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             position: "fixed",
             top: 18,
