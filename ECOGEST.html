@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.294.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.295.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -4980,7 +4980,7 @@ function calculerTauxAbsence(data, {
   filiere
 } = {}) {
   const matchEtudiant = p => !etudiantId && !numInscription ? true : etudiantId && String(p.etudiantId) === String(etudiantId) || numInscription && p.numInscription === numInscription;
-  const presencesFiltrees = (data.presences || []).filter(p => p.statut === "Absent" && p.module && (!anneeUniversitaire || p.anneeUniversitaire === anneeUniversitaire) && (!semestre || p.semestre === semestre) && (!filiere || p.filiere === filiere) && matchEtudiant(p) && (!professeurCin || p.enseignantCin === professeurCin));
+  const presencesFiltrees = (data.presences || []).filter(p => (p.statut === "Absent" || p.statut === "Justifié") && p.module && (!anneeUniversitaire || p.anneeUniversitaire === anneeUniversitaire) && (!semestre || p.semestre === semestre) && (!filiere || p.filiere === filiere) && matchEtudiant(p) && (!professeurCin || p.enseignantCin === professeurCin));
   const parModule = {};
   presencesFiltrees.forEach(p => {
     if (!parModule[p.module]) parModule[p.module] = {
@@ -5906,7 +5906,7 @@ function Presences({
             sensitivity: "base"
         }));
         const parSemestreModule = {};
-        mesPresencesFiltrees.filter(p => p.statut === "Absent").forEach(p => {
+        mesPresencesFiltrees.filter(p => p.statut === "Absent" || p.statut === "Justifié").forEach(p => {
             const mod = p.module || "Module non précisé";
             const moduleInfo = (data.cours || []).find(c => c.intitule === mod);
             const sem = moduleInfo?.semestre || p.semestre || "Semestre non précisé";
@@ -6250,7 +6250,7 @@ function Presences({
             key: "_absences",
             label: "Absences",
             render: (_, row) => {
-                const nb = mesPresencesFiltrees.filter(p => p.module === row.intitule && p.statut === "Absent").length;
+                const nb = mesPresencesFiltrees.filter(p => p.module === row.intitule && (p.statut === "Absent" || p.statut === "Justifié")).length;
                 return /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
                     style: {
                         display: "inline-flex",
@@ -6269,7 +6269,7 @@ function Presences({
             key: "_taux",
             label: "Synthèse",
             render: (_, row) => {
-                const heuresManquees = Math.round(mesPresencesFiltrees.filter(p => p.module === row.intitule && p.statut === "Absent").reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
+                const heuresManquees = Math.round(mesPresencesFiltrees.filter(p => p.module === row.intitule && (p.statut === "Absent" || p.statut === "Justifié")).reduce((s, p) => s + dureeSeanceHeures(p.seance || p.heure), 0) * 100) / 100;
                 const heuresTotal = row.heures || 0;
                 const taux = heuresTotal > 0 ? Math.round(heuresManquees / heuresTotal * 10000) / 100 : 0;
                 const barColor = taux >= 20 ? C.red : taux >= 10 ? C.orange : C.green;
@@ -21310,7 +21310,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.294.0";
+const APP_VERSION = "v3.295.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
