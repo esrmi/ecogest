@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.279.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.280.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -20695,7 +20695,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.279.0";
+const APP_VERSION = "v3.280.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21585,152 +21585,169 @@ async function deleteFromSPOnline(list, spId, token) {
         return false;
     }
 }
+// Extrait le nom du champ en cause à partir d'un message d'erreur
+// SharePoint (ex: "Field 'ModeEnregistrement' is not recognized"). Permet
+// un repli GÉNÉRIQUE — applicable à N'IMPORTE QUELLE colonne absente de la
+// liste SharePoint réelle (pas seulement 'Statut', seul cas géré
+// auparavant) — indispensable dès qu'une colonne attendue par le code n'a
+// pas encore été créée côté SharePoint : sans ce repli, TOUT
+// l'enregistrement échoue à cause d'un seul champ inconnu, alors que les
+// autres champs, eux, sont parfaitement valides.
+function extraireChampNonReconnu(message) {
+  const s = String(message || "");
+  const m = s.match(/[Ff]ield\s+'([^']+)'\s+is\s+not\s+recognized/) || s.match(/[Ii]nvalid\s+field\s+name\s+'([^']+)'/) || s.match(/[Cc]olumn\s+'([^']+)'/) || s.match(/property\s+'([^']+)'/);
+  return m ? m[1] : null;
+}
 async function saveToSPOnline(list, fields, token, spId) {
-    try {
-        if (!token) {
-            console.error("saveToSP: pas de token");
-            return null;
-        }
-        const siteId = await getSiteIdCached(token);
-        if (!siteId) {
-            console.error("saveToSP: site introuvable");
-            return null;
-        }
-        const listName = list.startsWith("ECOGEST_") ? list : "ECOGEST_" + list.charAt(0).toUpperCase() + list.slice(1);
-        const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items`;
-        const headers = {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-        };
-        const colMap = await getColMap(listName, token, siteId);
-        const colTypes = await getColTypeMap(listName, token, siteId); // Ne recalcule/n'inclut le champ Title que s'il est explicitement fourni,
-        // ou lors d'une CRÉATION (spId absent, où Title est obligatoire côté
-        // SharePoint). Sur une mise à jour partielle (ex: rotation du jeton QR
-        // toutes les 25s, qui n'envoie que { Token }), on ne doit surtout pas
-        // écraser le Title existant par une valeur de repli arbitraire.
-        const titleFourni = fields.Title || fields.Nom || fields.Titre || fields.Intitule || fields.Code;
-        const safeFields = {};
-        if (titleFourni) {
-            safeFields.Title = String(titleFourni);
-        } else if (!spId) {
-            safeFields.Title = String(Object.values(fields)[0] || "ECOGEST");
-        }
-        Object.keys(fields).forEach(k => {
-            if (k === "Title") return;
-            const internalName = colMap[k] || colMap[k.toLowerCase()] || k;
-            const type = colTypes[internalName];
-            const raw = fields[k];
-            let val;
-            if (type === "number") {
-                const n = parseFloat(raw);
-                val = isNaN(n) ? 0 : n;
-            } else if (type === "boolean") {
-                val = !!raw && raw !== "false";
-            } else {
-                val = raw === null || raw === void 0 ? "" : String(raw);
-            }
-            safeFields[internalName !== "Title" ? internalName : k] = val;
-        });
-        console.log("📋 ColMap keys:", Object.keys(colMap).filter(k => !k.toLowerCase().includes("lower")).slice(0, 10));
-        console.log("🔢 Types colonnes:", Object.keys(colTypes).filter(k => colTypes[k] !== "text").map(k => `${k}:${colTypes[k]}`));
-        console.log("💾 SP →", listName, Object.keys(safeFields));
-        if (spId) {
-            const res = await fetch(`${base}/${spId}/fields`, {
-                method: "PATCH",
-                headers,
-                body: JSON.stringify(safeFields)
-            });
-            const d = await res.json();
-            if (d.error) {
-                console.warn("SP PATCH failed, retrying without 'Statut' (colonne à choix limité, cause fréquente de rejet):", d.error.message);
-                const {
-                    Statut,
-                    ...safeFieldsNoStatut
-                } = safeFields;
-                if (Statut !== void 0) {
-                    const res2 = await fetch(`${base}/${spId}/fields`, {
-                        method: "PATCH",
-                        headers,
-                        body: JSON.stringify(safeFieldsNoStatut)
-                    });
-                    const d2 = await res2.json();
-                    if (d2.error) {
-                        console.error("SP PATCH error (sans Statut):", d2.error.message);
-                        return null;
-                    }
-                    console.log("✅ Mis à jour (sans Statut):", listName);
-                    return {
-                        id: spId,
-                        ...d2
-                    };
-                }
-                console.error("SP PATCH error:", d.error.message);
-                return null;
-            }
-            console.log("✅ Mis à jour:", listName);
-            return {
-                id: spId,
-                ...d
-            };
-        } else {
-            const res = await fetch(base, {
-                method: "POST",
-                headers,
-                body: JSON.stringify({
-                    fields: safeFields
-                })
-            });
-            const d = await res.json();
-            if (d.error) {
-                console.error(`❌ SP CREATE échec sur ${listName} avec tous les champs — raison exacte SharePoint:`, d.error.message, "\nChamps envoyés:", JSON.stringify(safeFields)); // Repli progressif : la colonne "Statut" (souvent une colonne à choix
-                // limité côté SharePoint) est la cause la plus fréquente de rejet —
-                // on retente sans elle avant d'abandonner tous les champs. Même
-                // logique que le repli déjà en place pour la mise à jour (PATCH).
-                if (safeFields.Statut !== void 0) {
-                    const {
-                        Statut,
-                        ...safeFieldsNoStatut
-                    } = safeFields;
-                    console.warn("↻ Nouvel essai sans le champ 'Statut'...");
-                    const res2 = await fetch(base, {
-                        method: "POST",
-                        headers,
-                        body: JSON.stringify({
-                            fields: safeFieldsNoStatut
-                        })
-                    });
-                    const d2 = await res2.json();
-                    if (!d2.error) {
-                        console.log("✅ Enregistré sans 'Statut':", listName, d2.id, "— ce champ n'a pas pu être enregistré");
-                        return d2;
-                    }
-                    console.error(`❌ Toujours en échec sans 'Statut':`, d2.error.message);
-                }
-                console.warn("↻ Dernier repli : enregistrement avec Title uniquement...");
-                const res3 = await fetch(base, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({
-                        fields: {
-                            Title: safeFields.Title
-                        }
-                    })
-                });
-                const d3 = await res3.json();
-                if (d3.error) {
-                    console.error("SP save error (Title only):", d3.error.message);
-                    return null;
-                }
-                console.log("✅ Enregistré (Title only):", listName, d3.id, "— Cliquez 'Configurer les listes' pour activer toutes les colonnes");
-                return d3;
-            }
-            console.log("✅ Enregistré dans SharePoint:", listName, d.id);
-            return d;
-        }
-    } catch (e) {
-        console.error("SP save exception:", e.message);
-        return null;
+  try {
+    if (!token) {
+      console.error("saveToSP: pas de token");
+      return null;
     }
+    const siteId = await getSiteIdCached(token);
+    if (!siteId) {
+      console.error("saveToSP: site introuvable");
+      return null;
+    }
+    const listName = list.startsWith("ECOGEST_") ? list : "ECOGEST_" + list.charAt(0).toUpperCase() + list.slice(1);
+    const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items`;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    };
+    const colMap = await getColMap(listName, token, siteId);
+    const colTypes = await getColTypeMap(listName, token, siteId);
+    // Ne recalcule/n'inclut le champ Title que s'il est explicitement fourni,
+    // ou lors d'une CRÉATION (spId absent, où Title est obligatoire côté
+    // SharePoint). Sur une mise à jour partielle (ex: rotation du jeton QR
+    // toutes les 25s, qui n'envoie que { Token }), on ne doit surtout pas
+    // écraser le Title existant par une valeur de repli arbitraire.
+    const titleFourni = fields.Title || fields.Nom || fields.Titre || fields.Intitule || fields.Code;
+    const safeFields = {};
+    if (titleFourni) {
+      safeFields.Title = String(titleFourni);
+    } else if (!spId) {
+      safeFields.Title = String(Object.values(fields)[0] || "ECOGEST");
+    }
+    // On ne fait confiance à colMap pour EXCLURE un champ que si sa
+    // récupération a réellement réussi (plus d'une entrée que "Title") —
+    // sinon (échec réseau ponctuel de getRawCols, colMap alors vide), on
+    // préfère tenter l'envoi quand même avec la clé brute, la boucle de
+    // repli générique ci-dessous servant alors de filet de sécurité.
+    const colMapFiable = Object.keys(colMap).length > 1;
+    const champsIgnores = [];
+    Object.keys(fields).forEach(k => {
+      if (k === "Title") return;
+      const internalName = colMap[k] || colMap[k.toLowerCase()];
+      if (!internalName && colMapFiable) {
+        champsIgnores.push(k);
+        return;
+      }
+      const finalInternalName = internalName || k;
+      const type = colTypes[finalInternalName];
+      const raw = fields[k];
+      let val;
+      if (type === "number") {
+        const n = parseFloat(raw);
+        val = isNaN(n) ? 0 : n;
+      } else if (type === "boolean") {
+        val = !!raw && raw !== "false";
+      } else {
+        val = raw === null || raw === void 0 ? "" : String(raw);
+      }
+      safeFields[finalInternalName !== "Title" ? finalInternalName : k] = val;
+    });
+    if (champsIgnores.length > 0) {
+      console.warn(`⚠️ Champ(s) absent(s) de la liste SharePoint "${listName}", non envoyé(s) : ${champsIgnores.join(", ")} — ajoutez cette/ces colonne(s) dans SharePoint si vous voulez qu'elle(s) soi(en)t enregistrée(s).`);
+    }
+    console.log("📋 ColMap keys:", Object.keys(colMap).filter(k => !k.toLowerCase().includes("lower")).slice(0, 10));
+    console.log("🔢 Types colonnes:", Object.keys(colTypes).filter(k => colTypes[k] !== "text").map(k => `${k}:${colTypes[k]}`));
+    console.log("💾 SP →", listName, Object.keys(safeFields));
+    if (spId) {
+      // Boucle de repli GÉNÉRIQUE : à chaque champ rejeté par SharePoint
+      // (colonne inexistante dans la liste réelle), on le retire et on
+      // retente — jusqu'à réussite ou jusqu'à ce qu'il ne reste plus que
+      // Title. Remplace l'ancien repli qui ne savait retirer que 'Statut'.
+      let champsActuels = {
+        ...safeFields
+      };
+      for (let tentative = 0; tentative < 8; tentative++) {
+        const res = await fetch(`${base}/${spId}/fields`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(champsActuels)
+        });
+        const d = await res.json();
+        if (!d.error) {
+          console.log("✅ Mis à jour:", listName);
+          return {
+            id: spId,
+            ...d
+          };
+        }
+        const champProbleme = extraireChampNonReconnu(d.error.message);
+        const aRetirer = champProbleme && champsActuels[champProbleme] !== void 0 ? champProbleme : champsActuels.Statut !== void 0 ? "Statut" : null;
+        if (!aRetirer || Object.keys(champsActuels).length <= 1) {
+          console.error("SP PATCH error:", d.error.message);
+          return null;
+        }
+        console.warn(`SP PATCH échec, nouvel essai sans '${aRetirer}':`, d.error.message);
+        const {
+          [aRetirer]: _retire,
+          ...reste
+        } = champsActuels;
+        champsActuels = reste;
+      }
+      console.error("SP PATCH: trop de champs rejetés successivement, abandon");
+      return null;
+    } else {
+      // Même boucle de repli GÉNÉRIQUE que pour la mise à jour : retire le
+      // champ effectivement rejeté par SharePoint à chaque tentative (et
+      // non plus seulement 'Statut'), jusqu'à réussite ou jusqu'à ne plus
+      // garder que Title en dernier recours.
+      let champsActuels = {
+        ...safeFields
+      };
+      for (let tentative = 0; tentative < 8; tentative++) {
+        const res = await fetch(base, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            fields: champsActuels
+          })
+        });
+        const d = await res.json();
+        if (!d.error) {
+          if (tentative === 0) {
+            console.log("✅ Enregistré dans SharePoint:", listName, d.id);
+          } else {
+            console.log(`✅ Enregistré (repli, sans ${Object.keys(safeFields).filter(k => champsActuels[k] === void 0).join(", ")}):`, listName, d.id, "— au moins un champ n'a pas pu être enregistré, voir avertissements ci-dessus");
+          }
+          return d;
+        }
+        if (tentative === 0) {
+          console.error(`❌ SP CREATE échec sur ${listName} avec tous les champs — raison exacte SharePoint:`, d.error.message, "\nChamps envoyés:", JSON.stringify(champsActuels));
+        }
+        const champProbleme = extraireChampNonReconnu(d.error.message);
+        const aRetirer = champProbleme && champsActuels[champProbleme] !== void 0 ? champProbleme : champsActuels.Statut !== void 0 ? "Statut" : null;
+        if (!aRetirer || Object.keys(champsActuels).length <= 1) {
+          console.error("SP CREATE error (dernier repli épuisé):", d.error.message);
+          return null;
+        }
+        console.warn(`↻ Nouvel essai sans le champ '${aRetirer}'...`);
+        const {
+          [aRetirer]: _retire,
+          ...reste
+        } = champsActuels;
+        champsActuels = reste;
+      }
+      console.error("SP CREATE: trop de champs rejetés successivement, abandon");
+      return null;
+    }
+  } catch (e) {
+    console.error("SP save exception:", e.message);
+    return null;
+  }
 } // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  MODE HORS LIGNE : cache local des données + file d'attente de synchronisation
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
