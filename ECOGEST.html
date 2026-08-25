@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.280.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.281.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -2427,7 +2427,18 @@ function Etudiants({
         title: editItem ? "Modifier l'étudiant → SharePoint" : "Ajouter un étudiant → SharePoint",
         onClose: () => setShowModal(false),
         hideFooterClose: true
-    }, /*#__PURE__*/ React.createElement("div", {
+    }, !editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnnee, {
+        label: "Année universitaire d'inscription *",
+        value: form.promotion,
+        onChange: e => {
+            const annee = e.target.value;
+            setForm(f => ({
+                ...f,
+                promotion: annee,
+                numInscription: annee ? genNumInscriptionESRMI(data.etudiants, annee, data.paiements?.etudiants_paiement) : ""
+            }));
+        }
+    }), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
@@ -2491,18 +2502,7 @@ function Etudiants({
             marginTop: -10,
             marginBottom: 13
         }
-    }, "⚠️ Le numéro doit contenir exactement 10 chiffres")), !editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement(SelAnnee, {
-        label: "Année universitaire d'inscription *",
-        value: form.promotion,
-        onChange: e => {
-            const annee = e.target.value;
-            setForm(f => ({
-                ...f,
-                promotion: annee,
-                numInscription: annee ? genNumInscriptionESRMI(data.etudiants, annee, data.paiements?.etudiants_paiement) : ""
-            }));
-        }
-    }), /*#__PURE__*/ React.createElement("div", {
+    }, "⚠️ Le numéro doit contenir exactement 10 chiffres")), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
@@ -2798,7 +2798,11 @@ function Etudiants({
         value: "Oui"
     }, "✅ Oui, année validée"), /*#__PURE__*/ React.createElement("option", {
         value: "Non"
-    }, "❌ Non, année non validée")), validationPromotion === "Oui" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(Sel, {
+    }, "❌ Non, année non validée")), validationPromotion === "Oui" && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", null, /*#__PURE__*/ React.createElement(SelAnnee, {
+        label: "Nouvelle année universitaire *",
+        value: nouvelleAnneePromotion,
+        onChange: e => setNouvelleAnneePromotion(e.target.value)
+    }), /*#__PURE__*/ React.createElement(Sel, {
         label: "Nouveau groupe *",
         value: nouveauGroupePromotion,
         onChange: e => setNouveauGroupePromotion(e.target.value)
@@ -2810,11 +2814,7 @@ function Etudiants({
     })).map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: f.id,
         value: f.intitule
-    }, f.intitule))), /*#__PURE__*/ React.createElement(SelAnnee, {
-        label: "Nouvelle année universitaire *",
-        value: nouvelleAnneePromotion,
-        onChange: e => setNouvelleAnneePromotion(e.target.value)
-    }), /*#__PURE__*/ React.createElement(Btn, {
+    }, f.intitule))), /*#__PURE__*/ React.createElement(Btn, {
         small: true,
         onClick: handlePromouvoir
     }, "✅ Confirmer le passage"), /*#__PURE__*/ React.createElement("div", {
@@ -3300,7 +3300,14 @@ function Professeurs({
     })), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: editItem ? "Modifier le professeur" : "Ajouter un professeur → SharePoint",
         onClose: () => setShowModal(false)
-    }, /*#__PURE__*/ React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
+        label: "Année(s) universitaire(s) d'intégration *",
+        values: form.anneesUniversitaires,
+        onChange: v => setForm(f => ({
+            ...f,
+            anneesUniversitaires: v
+        }))
+    }), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
@@ -3348,13 +3355,6 @@ function Professeurs({
         onChange: e => setForm(f => ({
             ...f,
             telephone: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
-        label: "Année(s) universitaire(s) d'intégration *",
-        values: form.anneesUniversitaires,
-        onChange: v => setForm(f => ({
-            ...f,
-            anneesUniversitaires: v
         }))
     }), editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
@@ -4579,7 +4579,13 @@ function Notes({
         title: Object.keys(notesIdsEdition).length > 0 ? "Modifier l'évaluation → SharePoint" : "Ajouter une évaluation → SharePoint",
         onClose: () => setShowModal(false),
         width: 640
-    }, /*#__PURE__*/ React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        value: form.anneeUniversitaire,
+        onChange: e => setForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
@@ -4654,13 +4660,7 @@ function Notes({
         }))
     }, TYPES_EVALUATION.map(t => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: t
-    }, t))), /*#__PURE__*/ React.createElement(SelAnnee, {
-        value: form.anneeUniversitaire,
-        onChange: e => setForm(f => ({
-            ...f,
-            anneeUniversitaire: e.target.value
-        }))
-    }), (() => {
+    }, t))), (() => {
         if (!sessionExistanteDoublon) return null;
         const entriesExistantes = (data.notes || []).filter(n => n.date === sessionExistanteDoublon.date && n.filiere === sessionExistanteDoublon.filiere && n.module === sessionExistanteDoublon.module && n.typeEvaluation === sessionExistanteDoublon.typeEvaluation);
         return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
@@ -7399,7 +7399,13 @@ function Presences({
         title: "Prendre / modifier les présences → SharePoint",
         onClose: () => setShowModal(false),
         width: 640
-    }, /*#__PURE__*/ React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        value: form.anneeUniversitaire,
+        onChange: e => setForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid2",
         style: {
             display: "grid",
@@ -7509,13 +7515,7 @@ function Presences({
         value: ""
     }, "-- Sélectionner --"), getSeancesGroupe(data, form.filiere).map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: s
-    }, s)))), /*#__PURE__*/ React.createElement(SelAnnee, {
-        value: form.anneeUniversitaire,
-        onChange: e => setForm(f => ({
-            ...f,
-            anneeUniversitaire: e.target.value
-        }))
-    }), sessionPrete && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }, s)))), sessionPrete && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             border: `1px dashed ${C.teal}`,
             borderRadius: 10,
@@ -8114,7 +8114,13 @@ function Cours({
     })), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: editItem ? "Modifier le module" : "Ajouter un module → SharePoint",
         onClose: () => setShowModal(false)
-    }, /*#__PURE__*/ React.createElement(CreatableSelect, {
+    }, /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
+        values: form.anneesUniversitaires,
+        onChange: v => setForm(f => ({
+            ...f,
+            anneesUniversitaires: v
+        }))
+    }), /*#__PURE__*/ React.createElement(CreatableSelect, {
         label: "Semestre",
         value: form.semestre,
         onChange: v => setForm(f => ({
@@ -8230,13 +8236,7 @@ function Cours({
             ...f,
             heures: e.target.value
         }))
-    })), /*#__PURE__*/ React.createElement(SelAnneesMultiple, {
-        values: form.anneesUniversitaires,
-        onChange: v => setForm(f => ({
-            ...f,
-            anneesUniversitaires: v
-        }))
-    }), /*#__PURE__*/ React.createElement("div", {
+    })), /*#__PURE__*/ React.createElement("div", {
         style: {
             display: "flex",
             gap: 10,
@@ -10291,7 +10291,14 @@ function DemandesDocuments({
     })))), showModal && /*#__PURE__*/ /* @__PURE__ */ React.createElement(Modal, {
         title: "Nouvelle demande de document → SharePoint",
         onClose: () => setShowModal(false)
-    }, /*#__PURE__*/ React.createElement(Sel, {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        label: "Année universitaire concernée *",
+        value: form.anneeUniversitaire,
+        onChange: e => setForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement(Sel, {
         label: "Document souhaité *",
         value: form.typeDocument,
         onChange: e => setForm(f => ({
@@ -10300,14 +10307,7 @@ function DemandesDocuments({
         }))
     }, TYPES_DOCUMENT_DEMANDE.map(t => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
         key: t
-    }, t))), /*#__PURE__*/ React.createElement(SelAnnee, {
-        label: "Année universitaire concernée *",
-        value: form.anneeUniversitaire,
-        onChange: e => setForm(f => ({
-            ...f,
-            anneeUniversitaire: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement("div", {
+    }, t))), /*#__PURE__*/ React.createElement("div", {
         style: {
             marginBottom: 13
         }
@@ -16062,7 +16062,13 @@ function Visiteurs({
         title: "Nouveau visiteur → SharePoint",
         onClose: () => setShowModal(false),
         width: 640
-    }, /*#__PURE__*/ React.createElement("div", {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        value: form.anneeUniversitaire,
+        onChange: e => setForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement("div", {
         style: {
             fontSize: 11,
             fontWeight: 700,
@@ -16268,13 +16274,7 @@ function Visiteurs({
             ...f,
             dateVisite: e.target.value
         }))
-    })), /*#__PURE__*/ React.createElement(SelAnnee, {
-        value: form.anneeUniversitaire,
-        onChange: e => setForm(f => ({
-            ...f,
-            anneeUniversitaire: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement("div", {
+    })), /*#__PURE__*/ React.createElement("div", {
         className: "eco-grid3",
         style: {
             display: "grid",
@@ -19232,7 +19232,13 @@ function FichePaiementEtudiant({
         title: "Accorder une remise",
         onClose: () => setShowRemise(false),
         width: 440
-    }, /*#__PURE__*/ React.createElement(Sel, {
+    }, /*#__PURE__*/ React.createElement(SelAnnee, {
+        value: remiseForm.anneeUniversitaire,
+        onChange: e => setRemiseForm(f => ({
+            ...f,
+            anneeUniversitaire: e.target.value
+        }))
+    }), /*#__PURE__*/ React.createElement(Sel, {
         label: "Type de remise *",
         value: remiseForm.type,
         onChange: e => setRemiseForm(f => ({
@@ -19272,12 +19278,6 @@ function FichePaiementEtudiant({
         onChange: e => setRemiseForm(f => ({
             ...f,
             motif: e.target.value
-        }))
-    }), /*#__PURE__*/ React.createElement(SelAnnee, {
-        value: remiseForm.anneeUniversitaire,
-        onChange: e => setRemiseForm(f => ({
-            ...f,
-            anneeUniversitaire: e.target.value
         }))
     }), /*#__PURE__*/ React.createElement("div", {
         style: {
@@ -20695,7 +20695,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.280.0";
+const APP_VERSION = "v3.281.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
