@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.291.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.292.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -3588,7 +3588,7 @@ function Notes({
         }));
         demarrerLotNotification();
         const acteur = `${monProfesseur.prenom} ${monProfesseur.nom}`;
-        terminerLotNotification(`ECOGEST — Demande de ${type.toLowerCase()} d'évaluation — ${sessionInfo.module}`, `Demande de ${type.toLowerCase()} en attente de validation`, sessionInfo.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> demande une <strong>${type.toLowerCase()}</strong> concernant ${details.length} évaluation(s) — validation requise :`) + _emailChipsRow([_emailChip("Filière", sessionInfo.filiere), _emailChip("Module", sessionInfo.module), _emailChip("Type", sessionInfo.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(sessionInfo.date))]) + _emailListeHtml(details.map(dd => ({
+        terminerLotNotification(`ECOGEST — Demande de ${type.toLowerCase()} d'évaluation — ${sessionInfo.module}`, `Demande de ${type.toLowerCase()} en attente de validation`, sessionInfo.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> demande une <strong>${type.toLowerCase()}</strong> concernant ${details.length} évaluation(s) — validation requise :`) + _emailChipsRow([_emailChip("Filière", sessionInfo.filiere), _emailChip("Module", sessionInfo.module), _emailChip("Semestre", sessionInfo.semestre), _emailChip("Année universitaire", sessionInfo.anneeUniversitaire), _emailChip("Type", sessionInfo.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(sessionInfo.date))]) + _emailListeHtml(details.map(dd => ({
             gauche: dd.etudiant,
             droite: type === "Modification" ? `${Number(dd.ancienneNote).toFixed(2)} → ${Number(dd.nouvelleNote).toFixed(2)}` : `${Number(dd.note).toFixed(2)}/20`
         }))));
@@ -3735,7 +3735,7 @@ function Notes({
         setSaving(false);
         if (detailNotesPourEmail.length > 0) {
             const acteur = _notifState.acteurNom || _notifState.acteurEmail || "Un utilisateur";
-            terminerLotNotification(`ECOGEST — ${detailNotesPourEmail.length} note(s) saisie(s) — ${form.module}`, `${detailNotesPourEmail.length} note(s) saisie(s)`, form.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> a saisi <strong>${detailNotesPourEmail.length}</strong> note(s) :`) + _emailChipsRow([_emailChip("Filière", form.filiere), _emailChip("Semestre", form.semestre), _emailChip("Type", form.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(form.date))]) + _emailListeHtml(detailNotesPourEmail));
+            terminerLotNotification(`ECOGEST — ${detailNotesPourEmail.length} note(s) saisie(s) — ${form.module}`, `${detailNotesPourEmail.length} note(s) saisie(s)`, form.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> a saisi <strong>${detailNotesPourEmail.length}</strong> note(s) :`) + _emailChipsRow([_emailChip("Filière", form.filiere), _emailChip("Semestre", form.semestre), _emailChip("Année universitaire", form.anneeUniversitaire), _emailChip("Type", form.typeEvaluation, "#e56b2d"), _emailChip("Date", formatDateFR(form.date))]) + _emailListeHtml(detailNotesPourEmail));
         } else {
             _notifBatch.active = false;
         }
@@ -5431,7 +5431,7 @@ function Presences({
                 gauche: `${p.etudiant} — repassé présent`,
                 droite: p.numInscription || "—"
             }))];
-            terminerLotNotification(`ECOGEST — Présences mises à jour (${totalOk}) — ${form.module}`, `${totalOk} mise(s) à jour de présence`, form.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> a mis à jour <strong>${totalOk}</strong> présence(s) :`) + _emailChipsRow([_emailChip("Filière", form.filiere), _emailChip("Semestre", form.semestre), _emailChip("Séance", form.seance, "#e56b2d"), _emailChip("Date", formatDateFR(form.date))]) + _emailListeHtml(lignesEmail, false));
+            terminerLotNotification(`ECOGEST — Présences mises à jour (${totalOk}) — ${form.module}`, `${totalOk} mise(s) à jour de présence`, form.module, _emailIntro(`<strong>${_emailEscapeHtml(acteur)}</strong> a mis à jour <strong>${totalOk}</strong> présence(s) :`) + _emailChipsRow([_emailChip("Filière", form.filiere), _emailChip("Semestre", form.semestre), _emailChip("Année universitaire", form.anneeUniversitaire), _emailChip("Séance", form.seance, "#e56b2d"), _emailChip("Date", formatDateFR(form.date))]) + _emailListeHtml(lignesEmail, false));
         } else {
             _notifBatch.active = false;
         }
@@ -9092,7 +9092,8 @@ function Pointage({
             DateValidation: today(),
             ValideePar: user?.nom || user?.email || ""
         }, user.token, fiche._spId);
-        notifierPersonnalise(`ECOGEST — Fiche de pointage validée (${fiche.professeurNom})`, "Fiche de pointage validée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Iliass Elmzioui")}</strong> a validé les séances de cette fiche. Elle est transmise à Mme Zniber pour traitement du paiement.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois))]), EMAILS_TRAITEMENT_PAIEMENT);
+        const seancesFiche = seancesDeFiche(fiche.id);
+        notifierPersonnalise(`ECOGEST — Fiche de pointage validée (${fiche.professeurNom})`, "Fiche de pointage validée", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Iliass Elmzioui")}</strong> a validé les séances de cette fiche. Elle est transmise à Mme Zniber pour traitement du paiement.`) + _emailChipsRow([_emailChip("Professeur", fiche.professeurNom), _emailChip("Période", formatMoisLabel(fiche.mois)), _emailChip("Séances", String(seancesFiche.length), "#0d9488"), _emailChip("Heures", `${seancesFiche.reduce((s, x) => s + (x.nbHeures || 0), 0)}h`, "#e56b2d")]), EMAILS_TRAITEMENT_PAIEMENT);
         toast("Fiche validée — transmise à Mme Zniber ✓");
     }; // Étape 3 (Mme Fatima Zahra Zniber uniquement) : confirmation du
     // traitement du paiement, la fiche est marquée entièrement terminée.
@@ -9114,7 +9115,8 @@ function Pointage({
             TraitePar: user?.nom || user?.email || ""
         }, user.token, fiche._spId);
         const profConcerne = (data.professeurs || []).find(p => p.id === fiche.professeurId);
-        notifierPersonnalise(`ECOGEST — Paiement traité (${fiche.professeurNom})`, "Paiement traité", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Fatima Zahra Zniber")}</strong> a confirmé le traitement du paiement de cette fiche. Le circuit de validation est terminé.`) + _emailChipsRow([_emailChip("Mois", formatMoisLabel(fiche.mois), "#2e7d52")]), profConcerne?.email ? [profConcerne.email] : []);
+        const seancesFicheTraitee = seancesDeFiche(fiche.id);
+        notifierPersonnalise(`ECOGEST — Paiement traité (${fiche.professeurNom})`, "Paiement traité", fiche.professeurNom, _emailIntro(`<strong>${_emailEscapeHtml(user?.nom||user?.email||"Fatima Zahra Zniber")}</strong> a confirmé le traitement du paiement de cette fiche. Le circuit de validation est terminé.`) + _emailChipsRow([_emailChip("Professeur", fiche.professeurNom), _emailChip("Période", formatMoisLabel(fiche.mois), "#2e7d52"), _emailChip("Séances", String(seancesFicheTraitee.length), "#0d9488"), _emailChip("Heures", `${seancesFicheTraitee.reduce((s, x) => s + (x.nbHeures || 0), 0)}h`, "#e56b2d")]), profConcerne?.email ? [profConcerne.email] : []);
         toast("Paiement traité — fiche terminée ✓");
     };
     const MAP_STATUTS_FICHE = {
@@ -12957,28 +12959,50 @@ function Parametrage({
       gauche: "Filiere",
       droite: "1ère année, BAC+3 Systèmes d'Information"
     }, {
+      gauche: "Promotion",
+      droite: "2026-2027"
+    }, {
       gauche: "NumInscription",
       droite: "ESRMI-2026-2027/99"
     }, {
       gauche: "Telephone",
       droite: "0612345678"
+    }, {
+      gauche: "Email",
+      droite: "s.testouni@esrmi.ma"
     }]) + _emailPiedMeta([maintenant]));
-    // 2) Générique — MODIFICATION
+    // 2) Générique — MODIFICATION (maximum de détail sur l'opération :
+    // identité complète, montants, statut, année scolaire...).
     await envoyer("ECOGEST — Kawtar Bouabid a modifié un enregistrement (Paiements)", "Paiements", "Enregistrement modifié", _emailIntro(`<strong>Kawtar Bouabid</strong> (k.bouabid@esrmi.ma) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", "modifié", "#e56b2d"), _emailChip("Module", "Paiements")]) + _emailListeHtml([{
       gauche: "NomEtudiant",
       droite: "SABER Brahim"
+    }, {
+      gauche: "NumInscription",
+      droite: "ESRMI-2026-2027/9"
+    }, {
+      gauche: "Filiere",
+      droite: "B1-SI"
+    }, {
+      gauche: "AnneeScolaire",
+      droite: "2026-2027"
+    }, {
+      gauche: "TotalAPayer",
+      droite: "15000"
     }, {
       gauche: "TotalPaye",
       droite: "12000"
     }, {
       gauche: "Solde",
       droite: "3000"
+    }, {
+      gauche: "Statut",
+      droite: "Partiellement payé"
     }]) + _emailPiedMeta([maintenant]));
     // 3) Générique — SUPPRESSION (pas de détail de champs disponible pour
     // une suppression, par définition — le contenu supprimé n'est plus là).
     await envoyer("ECOGEST — Kawtar Bouabid a supprimé un enregistrement (Annonces)", "Annonces", "Enregistrement supprimé", _emailIntro(`<strong>Kawtar Bouabid</strong> (k.bouabid@esrmi.ma) a effectué une opération :`) + _emailChipsRow([_emailChip("Action", "supprimé", "#c0392b"), _emailChip("Module", "Annonces")]) + _emailPiedMeta([maintenant]));
     // 4) Notes — saisie groupée
-    await envoyer("ECOGEST — Notes ajoutées — Calcul intégral (Contrôle continu)", "Notes ajoutées", "Calcul intégral · Contrôle continu · B1-SI", _emailIntro(`<strong>Youssef Zahir</strong> a saisi de nouvelles notes :`) + _emailChipsRow([_emailChip("Module", "Calcul intégral"), _emailChip("Type", "Contrôle continu")]) + _emailListeHtml([{
+    await envoyer("ECOGEST — Notes ajoutées — Calcul intégral (Contrôle continu)", "Notes ajoutées", "Calcul intégral · Contrôle continu · B1-SI", _emailIntro(`<strong>Youssef Zahir</strong> a saisi de nouvelles notes :`) + _emailChipsRow([_emailChip("Filière", "B1-SI"), _emailChip("Module", "Calcul intégral"), _emailChip("Semestre", "Semestre 1"), _emailChip("Année universitaire", "2026-2027"), _emailChip("Type", "Contrôle continu", "#e56b2d"), _emailChip("Date", "25/08/2026")]) + _emailListeHtml([{
       gauche: "SABER Brahim",
       droite: "14.00/20"
     }, {
@@ -12988,18 +13012,25 @@ function Parametrage({
       gauche: "LABBOUA Malak",
       droite: "7.00/20"
     }]) + _emailPiedMeta([maintenant]));
-    // 5) Présences — absences enregistrées en lot
-    await envoyer("ECOGEST — Absences enregistrées — Introduction aux concepts des systèmes d'information", "Absences enregistrées", "B1-SI · 25/08/2026", _emailIntro(`<strong>Abdelhamid Malti</strong> a enregistré des absences :`) + _emailChipsRow([_emailChip("Module", "Introduction aux concepts des systèmes d'information"), _emailChip("Filière", "B1-SI")]) + _emailListeHtml([{
-      gauche: "SABER Brahim"
+    // 5) Présences — absences enregistrées en lot (horaire de la séance
+    // détaillé, comme le fait déjà la vraie notification correspondante).
+    await envoyer("ECOGEST — Absences enregistrées — Introduction aux concepts des systèmes d'information", "Absences enregistrées", "B1-SI · 25/08/2026", _emailIntro(`<strong>Abdelhamid Malti</strong> a enregistré des absences :`) + _emailChipsRow([_emailChip("Filière", "B1-SI"), _emailChip("Module", "Introduction aux concepts des systèmes d'information"), _emailChip("Semestre", "Semestre 1"), _emailChip("Année universitaire", "2026-2027"), _emailChip("Séance", "09h00 - 10h30", "#e56b2d"), _emailChip("Date", "25/08/2026")]) + _emailListeHtml([{
+      gauche: "SABER Brahim — absent",
+      droite: "ESRMI-2026-2027/9"
     }, {
-      gauche: "TOUIS Islam"
-    }], true) + _emailPiedMeta([maintenant]));
+      gauche: "TOUIS Islam — absent",
+      droite: "ESRMI-2026-2027/13"
+    }], false) + _emailPiedMeta([maintenant]));
     // 6) Pointage — soumission de fiche
-    await envoyer("ECOGEST — Fiche de pointage soumise par Youssef Zahir", "Pointage — Fiche soumise", "En attente de validation", _emailIntro(`<strong>Youssef Zahir</strong> a soumis sa fiche de pointage pour validation.`) + _emailChipsRow([_emailChip("Période", "Août 2026"), _emailChip("Statut", "En attente", "#e56b2d")]) + _emailPiedMeta([maintenant]));
-    // 7) Pointage — validation de fiche
-    await envoyer("ECOGEST — Fiche de pointage validée", "Pointage — Fiche validée", "Youssef Zahir · Août 2026", _emailIntro(`La fiche de pointage de <strong>Youssef Zahir</strong> a été validée.`) + _emailChipsRow([_emailChip("Statut", "Validée", "#2e7d52")]) + _emailPiedMeta([maintenant]));
+    await envoyer("ECOGEST — Fiche de pointage soumise par Youssef Zahir", "Pointage — Fiche soumise", "En attente de validation", _emailIntro(`<strong>Youssef Zahir</strong> a soumis sa fiche de pointage pour validation.`) + _emailChipsRow([_emailChip("Professeur", "Youssef Zahir"), _emailChip("Période", "Août 2026"), _emailChip("Séances", "8", "#0d9488"), _emailChip("Heures", "12h", "#e56b2d")]) + _emailPiedMeta([maintenant]));
+    // 7) Pointage — validation de fiche (période, professeur et volume
+    // détaillés, comme la vraie notification désormais).
+    await envoyer("ECOGEST — Fiche de pointage validée", "Pointage — Fiche validée", "Youssef Zahir · Août 2026", _emailIntro(`La fiche de pointage de <strong>Youssef Zahir</strong> a été validée.`) + _emailChipsRow([_emailChip("Professeur", "Youssef Zahir"), _emailChip("Période", "Août 2026"), _emailChip("Séances", "8", "#0d9488"), _emailChip("Heures", "12h", "#e56b2d"), _emailChip("Statut", "Validée", "#2e7d52")]) + _emailPiedMeta([maintenant]));
     // 8) Demande de modification de note
-    await envoyer("ECOGEST — Demande de modification de note", "Demande de modification", "Calcul intégral · SABER Brahim", _emailIntro(`<strong>Youssef Zahir</strong> demande la modification d'une note :`) + _emailChipsRow([_emailChip("Ancienne note", "11.00"), _emailChip("Nouvelle note", "13.00")]) + _emailPiedMeta([maintenant]));
+    await envoyer("ECOGEST — Demande de modification de note", "Demande de modification", "Calcul intégral · SABER Brahim", _emailIntro(`<strong>Youssef Zahir</strong> demande la modification d'une note :`) + _emailChipsRow([_emailChip("Filière", "B1-SI"), _emailChip("Module", "Calcul intégral"), _emailChip("Semestre", "Semestre 1"), _emailChip("Année universitaire", "2026-2027"), _emailChip("Type", "Contrôle continu", "#e56b2d")]) + _emailListeHtml([{
+      gauche: "SABER Brahim",
+      droite: "11.00 → 13.00"
+    }]) + _emailPiedMeta([maintenant]));
     setEnvoiTestEnCours(false);
     toast(`🧪 8 emails de test envoyés à ${user.email} ✓`);
   };
@@ -13776,7 +13807,18 @@ function Parametrage({
       marginBottom: 16,
       lineHeight: 1.6
     }
-  }, "Quand cette option est activée, un email est envoyé automatiquement à l'administrateur et à la direction à chaque ajout, modification ou suppression effectué dans l'application, quel que soit le type de session (directrice, administrateur, professeur ou étudiant)."), /*#__PURE__*/React.createElement("label", {
+  }, "Quand cette option est activée, un email est envoyé automatiquement à l'administrateur et à la direction à chaque ajout, modification ou suppression effectué dans l'application, quel que soit le type de session (directrice, administrateur, professeur ou étudiant)."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: "#7a5a1e",
+      background: "#fff6e8",
+      border: "1px solid #f5c98a",
+      borderRadius: 8,
+      padding: "8px 14px",
+      marginBottom: 16,
+      lineHeight: 1.6
+    }
+  }, "🔒 ", /*#__PURE__*/React.createElement("strong", null, "Exception de confidentialité"), " : les opérations effectuées directement par le compte", " ", /*#__PURE__*/React.createElement("strong", null, "Administrateur"), " (hors \"Mode test\") ne génèrent jamais de notification — ni à la direction, ni à personne — afin de rester strictement confidentielles."), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -21256,7 +21298,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.291.0";
+const APP_VERSION = "v3.292.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -21966,6 +22008,7 @@ const _notifState = {
     token: null,
     acteurNom: "",
     acteurEmail: "",
+    acteurRole: "",
     destinataires: [],
     enModeTest: false
 };
@@ -22036,7 +22079,8 @@ function _emailPiedMeta(items) {
 }
 
 function _envoyerEmailNotification(sujet, titreAffiche, sousTitreAffiche, contenuHtml, destinataires) {
-    if (!_notifState.active || !_notifState.token) return; // En mode test (l'administrateur visualise l'app comme un autre rôle),
+    if (!_notifState.active || !_notifState.token) return;
+    if (_notifState.acteurRole === "administrateur" && !_notifState.enModeTest) return; // En mode test (l'administrateur visualise l'app comme un autre rôle),
     // on ne notifie JAMAIS les vrais destinataires concernés (professeur,
     // direction, étudiant...) — uniquement l'administrateur lui-même, quel
     // que soit le type de notification (générique, groupée ou ciblée).
@@ -23839,10 +23883,11 @@ function App() {
             token: userAuth?.token || null,
             acteurNom: userAuth?.nom || "",
             acteurEmail: userAuth?.email || "",
+            acteurRole: roleAuth || "",
             destinataires,
             enModeTest: !!previewRole
         });
-    }, [data.configuration?.notificationsEmailActives, data.configuration?.notificationsEmailDestinataires, userAuth, previewRole]);
+    }, [data.configuration?.notificationsEmailActives, data.configuration?.notificationsEmailDestinataires, userAuth, roleAuth, previewRole]);
     useEffect(() => {
         const cached = loadDataCache();
         if (cached && cached.data) {
