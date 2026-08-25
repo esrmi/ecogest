@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.283.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.285.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -637,6 +637,9 @@ const Btn = ({
         ...style
     }
 }, children);
+function nettoyerTelephone(valeur) {
+    return String(valeur || "").replace(/\D/g, "").slice(0, 10);
+}
 const Input = ({
     label,
     ...p
@@ -2489,9 +2492,11 @@ function Etudiants({
         value: form.telephone,
         onChange: e => setForm(f => ({
             ...f,
-            telephone: e.target.value
+            telephone: nettoyerTelephone(e.target.value)
         })),
         placeholder: "06XXXXXXXX",
+        inputMode: "numeric",
+        maxLength: 10,
         style: form.telephone && !/^\d{10}$/.test(form.telephone) ? {
             borderColor: C.red
         } : {}
@@ -3354,9 +3359,22 @@ function Professeurs({
         value: form.telephone,
         onChange: e => setForm(f => ({
             ...f,
-            telephone: e.target.value
-        }))
-    }), editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+            telephone: nettoyerTelephone(e.target.value)
+        })),
+        placeholder: "06XXXXXXXX",
+        inputMode: "numeric",
+        maxLength: 10,
+        style: form.telephone && !/^\d{10}$/.test(form.telephone) ? {
+            borderColor: C.red
+        } : {}
+    }), form.telephone && !/^\d{10}$/.test(form.telephone) && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: C.red,
+            marginTop: -10,
+            marginBottom: 13
+        }
+    }, "⚠️ Le numéro doit contenir exactement 10 chiffres"), editItem && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             background: C.light,
             borderRadius: 8,
@@ -5163,6 +5181,10 @@ function Presences({
     const [filtreAnnee25, setFiltreAnnee25] = useState("");
     const [filtreGroupe25, setFiltreGroupe25] = useState("");
     const [filtreSemestre25, setFiltreSemestre25] = useState("");
+    const [filtreRecherche25, setFiltreRecherche25] = useState("");
+    const [filtreModule25, setFiltreModule25] = useState("");
+    const [filtreProfesseur25, setFiltreProfesseur25] = useState("");
+    const [filtreTauxMin25, setFiltreTauxMin25] = useState("25");
     const [ficheAnnee, setFicheAnnee] = useState("");
     const [presencesSection, setPresencesSection] = useState("saisie");
     const [filtreDateGeolocState, setFiltreDateGeolocState] = useState("");
@@ -6746,196 +6768,275 @@ function Presences({
             })
         }));
     })(), voirArbrePresences && presencesSection === "seuil25" && (() => {
-        const filieresOptions25 = getFilieres(data);
-        const semestresOptions25 = [...new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
-            numeric: true,
-            sensitivity: "base"
-        })); // Un professeur ne doit voir ce taux d'absence à 25% que pour SES
-        // PROPRES modules — on repart donc de mesPresences (déjà
-        // restreinte à ses séances) plutôt que de la totalité des
-        // présences de l'établissement, pour ne jamais exposer les
-        // absences enregistrées par d'autres professeurs.
-        const presencesBase25 = mesPresences.filter(p => (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25));
-        // Un même taux d'absence doit toujours être identique partout où il
-        // est affiché — le calcul passe donc systématiquement par
-        // calculerTauxAbsence(), LA SEULE ET UNIQUE fonction de calcul de
-        // taux d'absence de toute l'application, une fois par (étudiant,
-        // année universitaire) distinct rencontré dans la sélection.
-        const clesEtudiantAnnee = [...new Set(presencesBase25.map(p => `${p.etudiantId || p.numInscription}__${p.anneeUniversitaire || ""}`))];
-        const lignes25 = [];
-        clesEtudiantAnnee.forEach(cle => {
-            const [cleEt, annee] = cle.split("__");
-            const exempleP = presencesBase25.find(p => `${p.etudiantId || p.numInscription}` === cleEt && (p.anneeUniversitaire || "") === annee);
-            if (!exempleP) return;
-            calculerTauxAbsence(data, {
-                etudiantId: exempleP.etudiantId,
-                numInscription: exempleP.numInscription,
-                anneeUniversitaire: annee || void 0,
-                semestre: filtreSemestre25 || void 0,
-                filiere: filtreGroupe25 || void 0,
-                professeurCin: role === "professeur" ? monProfesseur?.cin : void 0
-            }).filter(m => m.taux >= 25).forEach(m => {
-                lignes25.push({
-                    key: `${cleEt}__${m.module}__${annee}`,
-                    etudiant: exempleP.etudiant,
-                    numInscription: exempleP.numInscription,
-                    filiere: exempleP.filiere,
-                    semestre: exempleP.semestre,
-                    anneeUniversitaire: annee,
-                    module: m.module,
-                    heuresManquees: m.heuresManquees,
-                    heuresTotal: m.heuresTotal,
-                    taux: m.taux
-                });
-            });
+    const filieresOptions25 = getFilieres(data);
+    const semestresOptions25 = [...new Set([...SEMESTRES_MODULE_SEED, ...(data.cours || []).map(c => c.semestre).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "fr", {
+      numeric: true,
+      sensitivity: "base"
+    }));
+    // Options des filtres Module et Professeur : construites à partir
+    // des présences réellement enregistrées (mesPresences), déjà
+    // restreintes aux modules du professeur si role === "professeur".
+    const modulesOptions25 = [...new Set(mesPresences.map(p => p.module).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", {
+      sensitivity: "base"
+    }));
+    const professeursOptions25 = [...new Map(mesPresences.filter(p => p.enseignantCin && p.enseignant).map(p => [p.enseignantCin, p.enseignant])).entries()].sort((a, b) => a[1].localeCompare(b[1], "fr", {
+      sensitivity: "base"
+    }));
+    // Un professeur ne doit voir ce taux d'absence à 25% que pour SES
+    // PROPRES modules — on repart donc de mesPresences (déjà
+    // restreinte à ses séances) plutôt que de la totalité des
+    // présences de l'établissement, pour ne jamais exposer les
+    // absences enregistrées par d'autres professeurs.
+    const presencesBase25 = mesPresences.filter(p => {
+      const matchRecherche = !filtreRecherche25 || `${p.etudiant || ""} ${p.numInscription || ""}`.toLowerCase().includes(filtreRecherche25.toLowerCase());
+      return matchRecherche && (!filtreAnnee25 || p.anneeUniversitaire === filtreAnnee25) && (!filtreGroupe25 || p.filiere === filtreGroupe25) && (!filtreSemestre25 || p.semestre === filtreSemestre25) && (!filtreModule25 || p.module === filtreModule25) && (!filtreProfesseur25 || p.enseignantCin === filtreProfesseur25);
+    });
+    // Un même taux d'absence doit toujours être identique partout où
+    // il est affiché (ce tableau, la carte "Taux d'absence par
+    // module", le relevé de notes, les bulletins PDF) — le calcul
+    // passe donc systématiquement par calculerTauxAbsence(), LA
+    // SEULE ET UNIQUE fonction de calcul de taux d'absence de toute
+    // l'application, une fois par (étudiant, année universitaire)
+    // distinct rencontré dans la sélection actuelle.
+    const seuilTaux = parseFloat(filtreTauxMin25) || 0;
+    const clesEtudiantAnnee = [... /* @__PURE__ */new Set(presencesBase25.map(p => `${p.etudiantId || p.numInscription}__${p.anneeUniversitaire || ""}`))];
+    const lignes25 = [];
+    clesEtudiantAnnee.forEach(cle => {
+      const [cleEt, annee] = cle.split("__");
+      const exempleP = presencesBase25.find(p => `${p.etudiantId || p.numInscription}` === cleEt && (p.anneeUniversitaire || "") === annee);
+      if (!exempleP) return;
+      calculerTauxAbsence(data, {
+        etudiantId: exempleP.etudiantId,
+        numInscription: exempleP.numInscription,
+        anneeUniversitaire: annee || void 0,
+        semestre: filtreSemestre25 || void 0,
+        filiere: filtreGroupe25 || void 0,
+        professeurCin: (role === "professeur" ? monProfesseur?.cin : filtreProfesseur25) || void 0
+      }).filter(m => m.taux >= seuilTaux && (!filtreModule25 || m.module === filtreModule25)).forEach(m => {
+        lignes25.push({
+          key: `${cleEt}__${m.module}__${annee}`,
+          etudiant: exempleP.etudiant,
+          numInscription: exempleP.numInscription,
+          filiere: exempleP.filiere,
+          semestre: exempleP.semestre,
+          anneeUniversitaire: annee,
+          module: m.module,
+          heuresManquees: m.heuresManquees,
+          heuresTotal: m.heuresTotal,
+          taux: m.taux
         });
-        lignes25.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
-            numeric: true,
-            sensitivity: "base"
-        }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
-            numeric: true,
-            sensitivity: "base"
-        }) || b.taux - a.taux || `${a.etudiant||""}`.localeCompare(`${b.etudiant||""}`, "fr", {
-            sensitivity: "base"
-        }));
-        const cols25 = [{
-            key: "etudiant",
-            label: "Étudiant"
-        }, {
-            key: "numInscription",
-            label: "N° inscription"
-        }, {
-            key: "_filiereCode25",
-            label: "Filière",
-            render: (_, row) => /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
-                code: filiereCode(row.filiere, data.filieres) || row.filiere || ""
-            })
-        }, {
-            key: "semestre",
-            label: "Semestre"
-        }, {
-            key: "anneeUniversitaire",
-            label: "Année universitaire",
-            render: v => v || "—"
-        }, {
-            key: "module",
-            label: "Module"
-        }, {
-            key: "heuresManquees",
-            label: "Heures manquées",
-            render: v => `${Number(v).toFixed(2)}h`
-        }, {
-            key: "heuresTotal",
-            label: "Heures totales",
-            render: v => v > 0 ? `${Number(v).toFixed(2)}h` : "—"
-        }, {
-            key: "taux",
-            label: "Taux d'absence",
-            render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement("span", {
-                style: {
-                    fontWeight: 800,
-                    color: C.red
-                }
-            }, v.toFixed(2), "%")
-        }];
-        return /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
-            style: {
-                marginTop: 28
-            }
-        }, /*#__PURE__*/ React.createElement("h4", {
-            style: {
-                margin: "0 0 12px",
-                color: C.navy,
-                fontSize: 14.5
-            }
-        }, "\uD83C\uDF93 \u00c9tudiants ayant atteint 25% d'absence par module"), lignes25.length === 0 ? /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-            style: {
-                padding: 32,
-                textAlign: "center",
-                color: C.muted,
-                fontSize: 13
-            }
-        }, "Aucun \u00e9tudiant n'a atteint 25% d'absence pour cette s\u00e9lection") : /*#__PURE__*/ /* @__PURE__ */ React.createElement(Card, {
-            style: {
-                overflow: "hidden"
-            }
-        }, /*#__PURE__*/ React.createElement(DataTable, {
-            cols: cols25,
-            rows: lignes25,
-            emptyMsg: "Aucun \u00e9tudiant concern\u00e9",
-            compact: true
-        })), /*#__PURE__*/ React.createElement(Card, {
-            style: {
-                padding: 16,
-                marginBottom: 16,
-                marginTop: 20
-            }
-        }, /*#__PURE__*/ React.createElement("div", {
-            style: {
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: 10
-            }
-        }, /*#__PURE__*/ React.createElement("select", {
-            value: filtreAnnee25,
-            onChange: e => setFiltreAnnee25(e.target.value),
-            style: {
-                padding: "9px 12px",
-                border: "none",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 700,
-                color: "white",
-                background: `linear-gradient(135deg, #b8511f 0%, ${C.orange} 55%, #f5a742 100%)`,
-                boxShadow: "0 3px 10px rgba(180,80,20,0.35)",
-                fontFamily: "inherit",
-                cursor: "pointer"
-            }
-        }, /*#__PURE__*/ React.createElement("option", {
-            value: "",
-            style: {
-                color: "#333"
-            }
-        }, "📅 Toutes les années"), ANNEES_UNIVERSITAIRES.map(a => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
-            key: a,
-            value: a,
-            style: {
-                color: "#333"
-            }
-        }, a))), /*#__PURE__*/ React.createElement("select", {
-            value: filtreGroupe25,
-            onChange: e => setFiltreGroupe25(e.target.value),
-            style: {
-                padding: "9px 12px",
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                fontSize: 13,
-                fontFamily: "inherit",
-                background: C.white
-            }
-        }, /*#__PURE__*/ React.createElement("option", {
-            value: ""
-        }, "-- Tous les groupes --"), filieresOptions25.map(f => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
-            key: f,
-            value: f
-        }, f))), /*#__PURE__*/ React.createElement("select", {
-            value: filtreSemestre25,
-            onChange: e => setFiltreSemestre25(e.target.value),
-            style: {
-                padding: "9px 12px",
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                fontSize: 13,
-                fontFamily: "inherit",
-                background: C.white
-            }
-        }, /*#__PURE__*/ React.createElement("option", {
-            value: ""
-        }, "-- Tous les semestres --"), semestresOptions25.map(s => /*#__PURE__*/ /* @__PURE__ */ React.createElement("option", {
-            key: s,
-            value: s
-        }, s))))));
-    })(), voirArbrePresences && presencesSection === "geoloc" && (() => {
+      });
+    });
+    lignes25.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+      numeric: true,
+      sensitivity: "base"
+    }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
+      numeric: true,
+      sensitivity: "base"
+    }) || b.taux - a.taux || `${a.etudiant || ""}`.localeCompare(`${b.etudiant || ""}`, "fr", {
+      sensitivity: "base"
+    }));
+    const cols25 = [{
+      key: "etudiant",
+      label: "Étudiant"
+    }, {
+      key: "numInscription",
+      label: "N° inscription"
+    }, {
+      key: "_filiereCode25",
+      label: "Filière",
+      render: (_, row) =>
+      /*#__PURE__*/
+      /* @__PURE__ */
+      React.createElement(FiliereBadge, {
+        code: filiereCode(row.filiere, data.filieres) || row.filiere || ""
+      })
+    }, {
+      key: "semestre",
+      label: "Semestre"
+    }, {
+      key: "anneeUniversitaire",
+      label: "Année universitaire",
+      render: v => v || "—"
+    }, {
+      key: "module",
+      label: "Module"
+    }, {
+      key: "heuresManquees",
+      label: "Heures manquées",
+      render: v => `${Number(v).toFixed(2)}h`
+    }, {
+      key: "heuresTotal",
+      label: "Heures totales",
+      render: v => v > 0 ? `${Number(v).toFixed(2)}h` : "—"
+    }, {
+      key: "taux",
+      label: "Taux d'absence",
+      render: v =>
+      /*#__PURE__*/
+      /* @__PURE__ */
+      React.createElement("span", {
+        style: {
+          fontWeight: 800,
+          color: C.red
+        }
+      }, v.toFixed(2), "%")
+    }];
+    const inputSelectStyle = {
+      padding: "9px 12px",
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      fontSize: 13,
+      fontFamily: "inherit",
+      background: C.white,
+      width: "100%",
+      boxSizing: "border-box"
+    };
+    return /*#__PURE__*/ /* @__PURE__ */React.createElement("div", {
+      style: {
+        marginTop: 28
+      }
+    }, /*#__PURE__*/React.createElement("h4", {
+      style: {
+        margin: "0 0 12px",
+        color: C.navy,
+        fontSize: 14.5
+      }
+    }, "🎓 Étudiants ayant atteint ", seuilTaux, "% d'absence par module"), /*#__PURE__*/React.createElement(Card, {
+      style: {
+        padding: 16,
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+        gap: 10
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      placeholder: "🔍  Nom, N° inscription...",
+      value: filtreRecherche25,
+      onChange: e => setFiltreRecherche25(e.target.value),
+      style: inputSelectStyle
+    }), /*#__PURE__*/React.createElement("select", {
+      value: filtreGroupe25,
+      onChange: e => setFiltreGroupe25(e.target.value),
+      style: inputSelectStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les groupes --"), filieresOptions25.map(f =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: f,
+      value: f
+    }, f))), /*#__PURE__*/React.createElement("select", {
+      value: filtreSemestre25,
+      onChange: e => setFiltreSemestre25(e.target.value),
+      style: inputSelectStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les semestres --"), semestresOptions25.map(s =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: s,
+      value: s
+    }, s))), /*#__PURE__*/React.createElement("select", {
+      value: filtreModule25,
+      onChange: e => setFiltreModule25(e.target.value),
+      style: inputSelectStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les modules --"), modulesOptions25.map(m =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: m,
+      value: m
+    }, m))), role !== "professeur" &&
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("select", {
+      value: filtreProfesseur25,
+      onChange: e => setFiltreProfesseur25(e.target.value),
+      style: inputSelectStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "-- Tous les professeurs --"), professeursOptions25.map(([cin, nom]) =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: cin,
+      value: cin
+    }, nom))), /*#__PURE__*/React.createElement("select", {
+      value: filtreTauxMin25,
+      onChange: e => setFiltreTauxMin25(e.target.value),
+      style: inputSelectStyle
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "10"
+    }, "Taux ≥ 10%"), /*#__PURE__*/React.createElement("option", {
+      value: "15"
+    }, "Taux ≥ 15%"), /*#__PURE__*/React.createElement("option", {
+      value: "20"
+    }, "Taux ≥ 20%"), /*#__PURE__*/React.createElement("option", {
+      value: "25"
+    }, "Taux ≥ 25% (seuil officiel)"), /*#__PURE__*/React.createElement("option", {
+      value: "30"
+    }, "Taux ≥ 30%"), /*#__PURE__*/React.createElement("option", {
+      value: "40"
+    }, "Taux ≥ 40%"), /*#__PURE__*/React.createElement("option", {
+      value: "50"
+    }, "Taux ≥ 50%")), /*#__PURE__*/React.createElement("select", {
+      value: filtreAnnee25,
+      onChange: e => setFiltreAnnee25(e.target.value),
+      style: {
+        ...inputSelectStyle,
+        border: "none",
+        fontWeight: 700,
+        color: "white",
+        background: `linear-gradient(135deg, #b8511f 0%, ${C.orange} 55%, #f5a742 100%)`,
+        boxShadow: "0 3px 10px rgba(180,80,20,0.35)",
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "",
+      style: {
+        color: "#333"
+      }
+    }, "📅 Toutes les années"), ANNEES_UNIVERSITAIRES.map(a =>
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement("option", {
+      key: a,
+      value: a,
+      style: {
+        color: "#333"
+      }
+    }, a))))), lignes25.length === 0 ?
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement(Card, {
+      style: {
+        padding: 32,
+        textAlign: "center",
+        color: C.muted,
+        fontSize: 13
+      }
+    }, "Aucun étudiant n'a atteint ", seuilTaux, "% d'absence pour cette sélection") :
+    /*#__PURE__*/
+    /* @__PURE__ */
+    React.createElement(Card, {
+      style: {
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement(DataTable, {
+      cols: cols25,
+      rows: lignes25,
+      emptyMsg: "Aucun étudiant concerné",
+      compact: true
+    })));
+  })(), voirArbrePresences && presencesSection === "geoloc" && (() => {
         const confirmations = (data.sessionsQR || []).filter(s => s.type === "PresenceProf" || s.type === "PresenceEtudiant");
         const filieresOptionsGeoloc = getFilieres(data);
         const anneesOptionsGeoloc = [... /* @__PURE__ */ new Set(confirmations.map(s => s.anneeUniversitaire).filter(Boolean))].sort((a, b) => b.localeCompare(a));
@@ -15403,12 +15504,22 @@ function FicheVisiteur({
     }, "Féminin")), /*#__PURE__*/ React.createElement(Input, {
         label: "Téléphone *",
         value: form.telephone || "",
-        onChange: e => setF("telephone", e.target.value),
+        onChange: e => setF("telephone", nettoyerTelephone(e.target.value)),
         placeholder: "06XXXXXXXX",
+        inputMode: "numeric",
+        maxLength: 10,
         style: form.telephone && !/^\d{10}$/.test(form.telephone) ? {
             borderColor: C.red
         } : {}
-    }), /*#__PURE__*/ React.createElement(Input, {
+    }), form.telephone && !/^\d{10}$/.test(form.telephone) && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: C.red,
+            marginTop: -10,
+            marginBottom: 13,
+            gridColumn: "1 / -1"
+        }
+    }, "⚠️ Le numéro doit contenir exactement 10 chiffres"), /*#__PURE__*/ React.createElement(Input, {
         label: "Email",
         type: "email",
         value: form.email || "",
@@ -16184,9 +16295,11 @@ function Visiteurs({
         value: form.telephone,
         onChange: e => setForm(f => ({
             ...f,
-            telephone: e.target.value
+            telephone: nettoyerTelephone(e.target.value)
         })),
         placeholder: "06XXXXXXXX",
+        inputMode: "numeric",
+        maxLength: 10,
         style: form.telephone && !/^\d{10}$/.test(form.telephone) ? {
             borderColor: C.red
         } : {}
@@ -20729,7 +20842,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.283.0";
+const APP_VERSION = "v3.285.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
