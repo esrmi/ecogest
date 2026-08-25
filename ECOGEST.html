@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.287.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.289.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -20859,7 +20859,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.287.0";
+const APP_VERSION = "v3.289.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
@@ -23865,7 +23865,9 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
                 paiements: "Mes paiements",
                 notes: "Mes notes",
                 presences: "Mes Absences",
-                demandes: "Mes demandes"
+                demandes: "Mes demandes",
+                calendrier: "Mon calendrier",
+                emploi: "Mon emploi du temps"
             };
             const label = role === "etudiant" && LABELS_ETUDIANT[key] ? LABELS_ETUDIANT[key] : item.label;
             const isActive = active === key;
@@ -24620,7 +24622,7 @@ Contactez l'administrateur : i.elmzioui@esrmi.ma`);
         style: {
             lineHeight: 1.4
         }
-    }, "Le délai de pointage automatique pour cette séance (", creneauExpireNonConfirme.module, ") est expiré. L'enregistrement automatique des absences n'est plus disponible.")), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauPourMoi && !dejaConfirmeCreneau && geoRequiseGlobal && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
+    }, "Le délai de pointage automatique pour cette séance (", creneauExpireNonConfirme.module, ") est expiré.", roleTmp === "etudiant" ? " Vous avez été marqué(e) absent(e) car vous n'avez pas confirmé votre présence dans le délai imparti." : " L'enregistrement automatique des absences n'est plus disponible.")), (roleTmp === "professeur" || roleTmp === "etudiant") && creneauPourMoi && !dejaConfirmeCreneau && geoRequiseGlobal && /*#__PURE__*/ /* @__PURE__ */ React.createElement("div", {
         style: {
             position: "fixed",
             top: 18,
