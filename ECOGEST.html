@@ -62,7 +62,7 @@
     var useRef=React.useRef;var useCallback=React.useCallback;var useMemo=React.useMemo;
   </script>
 <script>// ════════════════════════════════════════════════════════════════════
-//  ECOGEST_App.jsx — version v3.285.0 — 24 Août 2026
+//  ECOGEST_App.jsx — version v3.287.0 — 24 Août 2026
 //  (garder cette ligne synchronisée avec la constante APP_VERSION
 //  ci-dessous et avec le fichier HTML correspondant)
 // ════════════════════════════════════════════════════════════════════
@@ -3826,14 +3826,22 @@ function Notes({
             _module: m,
             _type: t
         };
-    }).sort((a, b) => a._filiereCode.localeCompare(b._filiereCode, "fr", {
+    }).sort((a, b) => (a.anneeUniversitaire || "").localeCompare(b.anneeUniversitaire || "", "fr", {
+        numeric: true,
+        sensitivity: "base"
+    }) || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
+        numeric: true,
+        sensitivity: "base"
+    }) || a._filiereCode.localeCompare(b._filiereCode, "fr", {
         numeric: true,
         sensitivity: "base"
     }) || a._module.localeCompare(b._module, "fr", {
         sensitivity: "base"
     }) || a._type.localeCompare(b._type, "fr", {
         sensitivity: "base"
-    }) || (a.date || "").localeCompare(b.date || ""));
+    }) || `${a.etudiant||""}`.localeCompare(`${b.etudiant||""}`, "fr", {
+        sensitivity: "base"
+    }));
     const bandeFiliereEvalParId = {};
     const premiereLigneFiliereEvalId = {};
     const derniereLigneFiliereEvalId = {};
@@ -4487,6 +4495,10 @@ function Notes({
         }
     }, /*#__PURE__*/ React.createElement(DataTable, {
         cols: [{
+            key: "anneeUniversitaire",
+            label: "Année universitaire",
+            render: v => v || "—"
+        }, {
             key: "_filiereCode",
             label: "Filière",
             render: v => /*#__PURE__*/ /* @__PURE__ */ React.createElement(FiliereBadge, {
@@ -6827,11 +6839,16 @@ function Presences({
         });
       });
     });
-    lignes25.sort((a, b) => (b.anneeUniversitaire || "").localeCompare(a.anneeUniversitaire || "", "fr", {
+    lignes25.sort((a, b) => (a.anneeUniversitaire || "").localeCompare(b.anneeUniversitaire || "", "fr", {
       numeric: true,
       sensitivity: "base"
-    }) || (b.semestre || "").localeCompare(a.semestre || "", "fr", {
+    }) || (a.semestre || "").localeCompare(b.semestre || "", "fr", {
       numeric: true,
+      sensitivity: "base"
+    }) || (a.filiere || "").localeCompare(b.filiere || "", "fr", {
+      numeric: true,
+      sensitivity: "base"
+    }) || (a.module || "").localeCompare(b.module || "", "fr", {
       sensitivity: "base"
     }) || b.taux - a.taux || `${a.etudiant || ""}`.localeCompare(`${b.etudiant || ""}`, "fr", {
       sensitivity: "base"
@@ -20842,7 +20859,7 @@ const NAV_ITEMS = {
         icon: "⚙️"
     }
 };
-const APP_VERSION = "v3.285.0";
+const APP_VERSION = "v3.287.0";
 const APP_DATE = "08 Août 2026";
 const MSAL_CONFIG = {
     clientId: "0d52fee7-c6cf-4374-8063-395b2add8c91",
