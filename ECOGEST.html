@@ -11721,7 +11721,11 @@ La date du module ci-dessus a quand m\xEAme \xE9t\xE9 enregistr\xE9e normalement
             onDrop: (e) => {
               e.preventDefault();
               console.log("\u{1F7E2} [DIAG] drop sur cellule", { jour, seance, canEdit, dragItemActuel: dragItemRef.current });
-              if (canEdit && dragItemRef.current) handleDropSeance(dragItemRef.current, jour, seance);
+              const itemDepose = dragItemRef.current;
+              if (canEdit && itemDepose) {
+                dragItemRef.current = null;
+                setTimeout(() => handleDropSeance(itemDepose, jour, seance), 0);
+              }
             },
             style: {
               padding: 6,
