@@ -3,53 +3,150 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ECOGEST v3.560.0 - Planification cours / examens</title>
+  <title>ECOGEST v3.560.0 - École Supérieure de Rabat</title>
   <style>
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #f4f6f9;
-      margin: 0;
-      padding: 20px;
       color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Layout Global */
+    .app-container {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 260px;
+      background-color: #1a2f5e;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      background-color: #122246;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-header h1 {
+      font-size: 20px;
+      letter-spacing: 1px;
+      color: #ffffff;
+    }
+
+    .sidebar-header span {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .sidebar-menu {
+      list-style: none;
+      padding: 20px 0;
+    }
+
+    .sidebar-menu li a {
+      display: block;
+      padding: 12px 24px;
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .sidebar-menu li a:hover, .sidebar-menu li.active a {
+      background-color: #254386;
+      color: white;
+      border-left: 4px solid #38bdf8;
+    }
+
+    /* Main Content Area */
+    .main-wrapper {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Header Bar */
+    .top-navbar {
+      background-color: white;
+      height: 60px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .school-title {
+      font-weight: 600;
+      color: #1a2f5e;
+      font-size: 15px;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: #1a2f5e;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    /* Content Body */
+    .content-body {
+      padding: 24px;
+      flex-grow: 1;
     }
 
     .planning-container {
-      max-width: 1200px;
-      margin: 0 auto;
       background: white;
       padding: 24px;
       border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
 
-    .header-bar {
+    .page-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 2px solid #f1f5f9;
       padding-bottom: 12px;
     }
 
-    h2 {
+    .page-title {
       color: #1a2f5e;
-      margin: 0;
-      font-size: 22px;
+      font-size: 20px;
     }
 
-    .status-badge {
-      background-color: #e3f2fd;
-      color: #0d47a1;
-      padding: 6px 12px;
-      border-radius: 16px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
+    /* Tableau de planification */
     .planning-table {
       width: 100%;
       border-collapse: collapse;
@@ -57,7 +154,7 @@
     }
 
     .planning-table th, .planning-table td {
-      border: 1px solid #e0e0e0;
+      border: 1px solid #e2e8f0;
       padding: 8px;
       text-align: center;
     }
@@ -67,7 +164,7 @@
       color: white;
       font-weight: 600;
       padding: 12px;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .time-header {
@@ -75,7 +172,7 @@
       font-weight: bold;
       width: 12%;
       color: #475569;
-      font-size: 13px;
+      font-size: 12px;
     }
 
     .planning-slot {
@@ -83,7 +180,6 @@
       vertical-align: top;
       background-color: #fafafa;
       transition: background-color 0.2s, border-color 0.2s;
-      position: relative;
     }
 
     .planning-slot.drag-over {
@@ -94,23 +190,16 @@
     .session-card {
       background-color: #2563eb;
       color: white;
-      padding: 8px 10px;
+      padding: 8px;
       border-radius: 6px;
       cursor: grab;
-      position: relative;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       font-size: 12px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      transition: transform 0.15s, box-shadow 0.15s;
       text-align: left;
       height: 100%;
-    }
-
-    .session-card:hover {
-      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-      transform: translateY(-1px);
     }
 
     .session-card:active {
@@ -121,16 +210,12 @@
     .session-info {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      overflow: hidden;
+      gap: 3px;
     }
 
     .session-title {
       font-weight: bold;
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 12px;
     }
 
     .session-details {
@@ -146,17 +231,15 @@
       font-size: 14px;
       cursor: pointer;
       line-height: 1;
-      padding: 2px 6px;
+      padding: 2px 5px;
       border-radius: 3px;
-      margin-left: 4px;
-      transition: background 0.2s;
     }
 
     .delete-btn:hover {
       background: #ef4444;
     }
 
-    /* Modale de Confirmation */
+    /* Fenêtre Modale de Confirmation */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -169,16 +252,15 @@
       justify-content: center;
       align-items: center;
       z-index: 1000;
-      animation: fadeIn 0.2s ease-out;
     }
 
     .modal-content {
       background: white;
       padding: 24px;
       border-radius: 10px;
-      width: 480px;
+      width: 460px;
       max-width: 90%;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     }
 
     .modal-header {
@@ -197,10 +279,6 @@
       margin-bottom: 20px;
     }
 
-    .modal-body strong {
-      color: #0f172a;
-    }
-
     .modal-options {
       display: flex;
       flex-direction: column;
@@ -215,32 +293,16 @@
       font-weight: 600;
       font-size: 13px;
       transition: background-color 0.2s;
-      text-align: center;
     }
 
-    .btn-primary {
-      background-color: #1a2f5e;
-      color: white;
-    }
+    .btn-primary { background-color: #1a2f5e; color: white; }
     .btn-primary:hover { background-color: #254386; }
 
-    .btn-secondary {
-      background-color: #f1f5f9;
-      color: #334155;
-      border: 1px solid #cbd5e1 !important;
-    }
+    .btn-secondary { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
     .btn-secondary:hover { background-color: #e2e8f0; }
 
-    .btn-cancel {
-      background-color: #fee2e2;
-      color: #991b1b;
-    }
+    .btn-cancel { background-color: #fee2e2; color: #991b1b; }
     .btn-cancel:hover { background-color: #fecaca; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
   </style>
 </head>
 <body>
@@ -254,7 +316,7 @@
 <script type="text/babel">
   const { useState } = React;
 
-  const PlanningApp = () => {
+  const EcoGestApp = () => {
     const [sessions, setSessions] = useState([
       { id: 's1', title: 'Mathématiques - Cours', day: 'Lundi', time: '08:00 - 10:00', room: 'Amphi A', teacher: 'Pr. Alami' },
       { id: 's2', title: 'Physique - TP', day: 'Mardi', time: '10:00 - 12:00', room: 'Labo 2', teacher: 'Pr. Benali' },
@@ -305,7 +367,7 @@
         targetTime
       });
 
-      // Ouverture automatique de la modale
+      // Activation automatique de la modale de confirmation
       setIsConfirmModalOpen(true);
     };
 
@@ -336,68 +398,97 @@
 
     const handleDelete = (e, id) => {
       e.stopPropagation();
-      if (confirm("Voulez-vous vraiment supprimer cette séance ?")) {
-        setSessions(prev => prev.filter(s => s.id !== id));
-      }
+      setSessions(prev => prev.filter(s => s.id !== id));
     };
 
     return (
-      <div className="planning-container">
-        <div className="header-bar">
-          <h2>Planification cours / examens</h2>
-          <span className="status-badge">ECOGEST v3.560.0</span>
+      <div className="app-container">
+        {/* Barre de navigation latérale */}
+        <aside className="sidebar">
+          <div className="sidebar-header">
+            <h1>ECOGEST</h1>
+            <span>École Supérieure de Rabat v3.560.0</span>
+          </div>
+          <ul className="sidebar-menu">
+            <li><a href="#dashboard">Tableau de bord</a></li>
+            <li className="active"><a href="#planning">Planification cours / examens</a></li>
+            <li><a href="#enseignants">Gestion des Enseignants</a></li>
+            <li><a href="#etudiants">Gestion des Étudiants</a></li>
+            <li><a href="#salles">Salles & Équipements</a></li>
+            <li><a href="#parametres">Paramètres</a></li>
+          </ul>
+        </aside>
+
+        {/* Zone de contenu principal */}
+        <div className="main-wrapper">
+          <header className="top-navbar">
+            <div className="school-title">École Supérieure de Rabat — Système de Gestion Pédagogique</div>
+            <div className="user-profile">
+              <span>Administrateur</span>
+              <div className="avatar">AD</div>
+            </div>
+          </header>
+
+          <main className="content-body">
+            <div className="planning-container">
+              <div className="page-header">
+                <h2 className="page-title">Planification cours / examens</h2>
+              </div>
+
+              <table className="planning-table">
+                <thead>
+                  <tr>
+                    <th>Horaires</th>
+                    {days.map(d => <th key={d}>{d}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeSlots.map(time => (
+                    <tr key={time}>
+                      <td className="time-header">{time}</td>
+                      {days.map(day => {
+                        const session = sessions.find(s => s.day === day && s.time === time);
+                        const isSlotActive = activeDragSlot === `${day}-${time}`;
+
+                        return (
+                          <td
+                            key={`${day}-${time}`}
+                            className={`planning-slot ${isSlotActive ? 'drag-over' : ''}`}
+                            onDragOver={(e) => handleDragOver(e, day, time)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, day, time)}
+                          >
+                            {session && (
+                              <div
+                                className="session-card"
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, session)}
+                              >
+                                <div className="session-info">
+                                  <span className="session-title">{session.title}</span>
+                                  <span className="session-details">{session.room} • {session.teacher}</span>
+                                </div>
+                                <button 
+                                  className="delete-btn" 
+                                  onClick={(e) => handleDelete(e, session.id)}
+                                  title="Supprimer cette séance"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </main>
         </div>
 
-        <table className="planning-table">
-          <thead>
-            <tr>
-              <th>Horaires</th>
-              {days.map(d => <th key={d}>{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map(time => (
-              <tr key={time}>
-                <td className="time-header">{time}</td>
-                {days.map(day => {
-                  const session = sessions.find(s => s.day === day && s.time === time);
-                  const isSlotActive = activeDragSlot === `${day}-${time}`;
-
-                  return (
-                    <td
-                      key={`${day}-${time}`}
-                      className={`planning-slot ${isSlotActive ? 'drag-over' : ''}`}
-                      onDragOver={(e) => handleDragOver(e, day, time)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, day, time)}
-                    >
-                      {session && (
-                        <div
-                          className="session-card"
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, session)}
-                        >
-                          <div className="session-info">
-                            <span className="session-title">{session.title}</span>
-                            <span className="session-details">{session.room} • {session.teacher}</span>
-                          </div>
-                          <button 
-                            className="delete-btn" 
-                            onClick={(e) => handleDelete(e, session.id)}
-                            title="Supprimer cette séance"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
+        {/* Fenêtre Modale de Confirmation */}
         {isConfirmModalOpen && pendingMove && (
           <div className="modal-overlay">
             <div className="modal-content">
@@ -426,7 +517,7 @@
     );
   };
 
-  ReactDOM.createRoot(document.getElementById('root')).render(<PlanningApp />);
+  ReactDOM.createRoot(document.getElementById('root')).render(<EcoGestApp />);
 </script>
 </body>
 </html>
