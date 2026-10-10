@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Guide d'utilisation — Espace professeur ECOGEST</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm;
+    @bottom-center { content: "ECOGEST · Guide de l'espace professeur · page " counter(page) " / " counter(pages); font: 8.5pt "Segoe UI", Arial, sans-serif; color: #7a8599; }
+  }
+  @page couverture { margin: 0; @bottom-center { content: none; } }
+  :root { --navy: #1a2f5e; --orange: #e56b2d; --teal: #0e9187; --pale: #eef3fb; --gris: #5b6472; --bord: #d9e1ee; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font: 10.5pt/1.55 "Segoe UI", Arial, sans-serif; color: #1f2937; background: #fff; }
+  h1, h2, h3 { color: var(--navy); line-height: 1.25; }
+  h2 { font-size: 19pt; margin: 0 0 4mm; padding-bottom: 2.5mm; border-bottom: 3px solid var(--orange); break-after: avoid; }
+  h3 { font-size: 13pt; margin: 6mm 0 2.5mm; break-after: avoid; }
+  h3 .num { display: inline-block; min-width: 9mm; color: var(--orange); }
+  p { margin: 0 0 2.5mm; }
+  .chapitre { break-before: page; }
+  .intro { color: var(--gris); font-size: 11pt; margin-bottom: 4mm; }
+
+  /* Couverture */
+  .couverture { page: couverture; height: 297mm; position: relative; overflow: hidden; color: #fff;
+    background: linear-gradient(150deg, #13244a 0%, #1a2f5e 45%, #0e9187 100%); }
+  .couverture .bande { position: absolute; left: 0; right: 0; top: 0; height: 6mm; background: linear-gradient(90deg, #7c3aed, #2563eb, #0e9187, #e56b2d); }
+  .couverture .logo { position: absolute; top: 38mm; left: 50%; transform: translateX(-50%); width: 36mm; height: 36mm; border-radius: 50%; background: #fff url(img/p01_connexion.jpg) no-repeat; background-size: 600mm auto; background-position: -282mm -59mm; box-shadow: 0 6mm 14mm rgba(0,0,0,0.3); }
+  .couverture .ecole { position: absolute; top: 84mm; width: 100%; text-align: center; letter-spacing: 0.25em; font-size: 9.5pt; font-weight: 700; opacity: 0.85; }
+  .couverture .titre { position: absolute; top: 100mm; width: 100%; text-align: center; font-size: 46pt; font-weight: 900; letter-spacing: -0.01em; }
+  .couverture .titre span { color: #f39a63; }
+  .couverture .sous { position: absolute; top: 128mm; width: 100%; text-align: center; font-size: 20pt; font-weight: 600; }
+  .couverture .sous2 { position: absolute; top: 142mm; width: 100%; text-align: center; font-size: 11.5pt; opacity: 0.85; }
+  .couverture .apercu { position: absolute; top: 165mm; left: 50%; transform: translateX(-50%); width: 160mm; border-radius: 4mm; box-shadow: 0 10mm 24mm rgba(0,0,0,0.45); border: 1.2mm solid rgba(255,255,255,0.9); }
+  .couverture .pied { position: absolute; bottom: 12mm; width: 100%; text-align: center; font-size: 9pt; opacity: 0.8; }
+
+  /* Sommaire */
+  .sommaire ol { list-style: none; padding: 0; margin: 4mm 0 0; counter-reset: s; }
+  .sommaire li { counter-increment: s; display: flex; align-items: baseline; gap: 3mm; padding: 2.2mm 0; border-bottom: 1px dashed var(--bord); font-size: 11.5pt; }
+  .sommaire li::before { content: counter(s, decimal-leading-zero); color: var(--orange); font-weight: 800; min-width: 9mm; }
+  .sommaire li small { color: var(--gris); font-size: 9.5pt; margin-left: auto; }
+
+  /* Étapes */
+  ol.etapes { list-style: none; padding: 0; margin: 2mm 0 3mm; counter-reset: e; }
+  ol.etapes > li { counter-increment: e; position: relative; padding: 1.6mm 0 1.6mm 11mm; break-inside: avoid; }
+  ol.etapes > li::before { content: counter(e); position: absolute; left: 0; top: 1.2mm; width: 7mm; height: 7mm; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: 9.5pt; text-align: center; line-height: 7mm; }
+  .rep { display: inline-block; min-width: 5.6mm; height: 5.6mm; padding: 0 1.2mm; border-radius: 3mm; background: var(--orange); color: #fff; font-weight: 800; font-size: 8.5pt; line-height: 5.6mm; text-align: center; vertical-align: 0.3mm; }
+  .btn { display: inline-block; padding: 0.2mm 2mm; border-radius: 1.5mm; background: var(--pale); border: 1px solid #c9d6ea; color: var(--navy); font-weight: 700; font-size: 9.5pt; white-space: nowrap; }
+  .menu { font-weight: 700; color: var(--navy); }
+
+  /* Captures */
+  figure { margin: 2.5mm 0 3mm; break-inside: avoid; }
+  figure img { width: auto; max-width: 100%; max-height: 96mm; margin: 0 auto; border-radius: 2.5mm; border: 1px solid var(--bord); box-shadow: 0 1.5mm 4mm rgba(16,24,50,0.12); display: block; }
+  figure.grand img { max-height: 132mm; }
+  figure.etroit img { max-height: 80mm; }
+  figcaption { font-size: 9pt; color: var(--gris); margin-top: 1.8mm; text-align: center; }
+  figcaption b { color: var(--navy); }
+
+  /* Encadrés */
+  .note { break-inside: avoid; border-radius: 2.5mm; padding: 2.5mm 4mm; margin: 2.5mm 0; font-size: 9.8pt; }
+  .note b.t { display: block; margin-bottom: 1mm; font-size: 10.5pt; }
+  .note.info { background: #eef5ff; border-left: 1.4mm solid #2563eb; }
+  .note.info b.t { color: #1d4ed8; }
+  .note.astuce { background: #ecfdf5; border-left: 1.4mm solid #059669; }
+  .note.astuce b.t { color: #047857; }
+  .note.attention { background: #fff7ed; border-left: 1.4mm solid var(--orange); }
+  .note.attention b.t { color: #c2410c; }
+  .note ul { margin: 1mm 0 0; padding-left: 5mm; }
+  table.legende { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.8pt; break-inside: avoid; }
+  table.legende td { padding: 1.6mm 2mm; border-bottom: 1px solid var(--bord); vertical-align: top; }
+  table.legende td:first-child { width: 10mm; text-align: center; }
+  table.tab { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.8pt; break-inside: avoid; }
+  table.tab th { background: var(--navy); color: #fff; text-align: left; padding: 1.8mm 2.5mm; font-size: 9pt; }
+  table.tab td { padding: 1.6mm 2.5mm; border-bottom: 1px solid var(--bord); vertical-align: top; }
+  table.tab tr:nth-child(even) td { background: #f7f9fc; }
+  .pastille { display: inline-block; padding: 0.2mm 2mm; border-radius: 3mm; font-size: 8.8pt; font-weight: 700; color: #fff; }
+  .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .faq dt { font-weight: 700; color: var(--navy); margin-top: 3mm; }
+  .faq dd { margin: 0.8mm 0 0; }
+  .avertissement { font-size: 8.8pt; color: var(--gris); border-top: 1px solid var(--bord); padding-top: 2mm; margin-top: 6mm; }
+
+  /* ── Lecture à l'écran (ordinateur, tablette, téléphone) ── */
+  @media screen {
+    body { background: #eef2f8; padding: 14px; }
+    section { max-width: 900px; margin: 0 auto 16px; background: #fff; border-radius: 14px; padding: 22px 26px;
+      box-shadow: 0 2px 10px rgba(16,24,50,0.08); }
+    .chapitre { break-before: auto; }
+    .couverture { height: auto; padding: 34px 18px 26px; text-align: center; color: #fff; }
+    .couverture > * { position: static !important; transform: none !important; }
+    .couverture .bande { display: none; }
+    .couverture .logo { margin: 0 auto 14px; width: 96px; height: 96px; background-size: 1600px auto; background-position: -752px -157px; }
+    .couverture .titre { font-size: 40px; margin: 6px 0; }
+    .couverture .sous { font-size: 21px; }
+    .couverture .sous2 { font-size: 14px; margin: 6px 0 18px; }
+    .couverture .apercu { display: block; width: 100%; max-width: 620px; margin: 0 auto 14px; }
+    .couverture .pied { font-size: 12px; }
+    figure img { max-height: none !important; width: 100%; }
+    figure.etroit img { width: 80%; }
+  }
+  @media screen and (max-width: 640px) {
+    body { padding: 6px; font-size: 15px; }
+    section { padding: 16px 14px; border-radius: 10px; }
+    h2 { font-size: 21px; }
+    .deux { grid-template-columns: 1fr; }
+    figure.etroit img { width: 100%; }
+    table.tab, table.legende { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ COUVERTURE ═══════════════════════════ -->
+<section class="couverture">
+  <div class="bande"></div>
+  <div class="logo"></div>
+  <div class="ecole">ÉCOLE SUPÉRIEURE DE RABAT EN MANAGEMENT ET INGÉNIERIE</div>
+  <div class="titre">ECO<span>GEST</span></div>
+  <div class="sous">Guide d'utilisation de l'espace professeur</div>
+  <div class="sous2">Présences, pointage, vacations et emploi du temps, pas à pas</div>
+  <img class="apercu" src="img/p07_pointage_liste.jpg" alt="">
+  <div class="pied">Édition octobre 2026 · Année universitaire 2026-2027</div>
+</section>
+
+<!-- ═══════════════════════════ SOMMAIRE ═══════════════════════════ -->
+<section class="chapitre sommaire">
+  <h2>Sommaire</h2>
+  <ol>
+    <li>Présentation d'ECOGEST <small>ce que vous pouvez faire</small></li>
+    <li>Se connecter et se déconnecter <small>compte @esrmi.ma</small></li>
+    <li>Découvrir l'interface <small>menu, recherche, favoris, rappels</small></li>
+    <li>Calendrier <small>rentrée, examens, vacances, jours fériés</small></li>
+    <li>Mon emploi du temps <small>séances, Teams, dates d'examens</small></li>
+    <li>Prise de présence <small>saisir les absents d'une séance</small></li>
+    <li>Mes présences <small>absences enregistrées, taux par module</small></li>
+    <li>Pointage — principe et circuit <small>fiche mensuelle, statuts</small></li>
+    <li>Pointage — la fiche du mois <small>ajouter, confirmer, soumettre</small></li>
+    <li>Pointage — rejets et contestations <small>contester, séance oubliée</small></li>
+    <li>Mes vacations et fiches d'honoraires <small>heures, montants, impression</small></li>
+    <li>Utiliser ECOGEST sur téléphone <small>menu ☰</small></li>
+    <li>Bonnes pratiques et questions fréquentes <small>et à qui s'adresser</small></li>
+  </ol>
+  <div class="note info" style="margin-top:8mm">
+    <b class="t">Comment lire ce guide</b>
+    Chaque opération est décrite en <b>étapes numérotées</b> (cercles bleus). Sur les captures d'écran, les <span class="rep">1</span> <span class="rep">2</span> orange
+    indiquent l'endroit exact où cliquer ou saisir : ils correspondent aux légendes placées sous chaque image.
+    Les noms des boutons et des menus sont écrits <span class="btn">comme ceci</span>.
+  </div>
+  <p class="avertissement">Les captures de ce guide ont été réalisées avec le compte de démonstration <b>KARIM ALAOUI</b> et des données
+  fictives (groupes, étudiants, séances, montants). Votre écran affichera vos propres informations, mais la présentation et
+  les opérations sont strictement identiques.</p>
+</section>
+
+<!-- ═══════════════════════════ 1. PRÉSENTATION ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>1. Présentation d'ECOGEST</h2>
+  <p class="intro">ECOGEST est l'application de gestion de l'École Supérieure de Rabat. Votre <b>espace professeur</b> rassemble tout ce dont
+  vous avez besoin pour vos cours : votre emploi du temps, la prise de présence de vos étudiants, le pointage de vos séances et le suivi
+  de vos vacations.</p>
+  <table class="tab">
+    <tr><th style="width:52mm">Menu</th><th>Ce que vous y faites</th></tr>
+    <tr><td class="menu">🗓️ Calendrier</td><td>Consulter les dates importantes de l'année : rentrée, contrôles continus, examens, vacances, jours fériés, réunions.</td></tr>
+    <tr><td class="menu">🕛 Pointage</td><td>Déclarer chaque mois les séances que vous avez assurées, suivre leur validation, contester un rejet, consulter vos vacations
+      payées et imprimer vos fiches d'honoraires.</td></tr>
+    <tr><td class="menu">📅 Planification cours / examens</td><td>Votre emploi du temps semaine par semaine (vos séances seulement, tous groupes confondus), les liens Teams
+      des cours à distance et les dates de contrôle continu et d'examen de vos modules.</td></tr>
+    <tr><td class="menu">✅ Présences</td><td>Saisir les absents de chaque séance, consulter les absences enregistrées et le taux d'absence de vos modules.</td></tr>
+    <tr><td class="menu">📖 Guide d'utilisation</td><td>Ce guide, à lire en ligne ou à télécharger en PDF.</td></tr>
+  </table>
+  <div class="note astuce"><b class="t">Ce dont vous avez besoin</b>
+    <ul>
+      <li>Votre compte scolaire Microsoft 365 <b>@esrmi.ma</b> (adresse et mot de passe communiqués par l'administration).</li>
+      <li>Un ordinateur, une tablette ou un téléphone avec un navigateur récent (Microsoft Edge, Google Chrome, Safari ou Firefox).</li>
+      <li>Une connexion Internet.</li>
+    </ul>
+  </div>
+  <div class="note info"><b class="t">Vos données sont personnelles</b>Vous ne voyez que <b>vos</b> séances, <b>vos</b> groupes et <b>vos</b> fiches de pointage.
+  Les informations proviennent directement de l'espace SharePoint de l'école et sont mises à jour en temps réel.</div>
+</section>
+
+<!-- ═══════════════════════════ 2. CONNEXION ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>2. Se connecter et se déconnecter</h2>
+  <p class="intro">La connexion utilise votre compte Microsoft 365 de l'école : aucun mot de passe supplémentaire n'est nécessaire.</p>
+  <h3><span class="num">2.1</span>Se connecter</h3>
+  <ol class="etapes">
+    <li>Ouvrez l'adresse d'ECOGEST communiquée par l'administration dans votre navigateur.</li>
+    <li>Repérez la carte <b>Professeurs</b> <span class="rep">1</span> et cliquez sur son bouton <span class="btn">Se connecter</span> <span class="rep">2</span>.</li>
+    <li>Choisissez ou saisissez votre compte <b>@esrmi.ma</b>, puis votre mot de passe Microsoft.</li>
+    <li>Vous arrivez dans votre espace professeur. Votre espace est de toute façon reconnu automatiquement à partir de votre compte.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p01_connexion.jpg" alt="Page de connexion">
+    <figcaption><b>Page de connexion.</b> <span class="rep">1</span> Carte « Professeurs » · <span class="rep">2</span> Bouton « Se connecter ».</figcaption>
+  </figure>
+  <div class="note attention"><b class="t">Première connexion</b>Microsoft peut vous demander d'accepter les autorisations de l'application, puis
+  d'ajouter une méthode de vérification (numéro de téléphone ou application Microsoft Authenticator). Suivez simplement les instructions à l'écran.</div>
+  <h3><span class="num">2.2</span>Se déconnecter</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">Déconnexion</span> en bas du menu, ou sur le bouton de sortie ⇥ de votre carte de profil.</li>
+    <li>Sur un ordinateur partagé, fermez ensuite toutes les fenêtres du navigateur.</li>
+  </ol>
+</section>
+
+<!-- ═══════════════════════════ 3. INTERFACE ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>3. Découvrir l'interface</h2>
+  <p class="intro">Le menu de gauche donne accès à toutes vos pages ; la partie droite affiche la page ouverte.</p>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p02_interface.jpg" alt="Interface de l'espace professeur">
+    <figcaption><b>L'espace professeur.</b> <span class="rep">1</span> Carte de profil · <span class="rep">2</span> Recherche · <span class="rep">3</span> Menus ·
+    <span class="rep">4</span> Rappel des présences à saisir · <span class="rep">5</span> Déconnexion.</figcaption>
+  </figure>
+  <table class="legende">
+    <tr><td><span class="rep">1</span></td><td><b>Carte de profil</b> : votre nom, votre rôle et votre adresse. Le petit bouton 📖 ouvre ce guide ; le bouton ⇥ vous déconnecte.</td></tr>
+    <tr><td><span class="rep">2</span></td><td><b>Rechercher une page</b> : tapez quelques lettres (par exemple « poin ») pour ouvrir directement une page.</td></tr>
+    <tr><td><span class="rep">3</span></td><td><b>Menus</b> : Calendrier et Pointage (rubrique Administratif), Planification, Présences et Guide (rubrique Pédagogie).
+      Le menu ouvert est surligné. Cliquez sur l'étoile ☆ d'un menu pour l'épingler en haut, dans vos <b>favoris</b>.</td></tr>
+    <tr><td><span class="rep">4</span></td><td><b>Rappel</b> : tant qu'une de vos séances n'a pas de présence saisie, un bandeau l'indique en bas de l'écran.
+      Cliquez sur <span class="btn">Traiter →</span> pour ouvrir directement la prise de présence (chapitre 6).</td></tr>
+    <tr><td><span class="rep">5</span></td><td><b>Déconnexion</b>, et indicateur de synchronisation avec SharePoint juste au-dessus (« Synchronisé à l'instant »).</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════════════════ 4. CALENDRIER ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>4. Calendrier</h2>
+  <p class="intro">Toutes les dates importantes de l'année universitaire, classées par mois.</p>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Calendrier</span>.</li>
+    <li>Le bandeau <b>Prochain événement</b> <span class="rep">1</span> affiche la prochaine date à retenir et le nombre de jours restants.</li>
+    <li>Utilisez les filtres <span class="rep">2</span> (<span class="btn">Examen</span>, <span class="btn">Vacances</span>, <span class="btn">Jour férié</span>…) pour n'afficher
+      qu'un type d'événement ; <span class="btn">Tous</span> les réaffiche tous.</li>
+    <li>Chaque événement indique ses dates et, le cas échéant, le groupe concerné (par exemple les contrôles continus d'un groupe).</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p03_calendrier.jpg" alt="Calendrier scolaire">
+    <figcaption><b>Calendrier scolaire.</b> <span class="rep">1</span> Prochain événement · <span class="rep">2</span> Filtres par type.</figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════ 5. EMPLOI DU TEMPS ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>5. Mon emploi du temps</h2>
+  <p class="intro">Uniquement vos propres séances, tous groupes confondus, semaine par semaine.</p>
+  <h3><span class="num">5.1</span>Consulter vos séances</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Planification cours / examens</span>.</li>
+    <li>Vérifiez l'année universitaire, puis choisissez le <b>semestre</b> <span class="rep">1</span>.</li>
+    <li>Choisissez la <b>semaine</b> dans la liste <span class="rep">2</span>, ou passez d'une semaine à l'autre avec <span class="btn">◀</span> et <span class="btn">▶</span>.
+      La semaine en cours est affichée à l'ouverture.</li>
+    <li>Chaque séance indique le <b>module</b>, le <b>groupe</b> (par exemple B1-SI), l'<b>horaire</b>, la période du module, le mode
+      (<b>📍 Présentiel</b> avec la salle, ou <b>💻 À distance</b>) et les dates de <b>CC</b> (contrôle continu) et d'<b>EFM</b> (examen de fin de module).</li>
+    <li>Pour une lecture compacte, les <b>jours et heures sans séance sont masqués</b> (fine bande hachurée).
+      Cliquez sur <span class="btn">↕ Afficher tous les jours et toutes les heures</span> <span class="rep">3</span> pour voir la semaine complète.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p04_planification.jpg" alt="Mon emploi du temps">
+    <figcaption><b>Mon emploi du temps.</b> <span class="rep">1</span> Semestre · <span class="rep">2</span> Semaine · <span class="rep">3</span> Afficher toute la semaine ·
+    <span class="rep">4</span> Rejoindre un cours à distance.</figcaption>
+  </figure>
+  <h3><span class="num">5.2</span>Donner un cours à distance (Teams)</h3>
+  <ol class="etapes">
+    <li>Au moment du cours, repérez la séance marquée <b>💻 À distance</b>.</li>
+    <li>Cliquez sur <span class="btn">💻 Rejoindre Teams</span> <span class="rep">4</span> : la réunion Teams du cours s'ouvre (application ou navigateur).</li>
+    <li>Connectez-vous avec votre compte <b>@esrmi.ma</b> et démarrez la réunion à l'heure prévue : l'administration suit en direct le démarrage
+      des cours à distance.</li>
+  </ol>
+  <div class="note info"><b class="t">Un changement dans votre emploi du temps ?</b>La planification est tenue à jour par l'administration.
+  Si une séance est erronée ou manquante, signalez-le à l'administration : ne déclarez pas de séance différente sans l'avoir prévenue.</div>
+</section>
+
+<!-- ═══════════════════════════ 6. PRISE DE PRÉSENCE ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>6. Prise de présence</h2>
+  <p class="intro">Pour chacune de vos séances, indiquez les étudiants absents. C'est à partir de cette saisie que sont calculés les absences et
+  les taux d'absence de chaque étudiant.</p>
+  <h3><span class="num">6.1</span>Saisir les absents d'une séance</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Présences</span>, puis sur l'onglet <span class="btn">📋 Prise de présence</span>. Le chiffre rouge indique le nombre de
+      séances qui attendent votre saisie.</li>
+    <li>Dans <b>Séances à traiter</b>, cliquez sur la séance concernée <span class="rep">1</span> (module, date, horaire et groupe) : la liste de ses étudiants s'affiche.</li>
+    <li>Tous les étudiants sont <b>« Présent »</b> par défaut. Cliquez sur un étudiant absent <span class="rep">2</span> : il passe en <b>« Absent »</b> (en rouge).
+      Cliquez à nouveau pour annuler.</li>
+    <li>Cliquez sur <span class="btn">✓ Valider la présence de la séance</span> <span class="rep">3</span>. La séance disparaît de la liste : la saisie est enregistrée.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p05_prise_presence.jpg" alt="Prise de présence">
+    <figcaption><b>Prise de présence.</b> <span class="rep">1</span> Séance à traiter · <span class="rep">2</span> Étudiant marqué absent · <span class="rep">3</span> Validation.</figcaption>
+  </figure>
+  <h3><span class="num">6.2</span>Quand une séance apparaît-elle « à traiter » ?</h3>
+  <ul>
+    <li>Une séance de votre emploi du temps devient « à traiter » <b>15 minutes après son heure de début</b> (délai fixé par l'administration),
+      tant que sa présence n'a pas été saisie.</li>
+    <li>Elle reste proposée pendant <b>15 jours</b> ; le bandeau de rappel (chapitre 3) vous le signale sur toutes les pages.</li>
+    <li>Une fois validée, elle n'apparaît plus : pour corriger une saisie déjà validée, adressez-vous à l'administration.</li>
+  </ul>
+  <div class="note astuce"><b class="t">Astuce</b>Faites l'appel en début de cours et validez-le dès la fin de la séance, depuis votre téléphone si besoin
+  (chapitre 12) : vous évitez les oublis et les étudiants voient leurs absences à jour.</div>
+</section>
+
+<!-- ═══════════════════════════ 7. MES PRÉSENCES ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>7. Mes présences</h2>
+  <p class="intro">Toutes les absences enregistrées dans vos modules, et le taux d'absence de chacun.</p>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Présences</span>, onglet <span class="btn">📝 Mes présences</span>.</li>
+    <li>Le graphique <b>Taux d'absence par module</b> <span class="rep">1</span> indique, pour chacun de vos modules, les heures d'absence sur le volume
+      horaire total et le pourcentage correspondant. Choisissez l'année et le semestre au-dessus du graphique.</li>
+    <li>Le tableau <span class="rep">2</span> liste chaque absence : date, séance, étudiant, N° d'inscription, module, statut et mode d'enregistrement.
+      Un badge <b>⚠️ Non justifiée</b> ou <b>Justifiée</b> indique si l'étudiant a fourni un justificatif à l'administration.</li>
+    <li>Affinez la liste avec les filtres : recherche par nom ou N° d'inscription, groupe, semestre, module, statut, année et période (dates de début et de fin).</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p06_mes_presences.jpg" alt="Mes présences">
+    <figcaption><b>Mes présences.</b> <span class="rep">1</span> Taux d'absence par module · <span class="rep">2</span> Liste des absences enregistrées.</figcaption>
+  </figure>
+  <div class="note info"><b class="t">Justifications</b>Les justificatifs (certificat médical…) sont traités par l'administration : le statut d'une absence passe
+  alors automatiquement à « Justifiée ».</div>
+</section>
+
+<!-- ═══════════════════════════ 8. POINTAGE PRINCIPE ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>8. Pointage — principe et circuit</h2>
+  <p class="intro">Chaque mois, vous déclarez dans une <b>fiche de pointage</b> les séances que vous avez réellement assurées. Après validation
+  des séances et traitement du paiement, la fiche alimente vos vacations.</p>
+  <h3><span class="num">8.1</span>Le circuit d'une fiche</h3>
+  <table class="tab">
+    <tr><th style="width:62mm">Statut de la fiche</th><th>Signification — qui agit ?</th></tr>
+    <tr><td><span class="pastille" style="background:#8a94a6">📝 Brouillon</span></td><td><b>Vous</b> : vous ajoutez et confirmez vos séances, puis soumettez la fiche.</td></tr>
+    <tr><td><span class="pastille" style="background:#e56b2d">⏳ À valider (Iliass Elmzioui)</span></td><td>La fiche est soumise : chaque séance est validée ou rejetée.</td></tr>
+    <tr><td><span class="pastille" style="background:#7c3aed">💰 À traiter (Fatima Zahra Zniber)</span></td><td>Séances validées : le paiement est en cours de traitement.</td></tr>
+    <tr><td><span class="pastille" style="background:#16a34a">✅ Terminée</span></td><td>Paiement traité : la fiche figure dans vos vacations (chapitre 11).</td></tr>
+  </table>
+  <p>À chaque étape, les personnes concernées sont prévenues par e-mail. En haut de chaque fiche, un récapitulatif du circuit montre
+  qui a agi et à quelle date (voir chapitre 10).</p>
+  <h3><span class="num">8.2</span>La période d'une fiche</h3>
+  <p>Une fiche mensuelle couvre la période <b>du 26 du mois précédent au 25 du mois</b>. Exemple : la fiche d'<b>octobre 2026</b> regroupe les séances
+  du 26/09/2026 au 25/10/2026. La période est rappelée en haut de chaque fiche.</p>
+  <h3><span class="num">8.3</span>Vos fiches</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Pointage</span> : la page <b>Mon pointage</b> liste vos fiches, avec leur statut, le nombre de séances et les heures validées.</li>
+    <li>Cliquez sur <span class="btn">Ouvrir</span> <span class="rep">2</span> pour afficher le détail d'une fiche.</li>
+    <li>Une fiche encore en <b>Brouillon</b> peut être supprimée avec 🗑 ; une fiche soumise ne peut plus l'être.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p07_pointage_liste.jpg" alt="Mon pointage">
+    <figcaption><b>Mon pointage.</b> <span class="rep">1</span> Nouvelle fiche du mois · <span class="rep">2</span> Ouvrir une fiche · <span class="rep">3</span> État de mes vacations ·
+    <span class="rep">4</span> Fiche d'honoraires.</figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════ 9. LA FICHE DU MOIS ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>9. Pointage — la fiche du mois</h2>
+  <h3><span class="num">9.1</span>Créer la fiche du mois</h3>
+  <ol class="etapes">
+    <li>Sur la page <b>Mon pointage</b>, cliquez sur <span class="btn">+ Nouvelle fiche du mois</span>.</li>
+    <li>Choisissez le <b>mois</b> <span class="rep">1</span>, puis cliquez sur <span class="btn">Créer la fiche</span> <span class="rep">2</span>. La fiche est créée en <b>Brouillon</b>.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/p11_nouvelle_fiche.jpg" alt="Nouvelle fiche de pointage">
+    <figcaption><b>Nouvelle fiche de pointage.</b> <span class="rep">1</span> Mois · <span class="rep">2</span> Créer la fiche.</figcaption>
+  </figure>
+  <h3><span class="num">9.2</span>Ajouter et confirmer vos séances</h3>
+  <ol class="etapes">
+    <li>Ouvrez la fiche du mois. Dans le cadre <b>Ajouter une séance</b> <span class="rep">1</span>, renseignez la <b>date</b>, le <b>module</b> (la liste propose vos modules,
+      avec leur groupe et leur semestre), l'<b>heure de début</b> et l'<b>heure de fin</b>. Un commentaire est possible (rattrapage, demi-groupe…).</li>
+    <li>Pour une activité qui n'est pas un cours de votre liste, choisissez <b>« ✏️ Autre (préciser l'action réalisée) »</b> et décrivez-la.</li>
+    <li>Cliquez sur <span class="btn">+ Ajouter la séance</span> : elle apparaît dans le tableau, avec sa durée calculée automatiquement.</li>
+    <li>Vérifiez chaque ligne puis cliquez sur <span class="btn">✓ Confirmer</span> <span class="rep">2</span> : la séance passe à <b>✅ Confirmée</b>.</li>
+    <li>Pour corriger une séance, utilisez ✏️ (toute modification <b>annule sa confirmation</b> : confirmez-la de nouveau) ; pour la retirer, 🗑.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p08_fiche_brouillon.jpg" alt="Fiche de pointage en brouillon">
+    <figcaption><b>Fiche du mois (brouillon).</b> <span class="rep">1</span> Ajouter une séance · <span class="rep">2</span> Confirmer une séance ·
+    <span class="rep">3</span> Rappel avant soumission · <span class="rep">4</span> Imprimer la fiche.</figcaption>
+  </figure>
+  <h3><span class="num">9.3</span>Soumettre la fiche</h3>
+  <ol class="etapes">
+    <li>Tant qu'une séance n'est pas confirmée, la fiche affiche <b>« Confirmez toutes les séances avant de soumettre »</b> <span class="rep">3</span>.</li>
+    <li>Quand toutes les séances sont confirmées, cliquez sur <span class="btn">→ Soumettre la fiche pour validation</span> et confirmez.</li>
+    <li>La fiche passe à <b>⏳ À valider</b> : elle n'est <b>plus modifiable</b>. L'administration est prévenue automatiquement.</li>
+  </ol>
+  <h3><span class="num">9.4</span>Imprimer et actualiser</h3>
+  <ul>
+    <li><span class="btn">🖨️ Imprimer (PDF)</span> <span class="rep">4</span> produit la fiche de pointage du mois au format PDF.</li>
+    <li><span class="btn">🔄 Actualiser</span> recharge la fiche depuis SharePoint (par exemple pour voir une validation qui vient d'être faite).</li>
+    <li><span class="btn">← Retour</span> revient à la liste de vos fiches.</li>
+  </ul>
+  <div class="note attention"><b class="t">Important</b>Ne déclarez que les séances réellement assurées, avec leurs horaires exacts. Une séance qui ne correspond
+  pas à l'emploi du temps peut être rejetée.</div>
+</section>
+
+<!-- ═══════════════════════════ 10. REJETS ET CONTESTATIONS ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>10. Pointage — rejets et contestations</h2>
+  <h3><span class="num">10.1</span>Comprendre le statut d'une séance</h3>
+  <table class="tab">
+    <tr><th style="width:42mm">Statut</th><th>Signification</th></tr>
+    <tr><td><span class="pastille" style="background:#e56b2d">⏳ En attente</span></td><td>La fiche est soumise ; l'administration n'a pas encore statué sur la séance.</td></tr>
+    <tr><td><span class="pastille" style="background:#16a34a">✅ Validée</span></td><td>La séance est retenue : ses heures sont comptées dans la fiche.</td></tr>
+    <tr><td><span class="pastille" style="background:#dc2626">✗ Rejetée</span></td><td>La séance n'est pas retenue. Le motif figure dans la colonne <b>Commentaire</b>.</td></tr>
+  </table>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/p09_fiche_terminee.jpg" alt="Fiche de pointage traitée">
+    <figcaption><b>Fiche traitée.</b> <span class="rep">1</span> Circuit de la fiche (qui a agi et quand) · <span class="rep">2</span> Motif du rejet ·
+    <span class="rep">3</span> Contester le rejet.</figcaption>
+  </figure>
+  <h3><span class="num">10.2</span>Contester une séance rejetée</h3>
+  <ol class="etapes">
+    <li>Ouvrez la fiche et repérez la séance <b>✗ Rejetée</b> ; lisez le motif <span class="rep">2</span>.</li>
+    <li>Si vous n'êtes pas d'accord, cliquez sur <span class="btn">⚠️ Contester</span> <span class="rep">3</span> (ce bouton n'apparaît que pour une séance rejetée).</li>
+    <li>Expliquez précisément pourquoi la séance a été rejetée à tort <span class="rep">1</span> (ci-dessous) : report, changement de salle, créneau mal renseigné…</li>
+    <li>Cliquez sur <span class="btn">📨 Envoyer la contestation</span> <span class="rep">2</span>. La séance affiche <b>🕒 Contestation en attente</b> le temps que
+      l'administration l'examine.</li>
+    <li>Si la contestation est <b>acceptée</b>, la séance est validée et <b>transférée sur votre fiche du mois suivant</b> (avec sa date d'origine), puis
+      <b>verrouillée 🔒</b> : elle ne peut plus être modifiée ni supprimée, et la fiche qui la contient ne peut plus être supprimée.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/p10_contestation.jpg" alt="Contester le rejet d'une séance">
+    <figcaption><b>Contestation.</b> <span class="rep">1</span> Explication · <span class="rep">2</span> Envoi de la contestation.</figcaption>
+  </figure>
+  <h3><span class="num">10.3</span>Une séance oubliée ?</h3>
+  <ol class="etapes">
+    <li>Si le mois est encore ouvert (fiche en Brouillon), ajoutez simplement la séance à la fiche (chapitre 9).</li>
+    <li>Si la fiche du mois a déjà été soumise, ne tentez pas de la modifier : contactez l'administration en précisant le module, la date exacte et l'horaire.</li>
+    <li>L'administration peut l'ajouter en rattrapage sur la fiche du mois en cours, en conservant sa date d'origine.</li>
+  </ol>
+</section>
+
+<!-- ═══════════════════════════ 11. VACATIONS ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>11. Mes vacations et fiches d'honoraires</h2>
+  <p class="intro">Le récapitulatif de vos fiches dont le paiement a été traité, mois par mois.</p>
+  <ol class="etapes">
+    <li>En bas de la page <b>Mon pointage</b>, la section <b>📊 État de mes vacations terminées</b> <span class="rep">3</span> (capture du chapitre 8) reprend les fiches au statut
+      <b>✅ Terminée</b> de l'année universitaire choisie.</li>
+    <li>Quatre indicateurs résument l'année : <b>mois traités</b>, <b>séances</b>, <b>heures</b> et <b>montant total</b>.</li>
+    <li>Le tableau détaille chaque mois : séances, heures, taux horaire, montant et date de traitement.</li>
+    <li>Cliquez sur <span class="btn">🖨️ Imprimer</span> <span class="rep">4</span> pour obtenir la <b>fiche d'honoraires</b> du mois en PDF.</li>
+    <li>Changez d'année avec la liste en haut à droite de la section.</li>
+  </ol>
+  <div class="note info"><b class="t">Taux horaire</b>Les montants sont calculés à partir du taux horaire enregistré sur votre fiche professeur.
+  Si aucun taux n'est renseigné, un message vous l'indique : contactez l'administration.</div>
+  <div class="note astuce"><b class="t">Astuce</b>Un pointage confirmé et soumis rapidement, dès la fin du mois, évite tout retard dans le traitement de vos vacations.</div>
+</section>
+
+<!-- ═══════════════════════════ 12. TÉLÉPHONE ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>12. Utiliser ECOGEST sur téléphone</h2>
+  <p class="intro">ECOGEST s'adapte automatiquement aux téléphones et aux tablettes : toutes les opérations de ce guide y sont disponibles —
+  la prise de présence en particulier se fait très bien en classe, depuis votre téléphone.</p>
+  <ol class="etapes">
+    <li>Ouvrez l'adresse d'ECOGEST dans le navigateur de votre téléphone et connectez-vous comme indiqué au chapitre 2.</li>
+    <li>Le menu est replié : touchez le bouton <span class="btn">☰</span> en haut à gauche pour l'ouvrir, puis touchez le menu souhaité.
+      Le bouton <span class="btn">✕</span> referme le menu.</li>
+    <li>Dans <span class="menu">Présences</span> → <span class="btn">Prise de présence</span>, touchez la séance, puis les étudiants absents, et validez.</li>
+    <li>Dans <span class="menu">Planification</span>, l'emploi du temps affiche un jour à la fois : choisissez le jour dans la barre <span class="btn">◀ Lun Mar Mer… ▶</span>.</li>
+    <li>Les listes de choix s'ouvrent dans un volet en bas de l'écran : touchez simplement l'option voulue.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/p12_mobile.jpg" alt="ECOGEST sur téléphone" style="width:82%;margin:0 auto;border:none;box-shadow:none">
+    <figcaption><b>Sur téléphone :</b> à gauche, la prise de présence d'une séance ; à droite, le menu ouvert avec le bouton ☰.</figcaption>
+  </figure>
+  <div class="note astuce"><b class="t">Astuce</b>Ajoutez ECOGEST à l'écran d'accueil de votre téléphone (menu du navigateur → <b>« Ajouter à l'écran d'accueil »</b>) pour l'ouvrir comme une application.</div>
+</section>
+
+<!-- ═══════════════════════════ 13. BONNES PRATIQUES & FAQ ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>13. Bonnes pratiques et questions fréquentes</h2>
+  <h3><span class="num">13.1</span>Bonnes pratiques</h3>
+  <ul>
+    <li>Saisissez la présence <b>le jour même</b> de chaque séance.</li>
+    <li>Ajoutez et <b>confirmez vos séances au fil du mois</b> dans votre fiche de pointage, puis soumettez-la dès la fin du mois (après le 25).</li>
+    <li>Vérifiez chaque semaine votre <b>emploi du temps</b> : il peut être modifié par l'administration.</li>
+    <li>Pour un cours à distance, rejoignez toujours Teams avec votre compte <b>@esrmi.ma</b>.</li>
+    <li>Contestez rapidement une séance rejetée à tort, en expliquant clairement le motif.</li>
+  </ul>
+  <h3><span class="num">13.2</span>Questions fréquentes</h3>
+  <dl class="faq">
+    <dt>La page Pointage affiche « Aucune fiche professeur associée à votre compte ».</dt>
+    <dd>Votre compte n'est pas encore relié à votre fiche professeur. Contactez l'administration en indiquant l'adresse e-mail affichée sur la page.</dd>
+    <dt>Une séance de mon emploi du temps n'apparaît pas dans la prise de présence.</dt>
+    <dd>Elle n'apparaît que 15 minutes après son début, et pendant 15 jours. Si elle a déjà été validée, elle n'y figure plus. Sinon, vérifiez auprès de
+      l'administration qu'elle est bien planifiée à votre nom.</dd>
+    <dt>J'ai marqué un étudiant absent par erreur après validation.</dt>
+    <dd>Signalez-le à l'administration, qui peut corriger l'absence.</dd>
+    <dt>Je ne peux plus modifier ma fiche de pointage.</dt>
+    <dd>Une fiche soumise n'est plus modifiable. Pour une séance oubliée ou erronée, contactez l'administration (chapitre 10.3).</dd>
+    <dt>Le bouton « Contester » n'apparaît pas.</dt>
+    <dd>Il n'existe que pour une séance au statut « Rejetée », et disparaît dès qu'une contestation est en cours.</dd>
+    <dt>Mes vacations n'affichent aucun montant.</dt>
+    <dd>Seules les fiches « Terminée » y figurent, pour l'année choisie. Si un message signale l'absence de taux horaire, contactez l'administration.</dd>
+    <dt>Puis-je utiliser ECOGEST sur mon téléphone ?</dt>
+    <dd>Oui : ordinateur, tablette et téléphone. Pensez à vous déconnecter sur les appareils partagés.</dd>
+  </dl>
+  <div class="note info" style="margin-top:8mm"><b class="t">Besoin d'aide ?</b>
+  Pour toute question sur l'utilisation d'ECOGEST, sur votre emploi du temps ou sur vos vacations, adressez-vous à l'administration de l'école.</div>
+  <p class="avertissement">Guide de l'espace professeur ECOGEST — édition octobre 2026 (version de l'application v3.798).
+  Les captures d'écran utilisent un compte de démonstration et des données fictives.</p>
+</section>
+
+</body>
+</html>
