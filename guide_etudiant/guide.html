@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Guide d'utilisation — Espace étudiant ECOGEST</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm;
+    @bottom-center { content: "ECOGEST · Guide de l'espace étudiant · page " counter(page) " / " counter(pages); font: 8.5pt "Segoe UI", Arial, sans-serif; color: #7a8599; }
+  }
+  @page couverture { margin: 0; @bottom-center { content: none; } }
+  :root { --navy: #1a2f5e; --orange: #e56b2d; --teal: #0e9187; --pale: #eef3fb; --gris: #5b6472; --bord: #d9e1ee; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font: 10.5pt/1.55 "Segoe UI", Arial, sans-serif; color: #1f2937; background: #fff; }
+  h1, h2, h3 { color: var(--navy); line-height: 1.25; }
+  h2 { font-size: 19pt; margin: 0 0 4mm; padding-bottom: 2.5mm; border-bottom: 3px solid var(--orange); break-after: avoid; }
+  h3 { font-size: 13pt; margin: 6mm 0 2.5mm; break-after: avoid; }
+  h3 .num { display: inline-block; min-width: 9mm; color: var(--orange); }
+  p { margin: 0 0 2.5mm; }
+  .chapitre { break-before: page; }
+  .intro { color: var(--gris); font-size: 11pt; margin-bottom: 4mm; }
+
+  /* Couverture */
+  .couverture { page: couverture; height: 297mm; position: relative; overflow: hidden; color: #fff;
+    background: linear-gradient(150deg, #13244a 0%, #1a2f5e 45%, #0e9187 100%); }
+  .couverture .bande { position: absolute; left: 0; right: 0; top: 0; height: 6mm; background: linear-gradient(90deg, #7c3aed, #2563eb, #0e9187, #e56b2d); }
+  .couverture .logo { position: absolute; top: 38mm; left: 50%; transform: translateX(-50%); width: 36mm; height: 36mm; border-radius: 50%; background: #fff url(img/01_connexion.jpg) no-repeat; background-size: 600mm auto; background-position: -282mm -59mm; box-shadow: 0 6mm 14mm rgba(0,0,0,0.3); }
+  .couverture .ecole { position: absolute; top: 84mm; width: 100%; text-align: center; letter-spacing: 0.25em; font-size: 9.5pt; font-weight: 700; opacity: 0.85; }
+  .couverture .titre { position: absolute; top: 100mm; width: 100%; text-align: center; font-size: 46pt; font-weight: 900; letter-spacing: -0.01em; }
+  .couverture .titre span { color: #f39a63; }
+  .couverture .sous { position: absolute; top: 128mm; width: 100%; text-align: center; font-size: 20pt; font-weight: 600; }
+  .couverture .sous2 { position: absolute; top: 142mm; width: 100%; text-align: center; font-size: 11.5pt; opacity: 0.85; }
+  .couverture .apercu { position: absolute; top: 165mm; left: 50%; transform: translateX(-50%); width: 160mm; border-radius: 4mm; box-shadow: 0 10mm 24mm rgba(0,0,0,0.45); border: 1.2mm solid rgba(255,255,255,0.9); }
+  .couverture .pied { position: absolute; bottom: 12mm; width: 100%; text-align: center; font-size: 9pt; opacity: 0.8; }
+
+  /* Sommaire */
+  .sommaire ol { list-style: none; padding: 0; margin: 4mm 0 0; counter-reset: s; }
+  .sommaire li { counter-increment: s; display: flex; align-items: baseline; gap: 3mm; padding: 2.2mm 0; border-bottom: 1px dashed var(--bord); font-size: 11.5pt; }
+  .sommaire li::before { content: counter(s, decimal-leading-zero); color: var(--orange); font-weight: 800; min-width: 9mm; }
+  .sommaire li small { color: var(--gris); font-size: 9.5pt; margin-left: auto; }
+
+  /* Étapes */
+  ol.etapes { list-style: none; padding: 0; margin: 2mm 0 3mm; counter-reset: e; }
+  ol.etapes > li { counter-increment: e; position: relative; padding: 1.6mm 0 1.6mm 11mm; break-inside: avoid; }
+  ol.etapes > li::before { content: counter(e); position: absolute; left: 0; top: 1.2mm; width: 7mm; height: 7mm; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: 9.5pt; text-align: center; line-height: 7mm; }
+  .rep { display: inline-block; min-width: 5.6mm; height: 5.6mm; padding: 0 1.2mm; border-radius: 3mm; background: var(--orange); color: #fff; font-weight: 800; font-size: 8.5pt; line-height: 5.6mm; text-align: center; vertical-align: 0.3mm; }
+  .btn { display: inline-block; padding: 0.2mm 2mm; border-radius: 1.5mm; background: var(--pale); border: 1px solid #c9d6ea; color: var(--navy); font-weight: 700; font-size: 9.5pt; white-space: nowrap; }
+  .menu { font-weight: 700; color: var(--navy); }
+
+  /* Captures */
+  figure { margin: 2.5mm 0 3mm; break-inside: avoid; }
+  figure img { width: auto; max-width: 100%; max-height: 96mm; margin: 0 auto; border-radius: 2.5mm; border: 1px solid var(--bord); box-shadow: 0 1.5mm 4mm rgba(16,24,50,0.12); display: block; }
+  figure.grand img { max-height: 132mm; }
+  figure.etroit img { max-height: 80mm; }
+  figcaption { font-size: 9pt; color: var(--gris); margin-top: 1.8mm; text-align: center; }
+  figcaption b { color: var(--navy); }
+
+  /* Encadrés */
+  .note { break-inside: avoid; border-radius: 2.5mm; padding: 2.5mm 4mm; margin: 2.5mm 0; font-size: 9.8pt; }
+  .note b.t { display: block; margin-bottom: 1mm; font-size: 10.5pt; }
+  .note.info { background: #eef5ff; border-left: 1.4mm solid #2563eb; }
+  .note.info b.t { color: #1d4ed8; }
+  .note.astuce { background: #ecfdf5; border-left: 1.4mm solid #059669; }
+  .note.astuce b.t { color: #047857; }
+  .note.attention { background: #fff7ed; border-left: 1.4mm solid var(--orange); }
+  .note.attention b.t { color: #c2410c; }
+  .note ul { margin: 1mm 0 0; padding-left: 5mm; }
+  table.legende { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.8pt; break-inside: avoid; }
+  table.legende td { padding: 1.6mm 2mm; border-bottom: 1px solid var(--bord); vertical-align: top; }
+  table.legende td:first-child { width: 10mm; text-align: center; }
+  table.tab { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.8pt; break-inside: avoid; }
+  table.tab th { background: var(--navy); color: #fff; text-align: left; padding: 1.8mm 2.5mm; font-size: 9pt; }
+  table.tab td { padding: 1.6mm 2.5mm; border-bottom: 1px solid var(--bord); vertical-align: top; }
+  table.tab tr:nth-child(even) td { background: #f7f9fc; }
+  .pastille { display: inline-block; padding: 0.2mm 2mm; border-radius: 3mm; font-size: 8.8pt; font-weight: 700; color: #fff; }
+  .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .faq dt { font-weight: 700; color: var(--navy); margin-top: 3mm; }
+  .faq dd { margin: 0.8mm 0 0; }
+  .avertissement { font-size: 8.8pt; color: var(--gris); border-top: 1px solid var(--bord); padding-top: 2mm; margin-top: 6mm; }
+
+  /* ── Lecture à l'écran (ordinateur, tablette, téléphone) ── */
+  @media screen {
+    body { background: #eef2f8; padding: 14px; }
+    section { max-width: 900px; margin: 0 auto 16px; background: #fff; border-radius: 14px; padding: 22px 26px;
+      box-shadow: 0 2px 10px rgba(16,24,50,0.08); }
+    .chapitre { break-before: auto; }
+    .couverture { height: auto; padding: 34px 18px 26px; text-align: center; color: #fff; }
+    .couverture > * { position: static !important; transform: none !important; }
+    .couverture .bande { display: none; }
+    .couverture .logo { margin: 0 auto 14px; width: 96px; height: 96px; background-size: 1600px auto; background-position: -752px -157px; }
+    .couverture .titre { font-size: 40px; margin: 6px 0; }
+    .couverture .sous { font-size: 21px; }
+    .couverture .sous2 { font-size: 14px; margin: 6px 0 18px; }
+    .couverture .apercu { display: block; width: 100%; max-width: 620px; margin: 0 auto 14px; }
+    .couverture .pied { font-size: 12px; }
+    figure img { max-height: none !important; width: 100%; }
+    figure.etroit img { width: 80%; }
+  }
+  @media screen and (max-width: 640px) {
+    body { padding: 6px; font-size: 15px; }
+    section { padding: 16px 14px; border-radius: 10px; }
+    h2 { font-size: 21px; }
+    .deux { grid-template-columns: 1fr; }
+    figure.etroit img { width: 100%; }
+    table.tab, table.legende { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ COUVERTURE ═══════════════════════════ -->
+<section class="couverture">
+  <div class="bande"></div>
+  <div class="logo"></div>
+  <div class="ecole">ÉCOLE SUPÉRIEURE DE RABAT EN MANAGEMENT ET INGÉNIERIE</div>
+  <div class="titre">ECO<span>GEST</span></div>
+  <div class="sous">Guide d'utilisation de l'espace étudiant</div>
+  <div class="sous2">Toutes les opérations, pas à pas, avec un aperçu de chaque écran</div>
+  <img class="apercu" src="img/17_notes_synthetique.jpg" alt="">
+  <div class="pied">Édition octobre 2026 · Année universitaire 2026-2027</div>
+</section>
+
+<!-- ═══════════════════════════ SOMMAIRE ═══════════════════════════ -->
+<section class="chapitre sommaire">
+  <h2>Sommaire</h2>
+  <ol>
+    <li>Présentation d'ECOGEST <small>ce que vous pouvez faire</small></li>
+    <li>Se connecter et se déconnecter <small>compte @esrmi.ma</small></li>
+    <li>Découvrir l'interface <small>menu, recherche, favoris, photo</small></li>
+    <li>Mon calendrier <small>rentrée, examens, vacances, jours fériés</small></li>
+    <li>Mes paiements <small>solde, versements, reçus, historique</small></li>
+    <li>Mes demandes <small>documents et messages à l'administration</small></li>
+    <li>Ma planification des cours et des examens <small>séances, Teams, dates d'examens</small></li>
+    <li>Mes supports &amp; Enregistrements Teams <small>cours en replay et supports</small></li>
+    <li>Mes absences <small>synthèse, détail, taux par module</small></li>
+    <li>Mes notes <small>relevés synthétique et détaillé</small></li>
+    <li>Guide d'utilisation <small>votre brochure personnalisée</small></li>
+    <li>Utiliser ECOGEST sur téléphone <small>menu ☰</small></li>
+    <li>Questions fréquentes <small>et à qui s'adresser</small></li>
+  </ol>
+  <div class="note info" style="margin-top:8mm">
+    <b class="t">Comment lire ce guide</b>
+    Chaque opération est décrite en <b>étapes numérotées</b> (cercles bleus). Sur les captures d'écran, les <span class="rep">1</span> <span class="rep">2</span> orange
+    indiquent l'endroit exact où cliquer ou saisir : ils correspondent aux légendes placées sous chaque image.
+    Les noms des boutons et des menus sont écrits <span class="btn">comme ceci</span>.
+  </div>
+  <p class="avertissement">Les captures de ce guide ont été réalisées avec le compte de démonstration <b>SALIM SALMI</b> et des données
+  fictives (notes, absences, paiements, demandes, enseignants). Votre écran affichera vos propres informations, mais la présentation et
+  les opérations sont strictement identiques.</p>
+</section>
+
+<!-- ═══════════════════════════ 1. PRÉSENTATION ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>1. Présentation d'ECOGEST</h2>
+  <p class="intro">ECOGEST est l'application de gestion de l'École Supérieure de Rabat. Votre <b>espace étudiant</b> rassemble, au même endroit,
+  toutes les informations qui vous concernent, mises à jour en temps réel par l'administration et vos enseignants.</p>
+  <table class="tab">
+    <tr><th style="width:52mm">Menu</th><th>Ce que vous y trouvez</th></tr>
+    <tr><td class="menu">🗓️ Mon calendrier</td><td>Les dates importantes de l'année : rentrée, contrôles, examens, vacances, jours fériés, réunions.</td></tr>
+    <tr><td class="menu">💰 Mes paiements</td><td>Votre situation financière : total à payer, montant réglé, reste à payer, détail de chaque versement et impression des reçus.</td></tr>
+    <tr><td class="menu">📨 Mes demandes</td><td>Demander une attestation ou un relevé, écrire à l'administration et suivre les réponses.</td></tr>
+    <tr><td class="menu">📅 Ma planification des cours et des examens</td><td>Votre emploi du temps semaine par semaine, les liens Teams des cours à distance et les dates de contrôle continu et d'examen.</td></tr>
+    <tr><td class="menu">📎 Mes supports &amp; Enregistrements Teams</td><td>Les enregistrements des cours (replay) et les supports de cours de chacun de vos modules.</td></tr>
+    <tr><td class="menu">✅ Mes absences</td><td>Vos absences, séance par séance, et votre taux d'absence par module.</td></tr>
+    <tr><td class="menu">📊 Mes notes</td><td>Toutes vos évaluations et vos relevés de notes par semestre.</td></tr>
+    <tr><td class="menu">📖 Guide d'utilisation</td><td>Votre brochure personnalisée, avec vos paramètres de connexion.</td></tr>
+  </table>
+  <div class="note astuce">
+    <b class="t">Ce dont vous avez besoin</b>
+    <ul>
+      <li>Votre <b>adresse e-mail scolaire</b> (se terminant par <b>@esrmi.ma</b>) et son <b>mot de passe</b>, remis par l'administration à votre inscription.</li>
+      <li>Un ordinateur, une tablette ou un téléphone avec un navigateur récent (Microsoft Edge, Google Chrome, Safari ou Firefox).</li>
+      <li>Une connexion Internet. Aucune installation n'est nécessaire.</li>
+    </ul>
+  </div>
+  <div class="note info">
+    <b class="t">Vos données sont personnelles</b>
+    Votre espace n'affiche que <b>vos</b> informations : personne d'autre ne voit vos notes, vos absences ou vos paiements depuis un compte étudiant.
+    Ne communiquez jamais votre mot de passe, et déconnectez-vous toujours sur un ordinateur partagé.
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 2. CONNEXION ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>2. Se connecter et se déconnecter</h2>
+  <h3><span class="num">2.1</span>Se connecter</h3>
+  <ol class="etapes">
+    <li>Ouvrez votre navigateur et saisissez l'adresse d'ECOGEST communiquée par l'école : <b>esrmi.github.io/ecogest/ECOGEST.html</b>.
+      Nous vous conseillons de l'ajouter à vos favoris.</li>
+    <li>La page d'accueil présente quatre espaces. Repérez la carte orange <b>Étudiants</b> <span class="rep">1</span>.</li>
+    <li>Cliquez sur son bouton <span class="btn">Se connecter</span>.</li>
+    <li>La fenêtre de connexion Microsoft s'ouvre. Saisissez votre <b>adresse @esrmi.ma</b>, cliquez sur <span class="btn">Suivant</span>,
+      puis saisissez votre <b>mot de passe</b> et cliquez sur <span class="btn">Se connecter</span>.</li>
+    <li>Si Microsoft vous demande <i>« Rester connecté ? »</i>, répondez <span class="btn">Oui</span> sur votre appareil personnel,
+      <span class="btn">Non</span> sur un ordinateur partagé.</li>
+    <li>Votre espace étudiant s'affiche : la première page est <span class="menu">Mon calendrier</span>.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/01_connexion.jpg" alt="Page d'accueil d'ECOGEST">
+    <figcaption><b>Page d'accueil.</b> <span class="rep">1</span> Carte « Étudiants » et son bouton « Se connecter ».</figcaption>
+  </figure>
+  <div class="deux">
+  <div class="note attention">
+    <b class="t">Première connexion</b>
+    Lors de votre toute première connexion, Microsoft peut vous demander de <b>remplacer votre mot de passe provisoire</b> par un mot de passe
+    personnel, puis d'ajouter une méthode de vérification (numéro de téléphone ou application Microsoft Authenticator). Suivez simplement
+    les écrans proposés. Votre nouveau mot de passe est le même pour ECOGEST, Teams et votre messagerie @esrmi.ma.
+  </div>
+  <div class="note info">
+    <b class="t">Bon à savoir</b>
+    <ul>
+      <li>Votre espace est <b>reconnu automatiquement</b> à partir de votre compte : même si vous cliquez sur une autre carte, vous arrivez dans l'espace étudiant.</li>
+      <li>Si la page reste blanche ou ne se met pas à jour, actualisez-la (touche <b>F5</b> sur ordinateur).</li>
+      <li>Votre session reste ouverte tant que l'onglet est ouvert ; elle se prolonge automatiquement.</li>
+    </ul>
+  </div>
+  </div>
+  <h3><span class="num">2.2</span>Se déconnecter</h3>
+  <ol class="etapes">
+    <li>Cliquez sur le bouton <span class="btn">Déconnexion</span>, tout en bas du menu de gauche (ou sur l'icône de sortie ⟶ de votre carte de profil).</li>
+    <li>Vous revenez à la page d'accueil. Sur un ordinateur partagé, fermez aussi la fenêtre du navigateur.</li>
+  </ol>
+</section>
+
+<!-- ═══════════════════════════ 3. INTERFACE ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>3. Découvrir l'interface</h2>
+  <p class="intro">L'écran est divisé en deux parties : le <b>menu</b> à gauche, toujours visible, et la <b>page</b> ouverte à droite.</p>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/02_interface.jpg" alt="Interface de l'espace étudiant">
+    <figcaption><b>Les éléments de l'interface.</b></figcaption>
+  </figure>
+  <table class="legende">
+    <tr><td><span class="rep">1</span></td><td><b>Votre carte de profil</b> : nom, statut « Étudiant », adresse e-mail et groupe. Les deux petits boutons du bas ouvrent le
+      <span class="menu">Guide d'utilisation</span> (à gauche) et vous <b>déconnectent</b> (à droite).</td></tr>
+    <tr><td><span class="rep">2</span></td><td><b>Rechercher une page</b> : tapez quelques lettres (par exemple « notes ») pour retrouver et ouvrir un menu instantanément.</td></tr>
+    <tr><td><span class="rep">3</span></td><td><b>Le menu</b>, en deux rubriques : <i>Administratif</i> (calendrier, paiements, demandes) et <i>Pédagogie</i>
+      (planification, ressources, absences, notes, guide). Le menu ouvert est surligné.</td></tr>
+    <tr><td><span class="rep">4</span></td><td><b>L'étoile ☆</b> épingle un menu dans vos <b>Favoris</b>, affichés sous forme de boutons ronds en haut du menu.
+      Cliquez à nouveau sur l'étoile pour le retirer. Astuce : épinglez les menus que vous consultez le plus (par exemple <span class="menu">Ma planification</span> et <span class="menu">Mes notes</span>).</td></tr>
+    <tr><td><span class="rep">5</span></td><td><b>Déconnexion</b>. Juste au-dessus, l'indicateur de synchronisation et le bouton 🔄 qui recharge immédiatement vos données.</td></tr>
+  </table>
+  <h3><span class="num">3.1</span>Ajouter une photo de profil</h3>
+  <ol class="etapes">
+    <li>Placez la souris sur le cercle de vos initiales, dans votre carte de profil : une petite icône 📷 apparaît.</li>
+    <li>Cliquez sur le cercle (<span class="btn">Ajouter une photo</span>), puis choisissez une photo sur votre appareil.</li>
+    <li>La photo remplace vos initiales et est conservée pour vos prochaines connexions.</li>
+  </ol>
+</section>
+
+
+<!-- ═══════════════════════════ 4. CALENDRIER ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>4. Mon calendrier</h2>
+  <p class="intro">Le calendrier scolaire regroupe tous les événements de l'année qui vous concernent : ceux de toute l'école et ceux de votre groupe.</p>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/03_calendrier.jpg" alt="Mon calendrier">
+    <figcaption><b>Mon calendrier.</b> <span class="rep">1</span> Prochain événement · <span class="rep">2</span> Filtres par type.</figcaption>
+  </figure>
+  <h3><span class="num">4.1</span>Consulter le calendrier</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mon calendrier</span> dans le menu (c'est aussi la page qui s'ouvre à la connexion).</li>
+    <li>Le bandeau du haut <span class="rep">1</span> affiche le <b>prochain événement</b> et le nombre de <b>jours restants</b>.</li>
+    <li>En dessous, les événements sont classés <b>par mois</b>, dans l'ordre chronologique. Chacun indique son titre, sa date (ou sa période)
+      et, s'il ne concerne qu'un groupe, le nom de ce groupe.</li>
+    <li>Pour n'afficher qu'un type d'événement, cliquez sur un filtre <span class="rep">2</span> : <span class="btn">Examen</span>,
+      <span class="btn">Vacances</span>, <span class="btn">Jour férié</span>, <span class="btn">Rentrée</span>, <span class="btn">Réunion</span>
+      ou <span class="btn">Autre</span>. Cliquez sur <span class="btn">Tous</span> pour tout réafficher.</li>
+  </ol>
+  <div class="note info"><b class="t">Bon à savoir</b>Les couleurs vous aident à repérer les événements d'un coup d'œil : rouge pour les examens, vert pour les vacances,
+  orange pour les jours fériés, bleu pour la rentrée. Le calendrier est mis à jour par l'administration : consultez-le régulièrement.</div>
+</section>
+
+<!-- ═══════════════════════════ 5. PAIEMENTS ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>5. Mes paiements</h2>
+  <p class="intro">Cette page présente votre situation financière pour l'année universitaire choisie. Elle est en lecture seule :
+  les versements sont enregistrés par le service financier.</p>
+  <h3><span class="num">5.1</span>Consulter votre solde</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mes paiements</span>.</li>
+    <li>Vérifiez l'<b>année universitaire affichée</b> <span class="rep">1</span> ; changez-la si besoin dans la liste déroulante.
+      Les données de chaque année sont toujours présentées séparément.</li>
+    <li>L'onglet <span class="btn">💰 Solde</span> <span class="rep">2</span> affiche cinq indicateurs : <b>Total à payer</b>, <b>Total payé</b>,
+      <b>Reste à payer</b>, <b>Remises accordées</b> et <b>Taux de paiement</b>, ainsi que vos informations (filière, promotion, responsable financier).</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/04_paiements_solde.jpg" alt="Mes paiements — Solde">
+    <figcaption><b>Onglet Solde.</b> <span class="rep">1</span> Année affichée · <span class="rep">2</span> Les quatre onglets.</figcaption>
+  </figure>
+  <h3><span class="num">5.2</span>Consulter vos versements et imprimer un reçu</h3>
+  <ol class="etapes">
+    <li>Cliquez sur l'onglet <span class="btn">💳 Versements</span>.</li>
+    <li>Chaque versement apparaît avec son <b>montant</b>, son <b>motif</b> (frais d'inscription, frais de formation…), sa <b>date</b>,
+      son <b>mode de paiement</b>, sa <b>référence</b> et son <b>numéro de reçu</b>.</li>
+    <li>Pour obtenir le reçu d'un versement, cliquez sur <span class="btn">🖨️ Reçu</span> <span class="rep">1</span> sur la ligne concernée.</li>
+    <li>Le reçu s'ouvre au format d'impression : imprimez-le ou choisissez <b>« Enregistrer au format PDF »</b> comme imprimante pour le conserver.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/05_paiements_versements.jpg" alt="Mes paiements — Versements">
+    <figcaption><b>Onglet Versements.</b> <span class="rep">1</span> Bouton d'impression du reçu.</figcaption>
+  </figure>
+  <h3><span class="num">5.3</span>Remises et historique</h3>
+  <ol class="etapes">
+    <li>L'onglet <span class="btn">🎁 Remises</span> liste les éventuelles réductions ou bourses accordées pour l'année.</li>
+    <li>L'onglet <span class="btn">📋 Historique</span> retrace, dans l'ordre chronologique, toutes les opérations enregistrées sur votre compte.</li>
+  </ol>
+  <figure class="etroit">
+    <img loading="lazy" decoding="async" src="img/06_paiements_historique.jpg" alt="Mes paiements — Historique">
+    <figcaption><b>Onglet Historique.</b></figcaption>
+  </figure>
+  <div class="note attention"><b class="t">Un montant vous semble incorrect ?</b>
+  Envoyez un message à l'administration depuis <span class="menu">Mes demandes</span> (voir chapitre 6), en précisant la date et le numéro de reçu concernés.</div>
+</section>
+
+<!-- ═══════════════════════════ 6. DEMANDES ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>6. Mes demandes</h2>
+  <p class="intro">Demandez un document administratif ou écrivez à l'administration, puis suivez l'avancement et les réponses, au même endroit.</p>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/07_demandes_liste.jpg" alt="Mes demandes et messages">
+    <figcaption><b>Mes demandes et messages.</b> <span class="rep">1</span> Écrire à l'administration · <span class="rep">2</span> Nouvelle demande ·
+    <span class="rep">3</span> Conversation avec un nouveau message.</figcaption>
+  </figure>
+  <h3><span class="num">6.1</span>Demander un document</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mes demandes</span>, puis sur <span class="btn">+ Nouvelle demande</span> en haut à droite.</li>
+    <li>Choisissez l'<b>année universitaire concernée</b> <span class="rep">1</span>.</li>
+    <li>Choisissez le <b>document souhaité</b> <span class="rep">2</span> : attestation d'inscription, attestation de scolarité, attestation de réussite,
+      relevé de notes ou autre.</li>
+    <li>Ajoutez si besoin un <b>commentaire</b> <span class="rep">3</span> (par exemple l'organisme destinataire ou le motif).</li>
+    <li>Cliquez sur <span class="btn">Envoyer la demande</span> <span class="rep">4</span>. Elle apparaît aussitôt dans la rubrique <b>En attente</b>.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/08_demandes_nouvelle.jpg" alt="Nouvelle demande de document">
+    <figcaption><b>Formulaire de demande.</b> <span class="rep">1</span> Année · <span class="rep">2</span> Document · <span class="rep">3</span> Commentaire · <span class="rep">4</span> Envoi.</figcaption>
+  </figure>
+  <h3><span class="num">6.2</span>Écrire à l'administration</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">✉️ Écrire à l'administration</span> (ou choisissez <b>« Envoyer un message à l'administration »</b>, en rouge, dans la liste des documents).</li>
+    <li>Rédigez votre message <span class="rep">1</span> : il est obligatoire. L'année universitaire est facultative.</li>
+    <li>Cliquez sur <span class="btn">Envoyer</span> <span class="rep">2</span>. L'administration et la direction sont prévenues par e-mail.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/09_demandes_message.jpg" alt="Écrire à l'administration">
+    <figcaption><b>Message à l'administration.</b> <span class="rep">1</span> Votre message · <span class="rep">2</span> Envoi.</figcaption>
+  </figure>
+  <h3><span class="num">6.3</span>Suivre une demande et répondre</h3>
+  <ol class="etapes">
+    <li>Vos demandes sont classées par <b>statut</b> (voir tableau ci-dessous).</li>
+    <li>Quand l'administration vous répond, la colonne <b>Conversation</b> affiche <span class="btn">💬 1 message</span> avec le badge <b>Nouveau</b>,
+      et vous recevez un e-mail sur votre adresse @esrmi.ma.</li>
+    <li>Cliquez sur ce bouton pour ouvrir la conversation : vos messages sont à droite, ceux de l'administration à gauche.</li>
+    <li>Pour répondre, écrivez dans la zone de texte <span class="rep">1</span> puis cliquez sur <span class="btn">Envoyer</span> <span class="rep">2</span>
+      (ou appuyez sur <b>Ctrl + Entrée</b>). Vous pouvez aussi ouvrir une conversation sur n'importe quelle demande avec <span class="btn">💬 Écrire</span>.</li>
+    <li>Lorsqu'une demande est <b>traitée</b>, la réponse de l'administration s'affiche dans la colonne <b>Réponse</b>.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/10_demandes_conversation.jpg" alt="Conversation">
+    <figcaption><b>Conversation.</b> <span class="rep">1</span> Votre réponse · <span class="rep">2</span> Envoi.</figcaption>
+  </figure>
+  <table class="tab">
+    <tr><th style="width:35mm">Statut</th><th>Signification</th></tr>
+    <tr><td><span class="pastille" style="background:#c99a2e">En attente</span></td><td>Votre demande est enregistrée et n'a pas encore été prise en charge.</td></tr>
+    <tr><td><span class="pastille" style="background:#0d9488">En cours</span></td><td>L'administration traite votre demande (ou vous a répondu).</td></tr>
+    <tr><td><span class="pastille" style="background:#2e7d52">Prête</span></td><td>Le document est prêt : vous pouvez le retirer au secrétariat.</td></tr>
+    <tr><td><span class="pastille" style="background:#1a2f5e">Délivrée</span></td><td>Le document vous a été remis.</td></tr>
+    <tr><td><span class="pastille" style="background:#7c3aed">Traité</span></td><td>La demande est close ; la réponse de l'administration est affichée.</td></tr>
+    <tr><td><span class="pastille" style="background:#c0392b">Rejetée</span></td><td>La demande ne peut pas aboutir ; consultez la réponse ou la conversation pour en connaître la raison.</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════════════════ 7. PLANIFICATION ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>7. Ma planification des cours et des examens</h2>
+  <p class="intro">Retrouvez votre emploi du temps semaine par semaine, rejoignez vos cours à distance et consultez les dates de vos évaluations.</p>
+  <h3><span class="num">7.1</span>Consulter vos séances de la semaine</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Ma planification des cours et des examens</span>, puis sur la tuile <span class="btn">Mes séances</span> (ouverte par défaut).</li>
+    <li>Choisissez le <b>semestre</b> <span class="rep">1</span>.</li>
+    <li>Choisissez la <b>semaine</b> dans la liste <span class="rep">2</span>, ou passez d'une semaine à l'autre avec les flèches <span class="btn">◀</span> et
+      <span class="btn">▶</span>. La semaine en cours est affichée à l'ouverture.</li>
+    <li>La grille présente une colonne par jour et une ligne par demi-heure. Chaque séance indique le <b>module</b>, l'<b>enseignant</b>, l'<b>horaire</b>,
+      la période du module, le mode (<b>📍 Présentiel</b> avec la salle, ou <b>💻 À distance</b>) et les dates de <b>CC</b> (contrôle continu) et d'<b>EFM</b> (examen de fin de module).</li>
+    <li>Pour une lecture plus compacte, les <b>jours et heures sans séance sont masqués</b> : une fine bande hachurée remplace les plages vides.
+      Cliquez sur <span class="btn">↕ Afficher tous les jours et toutes les heures</span> pour voir la grille complète, puis sur
+      <span class="btn">↕ Masquer les jours et heures sans séance</span> pour revenir à l'affichage compact.</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/11_planif_seances.jpg" alt="Planification des séances">
+    <figcaption><b>Planification des séances.</b> <span class="rep">1</span> Semestre · <span class="rep">2</span> Semaine · <span class="rep">3</span> Rejoindre un cours à distance.</figcaption>
+  </figure>
+  <h3><span class="num">7.2</span>Rejoindre un cours à distance (Teams)</h3>
+  <ol class="etapes">
+    <li>Au moment du cours, repérez la séance marquée <b>💻 À distance</b>.</li>
+    <li>Cliquez sur <span class="btn">💻 Rejoindre Teams</span> <span class="rep">3</span>.</li>
+    <li>Teams s'ouvre (application ou navigateur). <b>Connectez-vous avec votre compte @esrmi.ma</b> avant d'entrer dans la réunion :
+      votre présence est ainsi correctement identifiée.</li>
+  </ol>
+  <div class="note attention"><b class="t">Important</b>Rejoignez toujours vos cours avec votre compte scolaire <b>@esrmi.ma</b>, et non comme « invité » ou avec un compte personnel.</div>
+  <h3><span class="num">7.3</span>Consulter les dates de contrôle continu et d'examen</h3>
+  <ol class="etapes">
+    <li>Cliquez sur la tuile <span class="btn">Mes examens</span>.</li>
+    <li>Choisissez le semestre.</li>
+    <li>Le tableau donne, pour chaque module, l'enseignant, la date du <b>contrôle continu</b> et celle de l'<b>examen de fin de module</b>,
+      avec le nombre de jours restants (« Dans 45 j »).</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/12_planif_examens.jpg" alt="Planification des examens">
+    <figcaption><b>Planification des examens.</b></figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════ 8. RESSOURCES ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>8. Mes supports &amp; Enregistrements Teams</h2>
+  <p class="intro">Revoyez vos cours enregistrés (« replay ») et téléchargez les supports de cours, module par module.</p>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/13_ressources.jpg" alt="Mes supports et enregistrements Teams">
+    <figcaption><b>Mes supports &amp; Enregistrements Teams.</b> <span class="rep">1</span> Dernière séance disponible · <span class="rep">2</span> Carte d'un module · <span class="rep">3</span> La semaine en replay.</figcaption>
+  </figure>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mes supports &amp; Enregistrements Teams</span>. Vérifiez l'année universitaire en haut de page.</li>
+    <li>Le grand bandeau <span class="rep">1</span> propose la <b>dernière séance enregistrée</b> : cliquez sur <span class="btn">Regarder maintenant</span>.</li>
+    <li>Les cartes <span class="rep">2</span> regroupent vos modules du semestre. Cliquez sur la partie <b>▶</b> d'une carte pour ouvrir les
+      <b>enregistrements</b> du module, ou sur <span class="btn">📚 Supports</span> pour ouvrir ses <b>supports de cours</b>.
+      Un cadenas 🔒 « Replay bientôt » signifie que l'enregistrement n'est pas encore disponible.</li>
+    <li>La section <b>Cette semaine en replay</b> <span class="rep">3</span> liste les séances de la semaine, jour par jour : cliquez sur
+      <span class="btn">▶ replay</span> pour revoir une séance précise.</li>
+    <li>Si un document vient d'être ajouté, cliquez sur <span class="btn">🔄 Actualiser les documents</span>.</li>
+  </ol>
+  <div class="note info"><b class="t">Un lien affiche « Accès refusé » ?</b>
+  Les enregistrements et supports sont stockés dans l'espace Microsoft 365 de l'école. Assurez-vous d'être connecté au navigateur avec votre
+  compte <b>@esrmi.ma</b> (et non un compte personnel), puis réessayez. Le lien <span class="btn">▸ Un lien affiche « Accès refusé » ?</span>, en bas de page, rappelle la marche à suivre.</div>
+</section>
+
+<!-- ═══════════════════════════ 9. ABSENCES ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>9. Mes absences</h2>
+  <p class="intro">Suivez vos absences enregistrées par vos enseignants et votre taux d'absence par module. La page propose trois vues, à choisir en haut de page.</p>
+  <div class="note attention"><b class="t">Justifier une absence</b>
+  Remettez votre justificatif (certificat médical…) à l'administration, ou envoyez un message depuis <span class="menu">Mes demandes</span>
+  en précisant la date, l'horaire et le module. Une fois l'absence justifiée par l'administration, son statut passe à <b>✓ Justifié</b>.
+  Surveillez votre taux : au-delà de <b>25 %</b> d'absence dans un module (seuil officiel de l'établissement), votre situation est signalée.</div>
+  <h3><span class="num">9.1</span>Synthèse par module</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mes Absences</span>, puis sur <span class="btn">📚 Synthèse par module</span>.</li>
+    <li>Filtrez si besoin par <b>année universitaire</b> et par <b>semestre</b>.</li>
+    <li>Pour chaque module : enseignant, volume horaire, nombre d'absences, <b>heures manquées</b> et <b>taux d'absence</b>.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/14_absences_synthese.jpg" alt="Synthèse des absences par module">
+    <figcaption><b>Synthèse par module.</b></figcaption>
+  </figure>
+  <h3><span class="num">9.2</span>Détail des séances absentées</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">🗓️ Détail des séances absentées</span>.</li>
+    <li>Utilisez les filtres : semestre, module, enseignant, statut (<b>non justifiées</b> / <b>justifiées</b>) et année.</li>
+    <li>Chaque ligne indique la date, l'horaire de la séance, le module, l'enseignant et le statut : <b>⚠️ Non justifiée</b>, ou
+      <b>✓ Justifié</b> avec la personne qui l'a justifiée et la date.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/15_absences_detail.jpg" alt="Détail des absences">
+    <figcaption><b>Détail des séances absentées.</b></figcaption>
+  </figure>
+  <h3><span class="num">9.3</span>Taux d'absence par module (graphique)</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">📊 Taux d'absence par module (graphique)</span>, puis choisissez l'année et le semestre.</li>
+    <li>Le graphique et la liste montrent, pour chaque module, les heures manquées sur le volume total et le pourcentage correspondant.</li>
+  </ol>
+  <figure class="etroit">
+    <img loading="lazy" decoding="async" src="img/16_absences_graphique.jpg" alt="Taux d'absence par module">
+    <figcaption><b>Taux d'absence par module.</b></figcaption>
+  </figure>
+
+</section>
+
+<!-- ═══════════════════════════ 10. NOTES ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>10. Mes notes</h2>
+  <p class="intro">Consultez vos relevés de notes par semestre et la liste complète de vos évaluations.</p>
+  <div class="note info"><b class="t">Bon à savoir</b>
+  <ul>
+    <li>Une note apparaît dès qu'elle est saisie par l'enseignant ou l'administration.</li>
+    <li>La note du module et la décision sont calculées automatiquement selon les règles de l'établissement.</li>
+    <li>Pour obtenir un <b>relevé officiel</b> signé, faites une demande de « Relevé de notes » dans <span class="menu">Mes demandes</span>.</li>
+    <li>Une erreur sur une note ? Écrivez à l'administration depuis <span class="menu">Mes demandes</span> en précisant le module et l'évaluation.</li>
+  </ul></div>
+  <h3><span class="num">10.1</span>Relevé synthétique</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Mes notes</span>, puis sur <span class="btn">📋 Mes relevés de notes</span> (ouvert par défaut).</li>
+    <li>Choisissez l'<b>année universitaire</b> à côté de « Relevés — Année universitaire ».</li>
+    <li>Sur la ligne du semestre souhaité, cliquez sur <span class="btn">📋 Voir le relevé synthétique</span>.</li>
+    <li>Le relevé présente, pour chaque module : la <b>moyenne CC/TP</b>, la <b>note EFM</b> (examen de fin de module), la <b>note du module</b>,
+      l'éventuelle <b>note de rattrapage</b> et la <b>décision</b>. La <b>moyenne du semestre</b> figure en bas.</li>
+    <li>Cliquez sur <span class="btn">Masquer le relevé synthétique</span> pour le refermer.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/17_notes_synthetique.jpg" alt="Relevé synthétique">
+    <figcaption><b>Relevé synthétique</b> (données fictives du compte de démonstration).</figcaption>
+  </figure>
+  <h3><span class="num">10.2</span>Relevé détaillé</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">📋 Voir le relevé détaillé</span>.</li>
+    <li>Toutes les évaluations du semestre s'affichent, de la plus récente à la plus ancienne : date, module, <b>type d'évaluation</b>
+      (<span style="color:#0e9187;font-weight:700">Contrôle continu</span>, <span style="color:#e56b2d;font-weight:700">Examen de fin de module</span>, Rattrapage) et note sur 20.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/18_notes_detaille.jpg" alt="Relevé détaillé">
+    <figcaption><b>Relevé détaillé des évaluations.</b></figcaption>
+  </figure>
+  <h3><span class="num">10.3</span>Détail de toutes mes évaluations</h3>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="btn">🗓️ Détail de toutes mes évaluations</span>.</li>
+    <li>La liste complète de vos notes, toutes années et tous semestres confondus, s'affiche. Utilisez les filtres (recherche, semestre, module, type, année) pour la réduire.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/19_notes_evaluations.jpg" alt="Détail de toutes les évaluations">
+    <figcaption><b>Détail de toutes les évaluations.</b></figcaption>
+  </figure>
+
+</section>
+
+<!-- ═══════════════════════════ 11 & 12 ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>11. Guide d'utilisation</h2>
+  <ol class="etapes">
+    <li>Cliquez sur <span class="menu">Guide d'utilisation</span> dans le menu, ou sur le petit bouton 📖 de votre carte de profil.</li>
+    <li>Votre <b>brochure personnalisée</b> s'affiche directement dans la page. Elle reprend vos paramètres de connexion (adresse e-mail et identifiants)
+      et est générée dans votre navigateur : elle n'est ni envoyée ni stockée ailleurs.</li>
+    <li>Si elle ne s'affiche pas, cliquez sur le lien <b>« Ouvrez-le dans un nouvel onglet »</b> sous la brochure. Vous pouvez ensuite l'imprimer ou l'enregistrer en PDF.</li>
+  </ol>
+  <div class="note attention"><b class="t">Confidentialité</b>Cette brochure contient vos identifiants : ne la partagez pas et ne l'imprimez pas sur un poste public.</div>
+
+  <h2 style="margin-top:10mm">12. Utiliser ECOGEST sur téléphone</h2>
+  <p class="intro">ECOGEST s'adapte automatiquement aux téléphones et aux tablettes : toutes les opérations de ce guide y sont disponibles.</p>
+  <ol class="etapes">
+    <li>Ouvrez l'adresse d'ECOGEST dans le navigateur de votre téléphone et connectez-vous comme indiqué au chapitre 2.</li>
+    <li>Le menu est replié : touchez le bouton <span class="btn">☰</span> en haut à gauche pour l'ouvrir, puis touchez le menu souhaité.
+      Le bouton <span class="btn">✕</span> referme le menu.</li>
+    <li>Les tableaux s'affichent sous forme de <b>fiches</b> faciles à lire : une fiche par module, par note ou par absence.</li>
+    <li>Dans <span class="btn">Mes séances</span>, la grille affiche <b>un seul jour à la fois</b>, en pleine largeur : choisissez le jour dans la
+      barre <span class="btn">◀ Lun Mar Mer… ▶</span> (le nombre de séances est indiqué sous chaque jour ; aujourd'hui est sélectionné à l'ouverture).</li>
+    <li>Les listes de choix s'ouvrent dans un volet en bas de l'écran : touchez simplement l'option voulue.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/20_mobile.jpg" alt="ECOGEST sur téléphone" style="width:82%;margin:0 auto;border:none;box-shadow:none">
+    <figcaption><b>Sur téléphone :</b> à gauche, un relevé de notes en fiches ; à droite, le menu ouvert avec le bouton ☰.</figcaption>
+  </figure>
+  <div class="note astuce"><b class="t">Astuce</b>Ajoutez ECOGEST à l'écran d'accueil de votre téléphone (menu du navigateur → <b>« Ajouter à l'écran d'accueil »</b>) pour l'ouvrir comme une application.</div>
+</section>
+
+<!-- ═══════════════════════════ 13. FAQ ═══════════════════════════ -->
+<section class="chapitre">
+  <h2>13. Questions fréquentes</h2>
+  <dl class="faq">
+    <dt>J'ai oublié mon mot de passe.</dt>
+    <dd>Sur la fenêtre de connexion Microsoft, cliquez sur <b>« Mot de passe oublié ? »</b> si l'option est proposée ; sinon, adressez-vous à l'administration,
+      qui pourra le réinitialiser.</dd>
+    <dt>Je vois un message « compte non reconnu » ou une page vide après la connexion.</dt>
+    <dd>Vérifiez que vous utilisez bien votre adresse <b>@esrmi.ma</b>. Déconnectez-vous, actualisez la page puis reconnectez-vous. Si le problème persiste,
+      contactez l'administration : votre fiche étudiant doit être associée à votre adresse.</dd>
+    <dt>Une information est erronée (nom, groupe, note, absence, paiement).</dt>
+    <dd>Écrivez à l'administration depuis <span class="menu">Mes demandes</span> → <span class="btn">✉️ Écrire à l'administration</span>, en donnant le maximum de précisions.</dd>
+    <dt>Mes nouvelles notes ou absences n'apparaissent pas.</dt>
+    <dd>Cliquez sur le bouton 🔄 en bas du menu (synchronisation) ou actualisez la page. Si l'information manque toujours, elle n'a pas encore été saisie.</dd>
+    <dt>Le bouton « Rejoindre Teams » n'ouvre pas le cours.</dt>
+    <dd>Vérifiez que Teams est connecté avec votre compte @esrmi.ma. Vous pouvez aussi rejoindre le cours depuis Teams sur le Web (teams.microsoft.com).</dd>
+    <dt>Un enregistrement ou un support affiche « Accès refusé ».</dt>
+    <dd>Connectez-vous au navigateur avec votre compte @esrmi.ma (et non un compte personnel), puis rouvrez le lien depuis ECOGEST.</dd>
+    <dt>Comment obtenir une attestation ou un relevé officiel ?</dt>
+    <dd>Faites une demande dans <span class="menu">Mes demandes</span> → <span class="btn">+ Nouvelle demande</span>. Vous serez informé par e-mail et dans ECOGEST
+      lorsque le document sera prêt.</dd>
+    <dt>Puis-je utiliser ECOGEST sur plusieurs appareils ?</dt>
+    <dd>Oui : ordinateur, tablette et téléphone. Pensez à vous déconnecter sur les appareils partagés.</dd>
+  </dl>
+  <div class="note info" style="margin-top:8mm"><b class="t">Besoin d'aide ?</b>
+  Pour toute question sur l'utilisation d'ECOGEST, écrivez à l'administration depuis <span class="menu">Mes demandes</span>
+  ou présentez-vous au secrétariat de l'école.</div>
+  <p class="avertissement">Guide de l'espace étudiant ECOGEST — édition octobre 2026 (version de l'application v3.792).
+  Les captures d'écran utilisent un compte de démonstration et des données fictives.</p>
+</section>
+
+</body>
+</html>
