@@ -75,7 +75,8 @@
   table.tab tr:nth-child(even) td { background: #f7f9fc; }
   .pastille { display: inline-block; padding: 0.2mm 2mm; border-radius: 3mm; font-size: 8.8pt; font-weight: 700; color: #fff; }
   .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-  .faq dt { font-weight: 700; color: var(--navy); margin-top: 3mm; }
+  .faq { font-size: 9.9pt; line-height: 1.45; }
+  .faq dt { font-weight: 700; color: var(--navy); margin-top: 2.2mm; }
   .faq dd { margin: 0.8mm 0 0; }
   .avertissement { font-size: 8.8pt; color: var(--gris); border-top: 1px solid var(--bord); padding-top: 2mm; margin-top: 6mm; }
 
@@ -130,12 +131,12 @@
     <li>Découvrir l'interface <small>menu, recherche, favoris, photo</small></li>
     <li>Mon calendrier <small>rentrée, examens, vacances, jours fériés</small></li>
     <li>Mes paiements <small>solde, versements, reçus, historique</small></li>
-    <li>Mes demandes <small>documents et messages à l'administration</small></li>
-    <li>Ma planification des cours et des examens <small>séances, Teams, dates d'examens</small></li>
-    <li>Mes supports &amp; Enregistrements Teams <small>cours en replay et supports</small></li>
+    <li>Guichet en ligne <small>documents, messages et livrables</small></li>
+    <li>Ma planification des cours et des examens <small>séances, examens, évaluations en ligne</small></li>
+    <li>Mes supports &amp; Enregistrements Teams <small>enregistrements et supports par module</small></li>
     <li>Mes absences <small>synthèse, détail, taux par module</small></li>
     <li>Mes notes <small>relevés synthétique et détaillé</small></li>
-    <li>Guide d'utilisation <small>votre brochure personnalisée</small></li>
+    <li>Guide d'utilisation <small>ce guide, à lire ou à télécharger</small></li>
     <li>Utiliser ECOGEST sur téléphone <small>menu ☰</small></li>
     <li>Questions fréquentes <small>et à qui s'adresser</small></li>
   </ol>
@@ -159,12 +160,12 @@
     <tr><th style="width:52mm">Menu</th><th>Ce que vous y trouvez</th></tr>
     <tr><td class="menu">🗓️ Mon calendrier</td><td>Les dates importantes de l'année : rentrée, contrôles, examens, vacances, jours fériés, réunions.</td></tr>
     <tr><td class="menu">💰 Mes paiements</td><td>Votre situation financière : total à payer, montant réglé, reste à payer, détail de chaque versement et impression des reçus.</td></tr>
-    <tr><td class="menu">📨 Mes demandes</td><td>Demander une attestation ou un relevé, écrire à l'administration et suivre les réponses.</td></tr>
-    <tr><td class="menu">📅 Ma planification des cours et des examens</td><td>Votre emploi du temps semaine par semaine, les liens Teams des cours à distance et les dates de contrôle continu et d'examen.</td></tr>
-    <tr><td class="menu">📎 Mes supports &amp; Enregistrements Teams</td><td>Les enregistrements des cours (replay) et les supports de cours de chacun de vos modules.</td></tr>
+    <tr><td class="menu">📨 Guichet en ligne</td><td>Demander une attestation ou un relevé, écrire à l'administration, envoyer vos livrables à vos professeurs, et suivre les réponses.</td></tr>
+    <tr><td class="menu">📅 Ma planification des cours et des examens</td><td>Votre emploi du temps semaine par semaine, les liens Teams des cours à distance, les dates et horaires des contrôles et examens, et vos évaluations à passer en ligne sur Teams.</td></tr>
+    <tr><td class="menu">📎 Mes supports &amp; Enregistrements Teams</td><td>Les enregistrements des séances et les supports de cours, module par module.</td></tr>
     <tr><td class="menu">✅ Mes absences</td><td>Vos absences, séance par séance, et votre taux d'absence par module.</td></tr>
     <tr><td class="menu">📊 Mes notes</td><td>Toutes vos évaluations et vos relevés de notes par semestre.</td></tr>
-    <tr><td class="menu">📖 Guide d'utilisation</td><td>Votre brochure personnalisée, avec vos paramètres de connexion.</td></tr>
+    <tr><td class="menu">📖 Guide d'utilisation</td><td>Ce guide illustré, à lire en ligne ou à télécharger en PDF.</td></tr>
   </table>
   <div class="note astuce">
     <b class="t">Ce dont vous avez besoin</b>
@@ -219,7 +220,7 @@
   <h3><span class="num">2.2</span>Se déconnecter</h3>
   <ol class="etapes">
     <li>Cliquez sur le bouton <span class="btn">Déconnexion</span>, tout en bas du menu de gauche (ou sur l'icône de sortie ⟶ de votre carte de profil).</li>
-    <li>Vous revenez à la page d'accueil. Sur un ordinateur partagé, fermez aussi la fenêtre du navigateur.</li>
+    <li>Vous revenez à la page d'accueil. Sur un ordinateur partagé, ECOGEST vous rappelle de vous <b>déconnecter aussi de Teams</b> : faites-le, puis fermez la fenêtre du navigateur.</li>
   </ol>
 </section>
 
@@ -235,7 +236,7 @@
     <tr><td><span class="rep">1</span></td><td><b>Votre carte de profil</b> : nom, statut « Étudiant », adresse e-mail et groupe. Les deux petits boutons du bas ouvrent le
       <span class="menu">Guide d'utilisation</span> (à gauche) et vous <b>déconnectent</b> (à droite).</td></tr>
     <tr><td><span class="rep">2</span></td><td><b>Rechercher une page</b> : tapez quelques lettres (par exemple « notes ») pour retrouver et ouvrir un menu instantanément.</td></tr>
-    <tr><td><span class="rep">3</span></td><td><b>Le menu</b>, en deux rubriques : <i>Administratif</i> (calendrier, paiements, demandes) et <i>Pédagogie</i>
+    <tr><td><span class="rep">3</span></td><td><b>Le menu</b>, en deux rubriques : <i>Administratif</i> (calendrier, paiements, guichet en ligne) et <i>Pédagogie</i>
       (planification, ressources, absences, notes, guide). Le menu ouvert est surligné.</td></tr>
     <tr><td><span class="rep">4</span></td><td><b>L'étoile ☆</b> épingle un menu dans vos <b>Favoris</b>, affichés sous forme de boutons ronds en haut du menu.
       Cliquez à nouveau sur l'étoile pour le retirer. Astuce : épinglez les menus que vous consultez le plus (par exemple <span class="menu">Ma planification</span> et <span class="menu">Mes notes</span>).</td></tr>
@@ -311,21 +312,22 @@
     <figcaption><b>Onglet Historique.</b></figcaption>
   </figure>
   <div class="note attention"><b class="t">Un montant vous semble incorrect ?</b>
-  Envoyez un message à l'administration depuis <span class="menu">Mes demandes</span> (voir chapitre 6), en précisant la date et le numéro de reçu concernés.</div>
+  Envoyez un message à l'administration depuis le <span class="menu">Guichet en ligne</span> (voir chapitre 6), en précisant la date et le numéro de reçu concernés.</div>
 </section>
 
-<!-- ═══════════════════════════ 6. DEMANDES ═══════════════════════════ -->
+<!-- ═══════════════════════════ 6. GUICHET EN LIGNE ═══════════════════════════ -->
 <section class="chapitre">
-  <h2>6. Mes demandes</h2>
-  <p class="intro">Demandez un document administratif ou écrivez à l'administration, puis suivez l'avancement et les réponses, au même endroit.</p>
+  <h2>6. Guichet en ligne</h2>
+  <p class="intro">Le guichet en ligne rassemble vos échanges avec l'école : demander un document administratif, écrire à l'administration et
+  <b>envoyer vos livrables</b> (rapports, TP, projets) à vos professeurs. Deux onglets séparent les <b>Demandes et messages</b> et les <b>Livrables</b>.</p>
   <figure>
-    <img loading="lazy" decoding="async" src="img/07_demandes_liste.jpg" alt="Mes demandes et messages">
-    <figcaption><b>Mes demandes et messages.</b> <span class="rep">1</span> Écrire à l'administration · <span class="rep">2</span> Nouvelle demande ·
-    <span class="rep">3</span> Conversation avec un nouveau message.</figcaption>
+    <img loading="lazy" decoding="async" src="img/07_demandes_liste.jpg" alt="Guichet en ligne — demandes et messages">
+    <figcaption><b>Guichet en ligne, onglet « Demandes et messages ».</b> <span class="rep">1</span> Écrire à l'administration · <span class="rep">2</span> Nouvelle demande ·
+    <span class="rep">3</span> Conversation avec un nouveau message · <span class="rep">4</span> Onglet des livrables.</figcaption>
   </figure>
   <h3><span class="num">6.1</span>Demander un document</h3>
   <ol class="etapes">
-    <li>Cliquez sur <span class="menu">Mes demandes</span>, puis sur <span class="btn">+ Nouvelle demande</span> en haut à droite.</li>
+    <li>Cliquez sur <span class="menu">Guichet en ligne</span>, puis sur <span class="btn">+ Nouvelle demande</span> en haut à droite.</li>
     <li>Choisissez l'<b>année universitaire concernée</b> <span class="rep">1</span>.</li>
     <li>Choisissez le <b>document souhaité</b> <span class="rep">2</span> : attestation d'inscription, attestation de scolarité, attestation de réussite,
       relevé de notes ou autre.</li>
@@ -369,23 +371,66 @@
     <tr><td><span class="pastille" style="background:#7c3aed">Traité</span></td><td>La demande est close ; la réponse de l'administration est affichée.</td></tr>
     <tr><td><span class="pastille" style="background:#c0392b">Rejetée</span></td><td>La demande ne peut pas aboutir ; consultez la réponse ou la conversation pour en connaître la raison.</td></tr>
   </table>
+  <h3><span class="num">6.4</span>Envoyer un livrable à un professeur</h3>
+  <p>Un <b>livrable</b> est un travail à remettre : rapport de TP, projet, exposé, mémoire… Il est envoyé à la fois au <b>professeur du module</b>
+  et à l'<b>administration de l'école</b>.</p>
+  <ol class="etapes">
+    <li>Dans le <span class="menu">Guichet en ligne</span>, cliquez sur <span class="btn">📤 Envoyer un livrable</span>.</li>
+    <li>Choisissez le <b>module concerné</b> <span class="rep">1</span> parmi les modules de votre groupe : le nom du professeur destinataire s'affiche juste en dessous.</li>
+    <li>Donnez un <b>titre</b> à votre livrable <span class="rep">2</span> (par exemple « Rapport du TP 3 » ou « Projet final »).</li>
+    <li>Cliquez sur <span class="btn">Choisir des fichiers</span> <span class="rep">3</span> et sélectionnez vos fichiers : <b>5 fichiers au plus</b>,
+      <b>100 Mo chacun</b> au maximum (PDF, Word, PowerPoint, archive ZIP…). Retirez un fichier ajouté par erreur avec <b>✕</b>.</li>
+    <li>Ajoutez si vous le souhaitez un <b>message</b> pour le professeur.</li>
+    <li>Cliquez sur <span class="btn">📤 Envoyer le livrable</span> <span class="rep">4</span>. Une barre de progression suit l'envoi ; ne fermez pas la page avant
+      le message de confirmation. Le professeur et l'administration sont prévenus par e-mail.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/22_livrable_envoi.jpg" alt="Envoyer un livrable">
+    <figcaption><b>Envoi d'un livrable.</b> <span class="rep">1</span> Module · <span class="rep">2</span> Titre · <span class="rep">3</span> Fichiers · <span class="rep">4</span> Envoi.</figcaption>
+  </figure>
+  <h3><span class="num">6.5</span>Suivre vos livrables</h3>
+  <ol class="etapes">
+    <li>Ouvrez l'onglet <span class="btn">📤 Livrables</span> : vos envois s'affichent, du plus récent au plus ancien, avec leur module, le professeur et la date d'envoi.
+      Un chiffre orange sur l'onglet signale une nouvelle réponse.</li>
+    <li>Cliquez sur un fichier <span class="rep">2</span> pour l'ouvrir et vérifier ce que vous avez envoyé.</li>
+    <li>Le professeur ou l'administration peut vous écrire : cliquez sur <span class="btn">💬 1 message</span> <span class="rep">3</span> pour lire et répondre,
+      comme pour une demande.</li>
+  </ol>
+  <figure>
+    <img loading="lazy" decoding="async" src="img/21_livrables_liste.jpg" alt="Mes livrables">
+    <figcaption><b>Onglet « Livrables ».</b> <span class="rep">1</span> Envoyer un livrable · <span class="rep">2</span> Fichier envoyé · <span class="rep">3</span> Conversation avec le professeur.</figcaption>
+  </figure>
+  <table class="tab">
+    <tr><th style="width:35mm">Statut</th><th>Signification</th></tr>
+    <tr><td><span class="pastille" style="background:#c99a2e">Envoyé</span></td><td>Votre livrable est bien déposé ; le professeur ne l'a pas encore consulté.</td></tr>
+    <tr><td><span class="pastille" style="background:#0d9488">Reçu</span></td><td>Le professeur (ou l'administration) a pris connaissance de votre livrable.</td></tr>
+    <tr><td><span class="pastille" style="background:#dc2626">À corriger</span></td><td>Des corrections sont demandées : lisez la conversation, puis envoyez une nouvelle version.</td></tr>
+    <tr><td><span class="pastille" style="background:#2e7d52">Validé</span></td><td>Votre livrable est accepté.</td></tr>
+  </table>
+  <div class="note attention"><b class="t">Confidentialité et versions</b>
+  <ul>
+    <li>Vos fichiers ne sont visibles que par <b>vous</b>, le <b>professeur du module</b> et l'<b>administration</b> : aucun autre étudiant n'y a accès.</li>
+    <li>Quelques minutes après l'envoi, les fichiers sont <b>verrouillés</b> : vous pouvez toujours les ouvrir, mais plus les modifier.
+      Pour corriger un travail, envoyez simplement un <b>nouveau livrable</b> (par exemple « Rapport du TP 3 — version 2 »).</li>
+    <li>Si le message <i>« Votre espace de dépôt n'est pas encore prêt »</i> apparaît, réessayez un peu plus tard : il est créé automatiquement par l'administration.</li>
+  </ul></div>
 </section>
 
 <!-- ═══════════════════════════ 7. PLANIFICATION ═══════════════════════════ -->
 <section class="chapitre">
   <h2>7. Ma planification des cours et des examens</h2>
-  <p class="intro">Retrouvez votre emploi du temps semaine par semaine, rejoignez vos cours à distance et consultez les dates de vos évaluations.</p>
+  <p class="intro">Retrouvez votre emploi du temps semaine par semaine, rejoignez vos cours à distance, consultez les dates de vos évaluations et
+  passez vos évaluations en ligne sur Teams.</p>
   <h3><span class="num">7.1</span>Consulter vos séances de la semaine</h3>
   <ol class="etapes">
     <li>Cliquez sur <span class="menu">Ma planification des cours et des examens</span>, puis sur la tuile <span class="btn">Mes séances</span> (ouverte par défaut).</li>
     <li>Choisissez le <b>semestre</b> <span class="rep">1</span>.</li>
     <li>Choisissez la <b>semaine</b> dans la liste <span class="rep">2</span>, ou passez d'une semaine à l'autre avec les flèches <span class="btn">◀</span> et
       <span class="btn">▶</span>. La semaine en cours est affichée à l'ouverture.</li>
-    <li>La grille présente une colonne par jour et une ligne par demi-heure. Chaque séance indique le <b>module</b>, l'<b>enseignant</b>, l'<b>horaire</b>,
-      la période du module, le mode (<b>📍 Présentiel</b> avec la salle, ou <b>💻 À distance</b>) et les dates de <b>CC</b> (contrôle continu) et d'<b>EFM</b> (examen de fin de module).</li>
-    <li>Pour une lecture plus compacte, les <b>jours et heures sans séance sont masqués</b> : une fine bande hachurée remplace les plages vides.
-      Cliquez sur <span class="btn">↕ Afficher tous les jours et toutes les heures</span> pour voir la grille complète, puis sur
-      <span class="btn">↕ Masquer les jours et heures sans séance</span> pour revenir à l'affichage compact.</li>
+    <li>Chaque séance indique le <b>module</b>, l'<b>enseignant</b>, l'<b>horaire</b>, le mode (<b>📍 Présentiel</b> avec la salle, ou <b>💻 À distance</b>)
+      et les dates de <b>CC</b> (contrôle continu) et d'<b>EFM</b> (examen de fin de module).</li>
+    <li>Les <b>jours et heures sans séance sont masqués</b> pour une lecture plus compacte. Le bouton <span class="btn">↕ Afficher tous les jours et toutes les heures</span>
+      affiche la grille complète.</li>
   </ol>
   <figure class="grand">
     <img loading="lazy" decoding="async" src="img/11_planif_seances.jpg" alt="Planification des séances">
@@ -393,41 +438,67 @@
   </figure>
   <h3><span class="num">7.2</span>Rejoindre un cours à distance (Teams)</h3>
   <ol class="etapes">
-    <li>Au moment du cours, repérez la séance marquée <b>💻 À distance</b>.</li>
-    <li>Cliquez sur <span class="btn">💻 Rejoindre Teams</span> <span class="rep">3</span>.</li>
-    <li>Teams s'ouvre (application ou navigateur). <b>Connectez-vous avec votre compte @esrmi.ma</b> avant d'entrer dans la réunion :
-      votre présence est ainsi correctement identifiée.</li>
+    <li>Au moment du cours, repérez la séance marquée <b>💻 À distance</b> et cliquez sur <span class="btn">💻 Rejoindre Teams</span> <span class="rep">3</span>.</li>
+    <li>Une fenêtre rappelle votre nom et votre adresse ECOGEST : vérifiez que Teams est bien connecté avec <b>ce</b> compte, puis cliquez sur
+      <span class="btn">C'est mon compte → ouvrir Teams</span>. Le bouton <span class="btn">Copier le lien</span> permet aussi de coller le lien dans Teams.</li>
+    <li>Teams s'ouvre (application ou navigateur) et vous rejoignez la réunion : votre présence est ainsi correctement identifiée.</li>
   </ol>
-  <div class="note attention"><b class="t">Important</b>Rejoignez toujours vos cours avec votre compte scolaire <b>@esrmi.ma</b>, et non comme « invité » ou avec un compte personnel.</div>
-  <h3><span class="num">7.3</span>Consulter les dates de contrôle continu et d'examen</h3>
+  <div class="note attention"><b class="t">Important</b>Rejoignez toujours vos cours avec votre compte scolaire <b>@esrmi.ma</b>, et non comme « invité » ou avec un compte personnel.
+  Sur un appareil partagé, déconnectez-vous aussi de Teams en fin de séance.</div>
+  <h3><span class="num">7.3</span>Consulter les dates et horaires des contrôles et examens</h3>
   <ol class="etapes">
-    <li>Cliquez sur la tuile <span class="btn">Mes examens</span>.</li>
+    <li>Cliquez sur la tuile <span class="btn">Mes examens</span> : l'onglet <span class="btn">Planning de mes examens</span> s'ouvre.</li>
     <li>Choisissez le semestre.</li>
-    <li>Le tableau donne, pour chaque module, l'enseignant, la date du <b>contrôle continu</b> et celle de l'<b>examen de fin de module</b>,
-      avec le nombre de jours restants (« Dans 45 j »).</li>
+    <li>Le tableau donne, pour chaque module, l'enseignant, la date du <b>contrôle continu</b> et celle de l'<b>examen de fin de module</b>, avec leur <b>horaire</b> dès qu'il est fixé par l'administration.</li>
   </ol>
   <figure>
     <img loading="lazy" decoding="async" src="img/12_planif_examens.jpg" alt="Planification des examens">
-    <figcaption><b>Planification des examens.</b></figcaption>
+    <figcaption><b>Planning des examens.</b></figcaption>
   </figure>
+  <h3><span class="num">7.4</span>Passer une évaluation en ligne (Teams)</h3>
+  <p>Certains contrôles continus (<b>CC</b>) et examens de fin de module (<b>EFM</b>) se passent en ligne, sous forme de <b>devoirs Teams</b>.
+  ECOGEST vous les présente et vous y conduit directement.</p>
+  <ol class="etapes">
+    <li>Dès qu'une évaluation est ouverte, un <b>bandeau orange</b> <span class="rep">1</span> apparaît en haut de <b>toutes</b> les pages d'ECOGEST :
+      module, type (CC ou EFM), heure limite et temps restant.</li>
+    <li>Cliquez sur <span class="btn">Lancer l'examen ↗</span> : le devoir s'ouvre directement dans Teams. Répondez, joignez vos fichiers si besoin,
+      puis cliquez sur <b>Rendre</b> dans Teams avant l'heure limite.</li>
+    <li>Pour voir toutes vos évaluations en ligne, cliquez sur la tuile <span class="btn">Mes examens</span> puis sur <span class="btn">Évaluations prévues en ligne</span> :
+      elles sont classées par jour d'échéance, avec <b>En cours</b>, <b>À venir</b> et <b>Terminées</b>. Le bouton <span class="btn">🚀 Lancer l'examen</span> <span class="rep">2</span>
+      apparaît sur chaque évaluation ouverte.</li>
+    <li>Une évaluation à venir affiche <b>🔒 Ouvre à …</b> <span class="rep">3</span> : le bouton apparaît <b>tout seul</b> à l'heure d'ouverture, sans recharger la page
+      (la liste se met à jour chaque minute).</li>
+  </ol>
+  <figure class="grand">
+    <img loading="lazy" decoding="async" src="img/23_evaluations_en_ligne.jpg" alt="Évaluations prévues en ligne">
+    <figcaption><b>Évaluations en ligne.</b> <span class="rep">1</span> Bandeau des évaluations ouvertes · <span class="rep">2</span> Lancer l'examen · <span class="rep">3</span> Évaluation pas encore ouverte.</figcaption>
+  </figure>
+  <div class="note info"><b class="t">Bon à savoir</b>
+  <ul>
+    <li>Les heures affichées sont celles de l'école. C'est <b>Teams</b> qui ouvre et ferme l'évaluation : avant l'heure, le devoir n'est pas accessible.</li>
+    <li>« Échéance passée — rendu en retard encore accepté » : vous pouvez encore rendre, mais votre travail sera marqué en retard.</li>
+    <li>Le devoir s'ouvre dans Teams avec le compte connecté sur votre appareil : vérifiez qu'il s'agit bien de votre compte <b>@esrmi.ma</b>.</li>
+    <li>Votre note est reprise dans <span class="menu">Mes notes</span> une fois publiée par l'enseignant.</li>
+  </ul></div>
 </section>
 
 <!-- ═══════════════════════════ 8. RESSOURCES ═══════════════════════════ -->
 <section class="chapitre">
   <h2>8. Mes supports &amp; Enregistrements Teams</h2>
-  <p class="intro">Revoyez vos cours enregistrés (« replay ») et téléchargez les supports de cours, module par module.</p>
-  <figure class="grand">
+  <p class="intro">Revoyez les séances enregistrées et ouvrez les supports de cours, module par module, dans un seul espace.</p>
+  <figure>
     <img loading="lazy" decoding="async" src="img/13_ressources.jpg" alt="Mes supports et enregistrements Teams">
-    <figcaption><b>Mes supports &amp; Enregistrements Teams.</b> <span class="rep">1</span> Dernière séance disponible · <span class="rep">2</span> Carte d'un module · <span class="rep">3</span> La semaine en replay.</figcaption>
+    <figcaption><b>Mes supports &amp; Enregistrements Teams.</b> <span class="rep">1</span> Vos modules · <span class="rep">2</span> Enregistrements des séances · <span class="rep">3</span> Supports de cours.</figcaption>
   </figure>
   <ol class="etapes">
-    <li>Cliquez sur <span class="menu">Mes supports &amp; Enregistrements Teams</span>. Vérifiez l'année universitaire en haut de page.</li>
-    <li>Le grand bandeau <span class="rep">1</span> propose la <b>dernière séance enregistrée</b> : cliquez sur <span class="btn">Regarder maintenant</span>.</li>
-    <li>Les cartes <span class="rep">2</span> regroupent vos modules du semestre. Cliquez sur la partie <b>▶</b> d'une carte pour ouvrir les
-      <b>enregistrements</b> du module, ou sur <span class="btn">📚 Supports</span> pour ouvrir ses <b>supports de cours</b>.
-      Un cadenas 🔒 « Replay bientôt » signifie que l'enregistrement n'est pas encore disponible.</li>
-    <li>La section <b>Cette semaine en replay</b> <span class="rep">3</span> liste les séances de la semaine, jour par jour : cliquez sur
-      <span class="btn">▶ replay</span> pour revoir une séance précise.</li>
+    <li>Cliquez sur <span class="menu">Mes supports &amp; Enregistrements Teams</span>. Vérifiez l'année universitaire en haut de page ; la zone de recherche
+      retrouve un module ou un professeur.</li>
+    <li>À gauche <span class="rep">1</span>, la liste de vos modules par semestre indique pour chacun le professeur, le nombre d'enregistrements (▶) et de supports (📚).
+      Cliquez sur un module pour l'ouvrir à droite.</li>
+    <li>L'en-tête du module rappelle le professeur et la <b>prochaine séance</b>.</li>
+    <li>La partie <b>Enregistrements des séances</b> <span class="rep">2</span> présente les séances enregistrées, regroupées par <b>mois</b> (cliquez sur un mois
+      pour le déplier) : cliquez sur une séance 🎬 pour la revoir. Seules les séances réellement disponibles sont affichées.</li>
+    <li>La partie <b>Supports de cours</b> <span class="rep">3</span> donne accès aux documents du module (PDF, présentations, exercices…) : cliquez sur <span class="btn">Ouvrir ↗</span>.</li>
     <li>Si un document vient d'être ajouté, cliquez sur <span class="btn">🔄 Actualiser les documents</span>.</li>
   </ol>
   <div class="note info"><b class="t">Un lien affiche « Accès refusé » ?</b>
@@ -440,7 +511,7 @@
   <h2>9. Mes absences</h2>
   <p class="intro">Suivez vos absences enregistrées par vos enseignants et votre taux d'absence par module. La page propose trois vues, à choisir en haut de page.</p>
   <div class="note attention"><b class="t">Justifier une absence</b>
-  Remettez votre justificatif (certificat médical…) à l'administration, ou envoyez un message depuis <span class="menu">Mes demandes</span>
+  Remettez votre justificatif (certificat médical…) à l'administration, ou envoyez un message depuis le <span class="menu">Guichet en ligne</span>
   en précisant la date, l'horaire et le module. Une fois l'absence justifiée par l'administration, son statut passe à <b>✓ Justifié</b>.
   Surveillez votre taux : au-delà de <b>25 %</b> d'absence dans un module (seuil officiel de l'établissement), votre situation est signalée.</div>
   <h3><span class="num">9.1</span>Synthèse par module</h3>
@@ -484,8 +555,8 @@
   <ul>
     <li>Une note apparaît dès qu'elle est saisie par l'enseignant ou l'administration.</li>
     <li>La note du module et la décision sont calculées automatiquement selon les règles de l'établissement.</li>
-    <li>Pour obtenir un <b>relevé officiel</b> signé, faites une demande de « Relevé de notes » dans <span class="menu">Mes demandes</span>.</li>
-    <li>Une erreur sur une note ? Écrivez à l'administration depuis <span class="menu">Mes demandes</span> en précisant le module et l'évaluation.</li>
+    <li>Pour obtenir un <b>relevé officiel</b> signé, faites une demande de « Relevé de notes » dans le <span class="menu">Guichet en ligne</span>.</li>
+    <li>Une erreur sur une note ? Écrivez à l'administration depuis le <span class="menu">Guichet en ligne</span> en précisant le module et l'évaluation.</li>
   </ul></div>
   <h3><span class="num">10.1</span>Relevé synthétique</h3>
   <ol class="etapes">
@@ -527,11 +598,12 @@
   <h2>11. Guide d'utilisation</h2>
   <ol class="etapes">
     <li>Cliquez sur <span class="menu">Guide d'utilisation</span> dans le menu, ou sur le petit bouton 📖 de votre carte de profil.</li>
-    <li>Votre <b>brochure personnalisée</b> s'affiche directement dans la page. Elle reprend vos paramètres de connexion (adresse e-mail et identifiants)
-      et est générée dans votre navigateur : elle n'est ni envoyée ni stockée ailleurs.</li>
-    <li>Si elle ne s'affiche pas, cliquez sur le lien <b>« Ouvrez-le dans un nouvel onglet »</b> sous la brochure. Vous pouvez ensuite l'imprimer ou l'enregistrer en PDF.</li>
+    <li>Ce <b>guide illustré</b> s'affiche directement dans la page. Cliquez sur <span class="btn">⬇ Télécharger le PDF</span> pour l'enregistrer
+      ou l'imprimer.</li>
+    <li>S'il ne s'affiche pas, cliquez sur le lien <b>« Ouvrez-le dans un nouvel onglet »</b> sous le guide.</li>
   </ol>
-  <div class="note attention"><b class="t">Confidentialité</b>Cette brochure contient vos identifiants : ne la partagez pas et ne l'imprimez pas sur un poste public.</div>
+  <div class="note attention"><b class="t">Confidentialité</b>Le guide remis par l'administration porte, en page de garde, vos paramètres d'accès
+  (adresse e-mail et mot de passe) : conservez-le en lieu sûr, ne le partagez pas et ne le laissez pas sur un poste public.</div>
 
   <h2 style="margin-top:10mm">12. Utiliser ECOGEST sur téléphone</h2>
   <p class="intro">ECOGEST s'adapte automatiquement aux téléphones et aux tablettes : toutes les opérations de ce guide y sont disponibles.</p>
@@ -562,23 +634,28 @@
     <dd>Vérifiez que vous utilisez bien votre adresse <b>@esrmi.ma</b>. Déconnectez-vous, actualisez la page puis reconnectez-vous. Si le problème persiste,
       contactez l'administration : votre fiche étudiant doit être associée à votre adresse.</dd>
     <dt>Une information est erronée (nom, groupe, note, absence, paiement).</dt>
-    <dd>Écrivez à l'administration depuis <span class="menu">Mes demandes</span> → <span class="btn">✉️ Écrire à l'administration</span>, en donnant le maximum de précisions.</dd>
+    <dd>Écrivez à l'administration depuis le <span class="menu">Guichet en ligne</span> → <span class="btn">✉️ Écrire à l'administration</span>, en donnant le maximum de précisions.</dd>
     <dt>Mes nouvelles notes ou absences n'apparaissent pas.</dt>
     <dd>Cliquez sur le bouton 🔄 en bas du menu (synchronisation) ou actualisez la page. Si l'information manque toujours, elle n'a pas encore été saisie.</dd>
     <dt>Le bouton « Rejoindre Teams » n'ouvre pas le cours.</dt>
     <dd>Vérifiez que Teams est connecté avec votre compte @esrmi.ma. Vous pouvez aussi rejoindre le cours depuis Teams sur le Web (teams.microsoft.com).</dd>
+    <dt>Le bouton « Lancer l'examen » n'apparaît pas alors que l'évaluation a commencé.</dt>
+    <dd>La liste se met à jour chaque minute : patientez un instant ou cliquez sur <span class="btn">🔄 Actualiser</span>. Si le bouton n'apparaît toujours pas,
+      ouvrez directement l'onglet <b>Devoirs</b> de votre équipe Teams et prévenez l'administration.</dd>
+    <dt>Je me suis trompé de fichier dans un livrable.</dt>
+    <dd>Envoyez un nouveau livrable avec le bon fichier (par exemple « Rapport — version 2 ») et signalez-le au professeur dans la conversation du livrable.</dd>
     <dt>Un enregistrement ou un support affiche « Accès refusé ».</dt>
     <dd>Connectez-vous au navigateur avec votre compte @esrmi.ma (et non un compte personnel), puis rouvrez le lien depuis ECOGEST.</dd>
     <dt>Comment obtenir une attestation ou un relevé officiel ?</dt>
-    <dd>Faites une demande dans <span class="menu">Mes demandes</span> → <span class="btn">+ Nouvelle demande</span>. Vous serez informé par e-mail et dans ECOGEST
+    <dd>Faites une demande dans le <span class="menu">Guichet en ligne</span> → <span class="btn">+ Nouvelle demande</span>. Vous serez informé par e-mail et dans ECOGEST
       lorsque le document sera prêt.</dd>
     <dt>Puis-je utiliser ECOGEST sur plusieurs appareils ?</dt>
     <dd>Oui : ordinateur, tablette et téléphone. Pensez à vous déconnecter sur les appareils partagés.</dd>
   </dl>
   <div class="note info" style="margin-top:8mm"><b class="t">Besoin d'aide ?</b>
-  Pour toute question sur l'utilisation d'ECOGEST, écrivez à l'administration depuis <span class="menu">Mes demandes</span>
+  Pour toute question sur l'utilisation d'ECOGEST, écrivez à l'administration depuis le <span class="menu">Guichet en ligne</span>
   ou présentez-vous au secrétariat de l'école.</div>
-  <p class="avertissement">Guide de l'espace étudiant ECOGEST — édition octobre 2026 (version de l'application v3.792).
+  <p class="avertissement">Guide de l'espace étudiant ECOGEST — édition octobre 2026 (version de l'application v3.922).
   Les captures d'écran utilisent un compte de démonstration et des données fictives.</p>
 </section>
 
